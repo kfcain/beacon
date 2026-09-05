@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
+
 from beacon.config import DEFAULT_SCF_API_BASE, load_settings
 from beacon.crypto.witness import check_chain, load_records
 from beacon.plugins.spec import CollectContext
+from beacon.errors import E_UNKNOWN_CONTROL, BeaconError
 from beacon.scf.client import expected_version, fetch_control, summary
 from beacon.scf.engine import collect_target
 from beacon.workspace import seed_workspace
@@ -30,6 +33,12 @@ def test_scf_api_base_override(beacon_home, monkeypatch):
     settings = load_settings()
     assert settings.scf_api_base == "https://example.test/scf/"
     assert DEFAULT_SCF_API_BASE.startswith("https://hackidle.github.io/scf-api")
+
+
+def test_invalid_control_id_rejected(beacon_home):
+    with pytest.raises(BeaconError) as caught:
+        fetch_control(load_settings(), "../crypto/tsa")
+    assert caught.value.code == E_UNKNOWN_CONTROL
 
 
 def test_collect_target_iac_01_selects_overlapping_inspectors(initialized):

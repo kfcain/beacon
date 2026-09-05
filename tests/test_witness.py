@@ -17,7 +17,7 @@ from beacon.crypto.witness import (
     load_records,
     seal_payload,
 )
-from beacon.errors import E_NO_CHECKPOINT, BeaconError
+from beacon.errors import E_BAD_CHAIN, E_NO_CHECKPOINT, BeaconError
 
 
 def test_init_creates_distinct_recorder_and_witness(initialized):
@@ -116,3 +116,36 @@ def test_hash_chain_links(initialized):
     records = load_records(settings)
     assert len(records) == 2
     assert load_checkpoints(settings)[0].leaf_count == 2
+
+
+def test_tampered_evidence_fails_check(initialized):
+    settings = load_settings()
+    record = seal_payload(
+        settings,
+        plugin="aws.inspector",
+        mode="fixture",
+        scf_targets=["IAC-01"],
+        payload={"k": "clean"},
+    )
+    create_checkpoint(settings)
+    path = settings.evidence_dir / f"{record.evidence_id}.json"
+    path.write_text('{"secret":"TAMPERED"}', encoding="utf-8")
+    with pytest.raises(BeaconError) as caught:
+        check_chain(settings)
+    assert caught.value.code == E_BAD_CHAIN
+
+
+def test_checkpoint_gap_is_e_no_checkpoint(initialized):
+    settings = load_settings()
+    for i in range(3):
+        seal_payload(
+            settings,
+            plugin="aws.inspector",
+            mode="fixture",
+            scf_targets=["IAC-01"],
+            payload={"i": i},
+        )
+    create_checkpoint(settings, from_seq=3, to_seq=3)
+    with pytest.raises(BeaconError) as caught:
+        check_chain(settings)
+    assert caught.value.code == E_NO_CHECKPOINT

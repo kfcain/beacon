@@ -9,7 +9,9 @@ import pytest
 from beacon.config import load_settings
 from beacon.plugins.cloud import AWS_PROFILE, CloudInspectorPlugin, builtin_plugins
 from beacon.plugins.loader import load_plugins
+from beacon.errors import E_ALREADY_INITIALIZED, BeaconError
 from beacon.plugins.spec import CollectContext, FetcherSpec
+from beacon.workspace import init_workspace
 
 
 def test_aws_azure_gcp_share_plugin_class():
@@ -61,3 +63,44 @@ def test_drop_in_plugin_from_beacon_plugin_path(initialized, monkeypatch: pytest
     assert result.payload["message"] == "GOV-01"
     assert hasattr(plugin, "collect")
     assert plugin.spec.name == "echo"
+
+
+class _Proc:
+    def __init__(self, returncode: int, stdout: str = "", stderr: str = "") -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def test_expired_token_probe_is_live_failed_not_fixture(initialized, monkeypatch: pytest.MonkeyPatch):
+    plugin = CloudInspectorPlugin(AWS_PROFILE)
+    monkeypatch.setattr("beacon.plugins.cloud.shutil.which", lambda _name: "/usr/bin/aws")
+    monkeypatch.setattr(
+        "beacon.plugins.cloud._run",
+        lambda *_a, **_k: _Proc(
+            1, "", "ExpiredToken: The security token included in the request is expired"
+        ),
+    )
+    result = plugin.collect(CollectContext())
+    assert result.ok is False
+    assert result.mode == "live_failed"
+    assert result.payload.get("mode") == "live_failed"
+
+
+def test_live_true_does_not_use_force_fixture(initialized, monkeypatch: pytest.MonkeyPatch):
+    plugin = CloudInspectorPlugin(AWS_PROFILE)
+    monkeypatch.setattr(plugin, "_probe", lambda: "ok")
+    monkeypatch.setattr(
+        plugin,
+        "_live_collect",
+        lambda _ctx: {"source": "aws.inspector", "mode": "live", "findings": []},
+    )
+    result = plugin.collect(CollectContext(live=True, extra={"force_fixture": True}))
+    assert result.mode == "live"
+    assert result.ok is True
+
+
+def test_init_refuses_to_overwrite_keys(initialized):
+    with pytest.raises(BeaconError) as caught:
+        init_workspace(load_settings())
+    assert caught.value.code == E_ALREADY_INITIALIZED

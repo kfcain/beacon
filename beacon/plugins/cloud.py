@@ -18,17 +18,21 @@ FIXTURE_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 _NO_CREDS_MARKERS = (
     "unable to locate credentials",
     "nocredentialproviders",
-    "could not be found",
     "please run az login",
     "az login",
     "no active account",
     "there are no credentials",
     "not logged in",
-    "reauthentication needed",
-    "expiredtoken",
-    "no credentials",
     "could not find default credentials",
     "application default credentials",
+)
+
+_LIVE_FAIL_MARKERS = (
+    "expiredtoken",
+    "expired token",
+    "accessdenied",
+    "invalidclienttokenid",
+    "reauthentication needed",
 )
 
 
@@ -105,6 +109,11 @@ def _looks_like_missing_creds(text: str) -> bool:
     return any(marker in lower for marker in _NO_CREDS_MARKERS)
 
 
+def _looks_like_live_failure(text: str) -> bool:
+    lower = text.lower()
+    return any(marker in lower for marker in _LIVE_FAIL_MARKERS)
+
+
 class CloudInspectorPlugin:
     """One plugin class. AWS, Azure, and GCP are instances with a cloud profile."""
 
@@ -121,6 +130,8 @@ class CloudInspectorPlugin:
 
     def collect(self, ctx: CollectContext) -> CollectResult:
         force_fixture = bool(ctx.extra.get("force_fixture"))
+        if ctx.live is True:
+            force_fixture = False
         if force_fixture or ctx.live is False:
             return self._fixture_result(ctx, reason="forced_fixture")
         probe = self._probe()
@@ -129,7 +140,7 @@ class CloudInspectorPlugin:
                 return self._live_failed("live requested but credentials are not available")
             if probe == "no_creds":
                 return self._fixture_result(ctx, reason="no_credentials")
-            return self._live_failed("credential probe failed after a live identity was present")
+            return self._live_failed("live credential or API probe failed")
         try:
             payload = self._live_collect(ctx)
         except Exception as exc:
@@ -157,7 +168,9 @@ class CloudInspectorPlugin:
             return "live_failed"
         combined = f"{proc.stdout}\n{proc.stderr}"
         if proc.returncode != 0:
-            if _looks_like_missing_creds(combined) or not proc.stdout.strip():
+            if _looks_like_live_failure(combined):
+                return "live_failed"
+            if _looks_like_missing_creds(combined):
                 return "no_creds"
             return "live_failed"
         if self.profile.cloud == "gcp" and not proc.stdout.strip():

@@ -177,6 +177,8 @@ def call_tool(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
         return fn(arguments or {})
     except BeaconError as exc:
         return _tool_error(exc)
+    except Exception as exc:
+        return {"ok": False, "code": "E_ERROR", "error": str(exc)}
 
 
 def _rpc_result(rpc_id: Any, result: Any) -> dict[str, Any]:

@@ -17,7 +17,8 @@ def collect_plugin(
     ctx: CollectContext,
 ) -> CollectResult:
     extra = dict(ctx.extra)
-    extra.setdefault("force_fixture", settings.force_fixture)
+    if ctx.live is not True:
+        extra.setdefault("force_fixture", settings.force_fixture)
     bound = CollectContext(target=ctx.target, live=ctx.live, extra=extra)
     return plugin.collect(bound)
 
@@ -70,15 +71,15 @@ def collect_target(
     checkpoint: bool = True,
 ) -> dict[str, Any]:
     control = fetch_control(settings, target)
-    ctx = ctx or CollectContext(target=target)
-    ctx.target = target
+    bound = CollectContext(target=target, live=(ctx.live if ctx else None), extra=dict(ctx.extra) if ctx else {})
     selected = plugins_for_target(settings, target)
     runs = []
     for plugin in selected:
-        result = collect_plugin(settings, plugin, ctx)
+        result = collect_plugin(settings, plugin, bound)
         runs.append(seal_result(settings, plugin, result))
     out: dict[str, Any] = {
         "target": target.upper(),
+        "ok": all(item["ok"] for item in runs) if runs else True,
         "control": {
             "control_id": control.get("control_id"),
             "title": control.get("title"),
@@ -105,7 +106,7 @@ def collect_all(
     for plugin in load_plugins(settings).values():
         result = collect_plugin(settings, plugin, ctx)
         runs.append(seal_result(settings, plugin, result))
-    out: dict[str, Any] = {"runs": runs}
+    out: dict[str, Any] = {"ok": all(item["ok"] for item in runs) if runs else True, "runs": runs}
     if checkpoint and runs:
         cp = create_checkpoint(settings)
         out["checkpoint"] = {"merkle_root": cp.merkle_root, "to_seq": cp.to_seq}

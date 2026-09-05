@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Iterator
 from uuid import uuid4
 
-from beacon.canonical import dumps, sha256_obj
+from beacon.canonical import dumps, sha256_bytes, sha256_obj
 from beacon.config import Settings
 from beacon.crypto.keys import KeyPair, load_roles, verify
 from beacon.crypto.merkle import merkle_root
@@ -20,6 +20,7 @@ from beacon.errors import (
     E_KEY_COLLISION,
     E_NO_CHECKPOINT,
     E_NOT_INITIALIZED,
+    E_TSA,
     BeaconError,
     fail,
 )
@@ -209,9 +210,9 @@ def seal_payload(
     body = record.unsigned_body()
     record.recorder_sig = recorder.sign(_recorder_message(body))
     record.witness_sig = witness.sign(_witness_message(body, record.recorder_sig))
-    _append_jsonl(settings.chain_path, record.to_dict())
     evidence_path = settings.evidence_dir / f"{evidence_id}.json"
     evidence_path.write_bytes(dumps(payload))
+    _append_jsonl(settings.chain_path, record.to_dict())
     return record
 
 
@@ -249,6 +250,15 @@ def create_checkpoint(
     return checkpoint
 
 
+def _covered_seqs(checkpoints: list[Checkpoint]) -> set[int]:
+    covered: set[int] = set()
+    for item in checkpoints:
+        if item.from_seq > item.to_seq:
+            fail(E_NO_CHECKPOINT, f"checkpoint {item.tsa_serial} has from_seq > to_seq")
+        covered.update(range(item.from_seq, item.to_seq + 1))
+    return covered
+
+
 def _covered_through(checkpoints: list[Checkpoint]) -> int:
     if not checkpoints:
         return 0
@@ -275,36 +285,51 @@ def check_chain(settings: Settings) -> dict[str, Any]:
     records = load_records(settings)
     checkpoints = load_checkpoints(settings)
     prev = GENESIS_PREV
+    expected_seq = 1
     for record in records:
+        if record.seq != expected_seq:
+            fail(E_BAD_CHAIN, f"expected seq {expected_seq}, found {record.seq}")
         verify_record(record, prev)
+        evidence_path = settings.evidence_dir / f"{record.evidence_id}.json"
+        if not evidence_path.exists():
+            fail(E_BAD_CHAIN, f"seq {record.seq} missing evidence file")
+        payload_bytes = evidence_path.read_bytes()
+        if sha256_bytes(payload_bytes) != record.payload_sha256:
+            fail(E_BAD_CHAIN, f"seq {record.seq} evidence hash mismatch")
         prev = sha256_obj(record.to_dict())
+        expected_seq += 1
     if records and not checkpoints:
         fail(
             E_NO_CHECKPOINT,
             "records exist but no Merkle/TSA checkpoint covers the chain",
         )
-    covered = _covered_through(checkpoints)
-    if records and covered < records[-1].seq:
+    covered_seqs = _covered_seqs(checkpoints)
+    head = records[-1].seq if records else 0
+    required = set(range(1, head + 1))
+    if records and covered_seqs != required:
         fail(
             E_NO_CHECKPOINT,
-            f"checkpoint covers through seq {covered}; chain ends at seq {records[-1].seq}",
+            f"checkpoint coverage {sorted(covered_seqs)} does not match seq 1..{head}",
         )
     tsa_cert = settings.keys_dir / "tsa.crt"
+    if checkpoints and not tsa_cert.exists():
+        fail(E_TSA, "missing TSA certificate; cannot verify checkpoints")
     cert_pem = tsa_cert.read_bytes() if tsa_cert.exists() else b""
     for checkpoint in checkpoints:
         window = [row for row in records if checkpoint.from_seq <= row.seq <= checkpoint.to_seq]
+        if checkpoint.leaf_count != len(window):
+            fail(E_BAD_CHAIN, f"checkpoint {checkpoint.tsa_serial} leaf_count mismatch")
         leaves = [sha256_obj(row.to_dict()) for row in window]
         root = merkle_root(leaves) if leaves else ""
         if root != checkpoint.merkle_root:
             fail(E_BAD_CHAIN, f"checkpoint {checkpoint.tsa_serial} Merkle root mismatch")
         der = base64.b64decode(checkpoint.tsa_token_b64)
-        if cert_pem:
-            verify_token(der, checkpoint.merkle_root, cert_pem)
+        verify_token(der, checkpoint.merkle_root, cert_pem)
     return {
         "ok": True,
         "records": len(records),
         "checkpoints": len(checkpoints),
-        "covered_through": covered,
+        "covered_through": _covered_through(checkpoints),
         "head_seq": records[-1].seq if records else 0,
     }
 

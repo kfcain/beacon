@@ -85,19 +85,38 @@ def der_implicit_set(n: int, body: bytes) -> bytes:
 
 
 def _read_len(data: bytes, i: int) -> tuple[int, int]:
+    if i >= len(data):
+        fail(E_TSA, "truncated DER length")
     first = data[i]
     i += 1
     if first < 128:
         return first, i
     n = first & 0x7F
-    value = int.from_bytes(data[i : i + n], "big")
+    if n == 0 or n > 4 or i + n > len(data):
+        fail(E_TSA, "invalid DER length")
+    raw = data[i : i + n]
+    if raw[0] == 0:
+        fail(E_TSA, "non-minimal DER length")
+    value = int.from_bytes(raw, "big")
+    if value < 128:
+        fail(E_TSA, "non-minimal DER length")
     return value, i + n
 
 
 def parse_tlv(data: bytes, i: int = 0) -> tuple[int, bytes, int]:
+    if i >= len(data):
+        fail(E_TSA, "truncated DER tag")
     tag = data[i]
     length, j = _read_len(data, i + 1)
-    return tag, data[j : j + length], j + length
+    end = j + length
+    if end > len(data) or end < j:
+        fail(E_TSA, "truncated DER value")
+    return tag, data[j:end], end
+
+
+def parse_tlv_raw(data: bytes, i: int = 0) -> tuple[bytes, int]:
+    _tag, _body, end = parse_tlv(data, i)
+    return data[i:end], end
 
 
 def parse_oid(body: bytes) -> str:
@@ -231,21 +250,61 @@ def stamp_local(keys_dir: Path, imprint_hex: str, serial: int) -> TimeStampToken
     return TimeStampToken(der=der, gen_time=when, message_imprint=imprint_hex, serial=serial)
 
 
+def _der_children(body: bytes) -> list[tuple[int, bytes]]:
+    items: list[tuple[int, bytes]] = []
+    i = 0
+    while i < len(body):
+        tag, part, nxt = parse_tlv(body, i)
+        if nxt <= i:
+            fail(E_TSA, "DER parse did not advance")
+        items.append((tag, part))
+        i = nxt
+    return items
+
+
+def parse_timestamp_token(der: bytes) -> tuple[bytes, bytes]:
+    """Return (TSTInfo DER, RSA signature) from a CMS TimeStampToken."""
+    tag, content_info, _ = parse_tlv(der, 0)
+    if tag != 0x30:
+        fail(E_TSA, "TimeStampToken is not a SEQUENCE")
+    kids = _der_children(content_info)
+    if len(kids) < 2 or kids[1][0] != 0xA0:
+        fail(E_TSA, "TimeStampToken missing SignedData")
+    inner_tag, signed_seq, _ = parse_tlv(kids[1][1], 0)
+    if inner_tag != 0x30:
+        fail(E_TSA, "SignedData is not a SEQUENCE")
+    signed = _der_children(signed_seq)
+    if len(signed) < 5:
+        fail(E_TSA, "SignedData missing encapContentInfo or signerInfos")
+    encap = _der_children(signed[2][1])
+    tst_info: bytes | None = None
+    for etag, ebody in encap:
+        if etag != 0xA0:
+            continue
+        otag, octets, _ = parse_tlv(ebody, 0)
+        if otag != 0x04:
+            fail(E_TSA, "eContent is not OCTET STRING")
+        tst_info = octets
+    if tst_info is None:
+        fail(E_TSA, "TimeStampToken missing TSTInfo")
+    signer_tag, signer_body = signed[-1]
+    if signer_tag != 0x31:
+        fail(E_TSA, "signerInfos is not a SET")
+    sitag, si_body, _ = parse_tlv(signer_body, 0)
+    if sitag != 0x30:
+        fail(E_TSA, "SignerInfo is not a SEQUENCE")
+    signature: bytes | None = None
+    for field_tag, field_body in _der_children(si_body):
+        if field_tag == 0x04:
+            signature = field_body
+    if not signature:
+        fail(E_TSA, "SignerInfo missing signature OCTET STRING")
+    return tst_info, signature
+
+
 def _find_tst_info(der: bytes) -> bytes:
-    """Walk DER and return the first TSTInfo sequence after id-ct-TSTInfo."""
-    oid_marker = der_oid(OID_TST_INFO)
-    idx = der.find(oid_marker)
-    if idx < 0:
-        fail(E_TSA, "TimeStampToken missing id-ct-TSTInfo")
-    rest = der[idx + len(oid_marker) :]
-    # next should be [0] EXPLICIT OCTET STRING wrapping TSTInfo
-    tag, body, _ = parse_tlv(rest, 0)
-    if tag != 0xA0:
-        fail(E_TSA, "TimeStampToken eContent is not EXPLICIT [0]")
-    otag, octets, _ = parse_tlv(body, 0)
-    if otag != 0x04:
-        fail(E_TSA, "TimeStampToken eContent is not OCTET STRING")
-    return octets
+    tst_info, _sig = parse_timestamp_token(der)
+    return tst_info
 
 
 def parse_tst_info(tst_info: bytes) -> tuple[str, int, dt.datetime]:
@@ -278,34 +337,12 @@ def verify_token(der: bytes, expected_imprint: str, cert_pem: bytes) -> TimeStam
     public = cert.public_key()
     if not isinstance(public, rsa.RSAPublicKey):
         fail(E_TSA, "TSA certificate is not RSA")
-    # signature is the last OCTET STRING in the token
-    sig = _last_octet_string(der)
+    _info, sig = parse_timestamp_token(der)
     try:
         public.verify(sig, tst_info, padding.PKCS1v15(), hashes.SHA256())
     except Exception as exc:
         fail(E_TSA, f"TSA signature verify failed: {exc}")
     return TimeStampToken(der=der, gen_time=when, message_imprint=imprint, serial=serial)
-
-
-def _last_octet_string(der: bytes) -> bytes:
-    """Return the last large OCTET STRING (the RSA signature)."""
-    last = b""
-    pos = 0
-    while pos < len(der):
-        if der[pos] != 0x04:
-            pos += 1
-            continue
-        try:
-            tag, body, nxt = parse_tlv(der, pos)
-        except Exception:
-            pos += 1
-            continue
-        if tag == 0x04 and len(body) >= 64:
-            last = body
-        pos = nxt
-    if not last:
-        fail(E_TSA, "TimeStampToken has no signature OCTET STRING")
-    return last
 
 
 def stamp_remote(tsa_url: str, imprint_hex: str) -> bytes:
@@ -332,19 +369,15 @@ def stamp_remote(tsa_url: str, imprint_hex: str) -> bytes:
     _, _, i = parse_tlv(body, i)  # PKIStatusInfo
     if i >= len(body):
         fail(E_TSA, "remote TSA returned no TimeStampToken")
-    _, token, _ = parse_tlv(body, i)
-    return token
+    token_der, _end = parse_tlv_raw(body, i)
+    return token_der
 
 
 def stamp(keys_dir: Path, imprint_hex: str, serial: int, tsa_url: str | None) -> TimeStampToken:
     if tsa_url:
         der = stamp_remote(tsa_url, imprint_hex)
-        cert_pem = (keys_dir / TSA_CERT).read_bytes() if (keys_dir / TSA_CERT).exists() else b""
-        if cert_pem:
-            return verify_token(der, imprint_hex, cert_pem)
-        tst_info = _find_tst_info(der)
-        imprint, serial_n, when = parse_tst_info(tst_info)
-        if imprint != imprint_hex:
-            fail(E_TSA, "remote TSA messageImprint does not match Merkle root")
-        return TimeStampToken(der=der, gen_time=when, message_imprint=imprint, serial=serial_n)
+        cert_path = keys_dir / TSA_CERT
+        if not cert_path.exists():
+            fail(E_TSA, "no TSA trust anchor; run `beacon init`")
+        return verify_token(der, imprint_hex, cert_path.read_bytes())
     return stamp_local(keys_dir, imprint_hex, serial)

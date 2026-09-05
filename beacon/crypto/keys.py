@@ -37,8 +37,8 @@ class KeyPair:
 
 
 def verify(public_raw_hex: str, data: bytes, signature_hex: str) -> bool:
-    public = Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_raw_hex))
     try:
+        public = Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_raw_hex))
         public.verify(bytes.fromhex(signature_hex), data)
     except Exception:
         return False

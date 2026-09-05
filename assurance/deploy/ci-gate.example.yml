@@ -1,0 +1,23 @@
+name: Beacon production evidence gate
+on: [workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      # Official action pinned to the reviewed v4 reference on 2026-09-05.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify observation and block on any required failure
+        working-directory: assurance
+        run: |
+          node portable/cli.mjs evaluate \
+            --evidence "$RUNNER_TEMP/observation.json" \
+            --scope deploy/approved-scope.json \
+            --claim ENC-01 --require-live \
+            --envelope "$RUNNER_TEMP/signature.json" \
+            --registry deploy/trusted-signers.json \
+            --job "$RUNNER_TEMP/approved-job.json"
+      # Upstream jobs must provide the three temporary artifacts through a trusted
+      # channel. Signer registry, scope, job ID and image digest are approval inputs.
+      # Use OIDC for cloud collection; do not copy AWS access keys into the image.

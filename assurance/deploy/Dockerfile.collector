@@ -1,0 +1,14 @@
+# Dev and runtime digests must be reviewed as a compatible Python 3.12 pair.
+ARG PYTHON_BUILDER
+ARG PYTHON_RUNTIME
+FROM ${PYTHON_BUILDER} AS build
+WORKDIR /build
+COPY collectors/requirements.lock ./requirements.lock
+RUN python -m pip install --require-hashes --no-compile --target=/packages -r requirements.lock
+FROM ${PYTHON_RUNTIME}
+WORKDIR /app
+COPY --from=build /packages /packages
+COPY --chown=65532:65532 collectors/aws.py /app/aws.py
+ENV PYTHONPATH=/packages PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+USER 65532:65532
+ENTRYPOINT ["python","/app/aws.py"]

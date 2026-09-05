@@ -1,3 +1,13 @@
+# Beacon Assurance Workspace
+
+The new interactive application is in [`assurance/`](assurance/README.md). It includes a portable GUI/API/MCP server, evidence validation, CR26 records, draft documentation and sandbox trust-center delivery.
+
+[Run the new workspace](assurance/README.md) · [Production milestone status](assurance/docs/PRODUCTION.md) · [Sales-engineer walkthrough](assurance/docs/SALES-ENGINEER-WALKTHROUGH.md)
+
+The earlier Python engine below remains a legacy prototype. Its local witness/TSA and plugin model are not production assurance. The new runtime does not load those plugins or private keys. Review the production milestone table before deployment.
+
+---
+
 # Beacon
 
 Beacon is a GRC evidence engine. It collects cloud inspector evidence, maps it to Secure Controls Framework (SCF) 2026.1.1, and seals every result on a signed witness chain.

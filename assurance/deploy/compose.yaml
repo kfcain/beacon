@@ -1,0 +1,21 @@
+services:
+  beacon:
+    image: ${BEACON_API_IMAGE:?Set an approved image digest}
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1
+    ports: ["127.0.0.1:8787:8787"]
+    environment:
+      BEACON_TOKENS_JSON: ${BEACON_TOKENS_JSON:?Set scoped operator and reader tokens}
+      BEACON_DATABASE: /data/workspace.sqlite
+      BEACON_ORIGIN: http://127.0.0.1:8787
+    volumes:
+      - type: bind
+        source: ${BEACON_DATA_DIR:?Create a directory owned by 65532}
+        target: /data
+    tmpfs: [/tmp:size=16m,noexec,nosuid,nodev]
+    restart: unless-stopped

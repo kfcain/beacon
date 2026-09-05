@@ -1,0 +1,5 @@
+import {env} from 'cloudflare:workers';
+import {seed} from './engine.mjs';
+export function database():any{const db=(env as any).DB;if(!db)throw new Error('Evidence workspace unavailable');return db;}
+export async function loadWorkspace(owner:string){const db=database();let r=await db.prepare('SELECT revision, body FROM beacon_workspaces WHERE owner = ?').bind(owner).first();if(!r){const s=await seed(owner);await db.prepare('INSERT OR IGNORE INTO beacon_workspaces (owner, revision, body, updated_at) VALUES (?, 0, ?, ?)').bind(owner,JSON.stringify(s),new Date().toISOString()).run();r=await db.prepare('SELECT revision, body FROM beacon_workspaces WHERE owner = ?').bind(owner).first();}return {revision:r.revision,state:JSON.parse(r.body)};}
+export async function saveWorkspace(owner:string,revision:number,state:any){const r=await database().prepare('UPDATE beacon_workspaces SET body = ?, revision = revision + 1, updated_at = ? WHERE owner = ? AND revision = ?').bind(JSON.stringify(state),new Date().toISOString(),owner,revision).run();if(r.meta.changes!==1)throw new Error('Workspace changed. Refresh and retry.');}

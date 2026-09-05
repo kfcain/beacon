@@ -1,0 +1,16 @@
+.beacon/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.python-version
+*.log
+.DS_Store

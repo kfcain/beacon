@@ -1,0 +1,22 @@
+{
+  "scf_version": "2026.1.1",
+  "total_controls": 1468,
+  "total_families": 33,
+  "source": "https://hackidle.github.io/scf-api/api/summary.json",
+  "offline_controls": [
+    "IAC-01",
+    "CRY-05"
+  ],
+  "families": [
+    {
+      "family_code": "CRY",
+      "family_name": "Cryptographic Protections",
+      "control_count": 29
+    },
+    {
+      "family_code": "IAC",
+      "family_name": "Identification & Authentication",
+      "control_count": 114
+    }
+  ]
+}

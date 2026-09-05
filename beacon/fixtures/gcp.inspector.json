@@ -1,0 +1,32 @@
+{
+  "source": "gcp.inspector",
+  "cloud": "gcp",
+  "mode": "fixture",
+  "identity": {
+    "project": "beacon-fixture",
+    "account": "beacon-fixture@example.com"
+  },
+  "findings": [
+    {
+      "scf": "IAC-01",
+      "check": "iam_policy",
+      "status": "pass",
+      "severity": "info",
+      "detail": "Fixture: project IAM policy retrieved."
+    },
+    {
+      "scf": "IAC-01.2",
+      "check": "org_policy",
+      "status": "pass",
+      "severity": "low",
+      "detail": "Fixture: org policy service listed."
+    },
+    {
+      "scf": "CRY-05",
+      "check": "gcs_encryption",
+      "status": "pass",
+      "severity": "high",
+      "detail": "Fixture: buckets use Google-managed or CMEK encryption."
+    }
+  ]
+}

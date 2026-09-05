@@ -1,0 +1,32 @@
+{
+  "source": "azure.inspector",
+  "cloud": "azure",
+  "mode": "fixture",
+  "identity": {
+    "subscription": "00000000-0000-0000-0000-000000000000",
+    "tenant": "11111111-1111-1111-1111-111111111111"
+  },
+  "findings": [
+    {
+      "scf": "IAC-01",
+      "check": "entra_identity",
+      "status": "pass",
+      "severity": "info",
+      "detail": "Fixture: Entra signed-in user present."
+    },
+    {
+      "scf": "IAC-01.1",
+      "check": "mfa_posture",
+      "status": "inconclusive",
+      "severity": "medium",
+      "detail": "Fixture: MFA posture not fully visible via az CLI."
+    },
+    {
+      "scf": "CRY-05",
+      "check": "storage_encryption",
+      "status": "pass",
+      "severity": "high",
+      "detail": "Fixture: storage accounts report encryption enabled."
+    }
+  ]
+}

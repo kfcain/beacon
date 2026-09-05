@@ -1,39 +1,77 @@
 # Beacon
 
-Welcome to the Beacon project! This repository contains the source code and documentation for Beacon.
+Beacon is a GRC evidence engine. It collects cloud inspector evidence, maps it to Secure Controls Framework (SCF) 2026.1.1, and seals every result on a signed witness chain.
 
-## About
+Package name: `beacon`. CLI name: `beacon`. Environment prefix: `BEACON_`. Data directory: `.beacon/`. MCP tools: `beacon_*`.
 
-Beacon is designed to [add your project description here].
+## Run
 
-## Getting Started
+Python 3.10 or later is required.
 
-### Prerequisites
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+beacon init
+beacon seed
+beacon check
+beacon serve
+beacon tui
+```
 
-- [List required software/tools here]
+`beacon serve` starts the GUI (Dashboard, Freshness, Validation, Push, System).
 
-### Installation
+`beacon tui` starts the Paramify-style terminal UI. The TUI adds a Collect screen.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/kfcain/beacon.git
-   cd beacon
-   ```
+## Collect
 
-2. [Add installation steps here]
+Without cloud credentials, inspectors seal **fixtures** through the witness chain. Live collection uses `aws`, `az`, and `gcloud`. A live failure is sealed as `live_failed`. It is never rewritten as a success fixture.
 
-## Usage
+```bash
+beacon collect --target IAC-01
+beacon collect --target CRY-05
+beacon collect --plugin aws.inspector
+```
 
-[Add usage instructions and examples here]
+`--target IAC-01` and `--target CRY-05` select every loaded fetcher whose `FetcherSpec.scf_targets` overlap that control, then seal the results.
 
-## Contributing
+## Witness chain
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue for any bugs or feature requests.
+- Recorder key and witness key are distinct Ed25519 keys.
+- Each record carries both signatures and a previous-hash link.
+- Checkpoints are SHA-256 Merkle roots timestamped with RFC 3161 (local TSA by default).
+- `beacon check` **fails closed** with `E_NO_CHECKPOINT` when records are not covered by a checkpoint.
 
-## License
+## SCF hub
 
-[Add license information here]
+Default API: `https://hackidle.github.io/scf-api/` (SCF 2026.1.1).
 
-## Contact
+- Override base URL: `BEACON_SCF_API_BASE`
+- Offline tests and air-gap: `BEACON_SCF_OFFLINE=1`
 
-For more information, please contact the project maintainers.
+```bash
+BEACON_SCF_OFFLINE=1 pytest
+```
+
+## Drop-in platforms
+
+See [docs/PLUGINS.md](docs/PLUGINS.md). Example: [examples/echo_platform.py](examples/echo_platform.py).
+
+```bash
+export BEACON_PLUGIN_PATH=./examples/echo_platform.py
+beacon plugins
+beacon collect --plugin echo
+```
+
+## MCP
+
+```bash
+beacon mcp
+```
+
+Tools: `beacon_status`, `beacon_init`, `beacon_seed`, `beacon_check`, `beacon_collect`, `beacon_plugins`, `beacon_freshness`, `beacon_scf_lookup`, `beacon_push`, `beacon_validation`.
+
+## Limits and sources
+
+- [LIMITS.md](LIMITS.md) — what Beacon does not claim
+- [docs/SOURCES.md](docs/SOURCES.md) — GRCEngClub inspectors and Paramify fetchers as shape references

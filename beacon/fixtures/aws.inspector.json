@@ -1,0 +1,39 @@
+{
+  "source": "aws.inspector",
+  "cloud": "aws",
+  "mode": "fixture",
+  "identity": {
+    "account": "123456789012",
+    "arn": "arn:aws:iam::123456789012:user/beacon-fixture"
+  },
+  "findings": [
+    {
+      "scf": "IAC-01",
+      "check": "iam_program",
+      "status": "pass",
+      "severity": "info",
+      "detail": "Fixture: IAM account summary present."
+    },
+    {
+      "scf": "IAC-01.1",
+      "check": "root_mfa",
+      "status": "pass",
+      "severity": "critical",
+      "detail": "Fixture: root MFA enabled."
+    },
+    {
+      "scf": "CRY-05",
+      "check": "s3_default_encryption",
+      "status": "pass",
+      "severity": "high",
+      "detail": "Fixture: S3 default encryption AES256."
+    },
+    {
+      "scf": "CRY-05",
+      "check": "ebs_encryption_by_default",
+      "status": "pass",
+      "severity": "high",
+      "detail": "Fixture: EBS encryption by default enabled."
+    }
+  ]
+}

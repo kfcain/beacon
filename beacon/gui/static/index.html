@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Beacon</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="mark">B</span>
+      <div>
+        <h1>Beacon</h1>
+        <p class="sub">GRC evidence engine · signed witness chain</p>
+      </div>
+    </div>
+    <div id="badge" class="badge muted">loading</div>
+  </header>
+  <nav class="tabs" role="tablist">
+    <button data-page="dashboard" class="active">Dashboard</button>
+    <button data-page="freshness">Freshness</button>
+    <button data-page="validation">Validation</button>
+    <button data-page="push">Push</button>
+    <button data-page="system">System</button>
+  </nav>
+  <main>
+    <section id="dashboard" class="page active"></section>
+    <section id="freshness" class="page"></section>
+    <section id="validation" class="page"></section>
+    <section id="push" class="page"></section>
+    <section id="system" class="page"></section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

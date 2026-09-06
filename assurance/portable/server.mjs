@@ -6,15 +6,16 @@ import {resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {repository} from './store.mjs';
 import {snapshot,verifyBundle} from '../lib/beacon/engine.mjs';
+import {mapUpload,mapperConfigured} from '../lib/beacon/mapper-client.mjs';
 import {rpc} from '../lib/beacon/rpc.mjs';
 const hash=x=>createHash('sha256').update(x).digest();
-export function createApplication({repo,tokens,publicOrigin='http://127.0.0.1:8787',assets=resolve('portable/dist'),trustConsumer=null}){
+export function createApplication({repo,tokens,publicOrigin='http://127.0.0.1:8787',assets=resolve('portable/dist'),trustConsumer=null,mapperConfig=process.env}){
  if(!Array.isArray(tokens)||!tokens.length||tokens.some(t=>typeof t.token!=='string'||t.token.length<32||!t.workspace||!['reader','operator'].includes(t.role)))throw new Error('Configure BEACON_TOKENS_JSON with strong tokens, workspace IDs and reader/operator roles');
- const sessions=new Map();
+ const sessions=new Map();let activeMappings=0;
  function identity(req){const auth=req.headers.authorization?.replace(/^Bearer /,'');const cookie=req.headers.cookie?.match(/(?:^|; )beacon_session=([a-f0-9]+)/)?.[1];const session=cookie?sessions.get(cookie):null;if(session&&session.expires>Date.now())return session.identity;if(auth)return tokens.find(t=>timingSafeEqual(hash(auth),hash(t.token)));return null;}
  const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'same-origin'};
  const send=(res,status,body,extra={})=>{res.writeHead(status,{...headers,'Content-Type':'application/json',...extra});res.end(typeof body==='string'?body:JSON.stringify(body));};
- async function readBody(req){let text='';for await(const chunk of req){text+=chunk;if(Buffer.byteLength(text)>270000)throw new Error('Request too large');}return text;}
+ async function readBody(req,limit=270000){let text='';for await(const chunk of req){text+=chunk;if(Buffer.byteLength(text)>limit)throw new Error('Request too large');}return text;}
  const server=createServer(async(req,res)=>{
   try{
    const url=new URL(req.url,publicOrigin),origin=req.headers.origin;
@@ -30,6 +31,15 @@ export function createApplication({repo,tokens,publicOrigin='http://127.0.0.1:87
    if(req.method==='GET'&&url.pathname==='/login'){const body=readFileSync(new URL('./login.html',import.meta.url));return send(res,200,body.toString(),{'Content-Type':'text/html'});}
    const user=identity(req);if(!user){if(!url.pathname.startsWith('/api/')){res.writeHead(302,{Location:'/login'});return res.end();}return send(res,401,{error:'Authentication required'});}
    const actor=user.actor||user.workspace;const canWrite=user.role==='operator';
+   if(url.pathname==='/api/documents/map'){
+    if(req.method==='GET')return send(res,200,{configured:mapperConfigured(mapperConfig),maxBytes:6291456,formats:['.md','.markdown','.txt','.pdf','.docx']});
+    if(req.method!=='POST')return send(res,405,{error:'Method not allowed'});
+    if(!canWrite)return send(res,403,{error:'Operator role required'});
+    if(!req.headers['content-type']?.includes('application/json'))return send(res,415,{error:'JSON required'});
+    if(!mapperConfigured(mapperConfig))return send(res,503,{error:'Document mapper is not connected. Import a GRC PDF Mapper JSON report.'});
+    if(activeMappings>=2)return send(res,429,{error:'Mapper busy. Retry shortly.'});
+    activeMappings++;try{return send(res,200,await mapUpload(JSON.parse(await readBody(req,8500000)),mapperConfig));}finally{activeMappings--;}
+   }
    if(req.method==='GET'&&url.pathname==='/api/beacon'){
     const {state,revision}=await repo.read(user.workspace);return send(res,200,url.searchParams.get('view')==='bundle'?state:url.searchParams.get('view')==='verify'?await verifyBundle(state):{state:await snapshot(state),revision});
    }

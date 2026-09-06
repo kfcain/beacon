@@ -52,6 +52,10 @@ A repeatable CI verification gate adds `--require-live --envelope signature.json
 
 One-time ingestion uses `portable/cli.mjs admit`, which verifies the signature and a passing observation before atomically consuming the approved job ID in a persistent private ledger. It rejects duplicate jobs, including concurrent submissions. Offline `evaluate` remains repeatable. See [Admission deployment and recovery](docs/ADMISSION.md) for exact commands, protected-policy requirements, receipt recovery and the database rollback limitation.
 
+## Policy and procedure mapping
+
+Documents now accepts JSON reports from [your GRC PDF Mapper](https://github.com/kfcain/grc-pdf-mapper), preserves document versions, shows source statements and proposed mappings, and records provider mapping decisions. Accepted relationships can link to Beacon claims and generated records. Direct PDF/DOCX/Markdown uploads use a separately configured private mapper API. See [Document mapping](docs/DOCUMENT-MAPPING.md) for setup, limits and the actual-engine integration test.
+
 ## Verification
 
 ```sh
@@ -59,7 +63,7 @@ node --test tests/beacon/*.test.mjs
 python3 tests/beacon/test_collector.py
 ```
 
-25 Node tests and 4 Python tests passed after the admission-gate update. Both the Worker and portable React client built successfully. Docker was unavailable, so images were not built/scanned. Browser visual QA was not performed. Hosted API persistence is provisioned at private deployment.
+29 Node tests passed after the document-mapping update, along with an actual Python mapper/API integration run. The 4 collector tests passed in the earlier milestone. Both the Worker and portable React client built successfully. Docker was unavailable, so images were not built/scanned. Browser visual QA was not performed. Hosted API persistence is provisioned at private deployment.
 
 ## Scope and source
 

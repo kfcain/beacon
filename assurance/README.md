@@ -48,7 +48,9 @@ python collectors/aws.py --scope approved-scope.json --claim ENC-01 --output obs
 node portable/cli.mjs evaluate --evidence observation.json --scope approved-scope.json --claim ENC-01
 ```
 
-A production CI gate adds `--require-live --envelope signature.json --registry trusted-signers.json --job approved-job.json`. It rejects absent, untrusted, stale or mismatched provenance. See `collectors/kms_sign.py`, `portable/verify-signature.mjs` and `deploy/ci-gate.example.yml` for the separate signing path and required deployment policy.
+A repeatable CI verification gate adds `--require-live --envelope signature.json --registry trusted-signers.json --job approved-job.json`. It rejects absent, untrusted, stale or mismatched provenance. See `collectors/kms_sign.py`, `portable/verify-signature.mjs` and `deploy/ci-gate.example.yml` for the separate signing path and required deployment policy.
+
+One-time ingestion uses `portable/cli.mjs admit`, which verifies the signature and a passing observation before atomically consuming the approved job ID in a persistent private ledger. It rejects duplicate jobs, including concurrent submissions. Offline `evaluate` remains repeatable. See [Admission deployment and recovery](docs/ADMISSION.md) for exact commands, protected-policy requirements, receipt recovery and the database rollback limitation.
 
 ## Verification
 
@@ -57,7 +59,7 @@ node --test tests/beacon/*.test.mjs
 python3 tests/beacon/test_collector.py
 ```
 
-20 Node tests and 4 Python tests passed at delivery. Both the Worker and portable React client built successfully. Docker was unavailable, so images were not built/scanned. Browser visual QA was not performed. Hosted API persistence is provisioned at private deployment.
+25 Node tests and 4 Python tests passed after the admission-gate update. Both the Worker and portable React client built successfully. Docker was unavailable, so images were not built/scanned. Browser visual QA was not performed. Hosted API persistence is provisioned at private deployment.
 
 ## Scope and source
 

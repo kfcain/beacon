@@ -63,7 +63,7 @@ node --test tests/beacon/*.test.mjs
 python3 tests/beacon/test_collector.py
 ```
 
-29 Node tests passed after the document-mapping update, along with an actual Python mapper/API integration run. The 4 collector tests passed in the earlier milestone. Both the Worker and portable React client built successfully. Docker was unavailable, so images were not built/scanned. Browser visual QA was not performed. Hosted API persistence is provisioned at private deployment.
+34 Node tests and 9 Rego tests passed after the infrastructure/TUI update, along with an actual Python mapper/API integration run. The 4 collector tests passed in the earlier milestone. Both the Worker and portable React client built successfully. Docker was unavailable, so images were not built/scanned. Browser visual QA was not performed. Hosted API persistence is provisioned at private deployment.
 
 ## Scope and source
 
@@ -72,3 +72,5 @@ All initial observations are explicitly simulated. Imported live-labeled observa
 The CR26 reference contains 246 FRRs and 46 KSIs from official version 2026.07.14.01, commit 58efbf3d898496dd4a3a419eba78e458bbad5cb6. Selected cross-framework mappings are supporting candidates for review; the record editor does not claim official SDR schema conformance.
 
 See [production milestone status](docs/PRODUCTION.md), [sales-engineer walkthrough](docs/SALES-ENGINEER-WALKTHROUGH.md), and `deploy/` for container/runtime/CI examples. This application is added alongside the legacy Python Beacon prototype. The new production path does not load its arbitrary plugins, private keys or custom TSA. Legacy security findings remain documented rather than silently certified as fixed.
+
+Organization inventory, capstone review, local security boundaries, continuous validation, and GUI/TUI demonstrations: [Organization assurance blueprint](docs/ORG-ASSURANCE-BLUEPRINT.md). The infrastructure path supports five narrow configuration checks and explicitly unverified imports; live organization discovery and signed infrastructure admission remain outstanding.

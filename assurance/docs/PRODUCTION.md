@@ -8,7 +8,7 @@ This is an executable assurance application and reference deployment package. It
 |---|---|---|
 | Interactive SaaS workspace | Nine working views, claim drawers, scenario execution, filters, evidence downloads, implementation editing, provider review, document generation, requirement drafts, trust releases and actual MCP workbench | Browser visual/accessibility QA and user acceptance testing |
 | Portable application | Same React GUI and domain engine with Node HTTP API, SQLite persistence, scoped bearer tokens, HttpOnly sessions and separate workspaces | Enterprise OIDC/SAML, organizational membership, fine-grained assessor/publisher roles, session revocation and managed secret delivery |
-| MCP | Stdio and stateless Streamable HTTP, initialization, 8 tools, resources, argument validation, read-only defaults on stdio | External OAuth authorization-server integration and broader client interoperability testing |
+| MCP | Stdio and stateless Streamable HTTP, initialization, 9 tools, resources, argument validation, read-only defaults on stdio | External OAuth authorization-server integration and broader client interoperability testing |
 | Collection | Read-only AWS EC2, IAM and CloudTrail collector; explicit scope; retained partial failures; hashed SDK dependency lock | Live account/Region/trail selection, workload identity, approved network routes, image build and deployment |
 | Validation | Strict fields, account/partition checks, operation checks, expected population, timestamps, hashes and fail-closed results | Broader collector/test catalog, witnessed live drift exercises and independent validation of test sufficiency |
 | Persistent evaluation | Freshness recalculated on API reads; explicit reconciliation; portable systemd service/timer | Install the scheduler and collection orchestration, queue/DLQ, alerts and run-population reconciliation in the target environment |
@@ -67,3 +67,9 @@ Production publication is deliberately rejected by the current application. Comp
 - [MCP 2025-11-25 transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
 Framework mappings are selected, supporting candidates. NIST Rev5, CMMC L2/SP 800-171 Rev2, ISO 27001:2022 and SOC 2 criteria are not interchangeable. Framework editions, assessment objectives, organization-defined parameters, exceptions and independent determinations must remain separate.
+
+## Organization infrastructure milestone
+
+Shared inventory manifests and observation history now power the GUI, API, MCP, CLI and read-only Python TUI. Five narrow configuration assertions distinguish planned state, observed state, missing resources, unknown facts and expired evidence. Nested Terraform projection minimizes sensitive/unknown fields; an OPA gate records input, policy and binary digests. 34 Node tests and 9 Rego tests passed. An actual OPA replay passed the planned configuration and failed runtime drift; the TUI was exercised in a terminal.
+
+Imports are unverified, collection is not scheduled by this module, and there is no live organization discovery. See [the blueprint](ORG-ASSURANCE-BLUEPRINT.md) for the capstone review, broader capability matrix, local security design and prioritized remaining implementation.

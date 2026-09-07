@@ -73,3 +73,9 @@ Framework mappings are selected, supporting candidates. NIST Rev5, CMMC L2/SP 80
 Shared inventory manifests and observation history now power the GUI, API, MCP, CLI and read-only Python TUI. Five narrow configuration assertions distinguish planned state, observed state, missing resources, unknown facts and expired evidence. Nested Terraform projection minimizes sensitive/unknown fields; an OPA gate records input, policy and binary digests. 34 Node tests and 9 Rego tests passed. An actual OPA replay passed the planned configuration and failed runtime drift; the TUI was exercised in a terminal.
 
 Imports are unverified, collection is not scheduled by this module, and there is no live organization discovery. See [the blueprint](ORG-ASSURANCE-BLUEPRINT.md) for the capstone review, broader capability matrix, local security design and prioritized remaining implementation.
+
+## Greptile security review follow-up
+
+Greptile identified two P1 issues on PR #2 at `5f2c47268463a83cca303322c1778a09b2d31506`: Terraform sensitivity metadata could be discarded, and unverified observations could pass the named inventory gate. Projection now redacts a fact if either sensitivity tree marks it sensitive. Infrastructure `gate` now rejects every observation because trusted infrastructure admission is not implemented; `evaluate` retains configuration diagnostics. Rego exposes `configuration_pass` separately and keeps `allow` false. The OPA runner always exits 2, including when diagnostics pass, and cannot be enabled by a supplied provenance label or policy `allow` value. This does not affect the separate signed evidence admission CLI.
+
+An additional regression enforces resource-type/check compatibility. Verification: 36 Node tests and 14 Rego tests passed. CI now verifies the pinned OPA binary digest and runs Rego regressions. The existing GUI continues showing configuration posture with provenance separately.

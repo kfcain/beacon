@@ -4,8 +4,13 @@ import rego.v1
 
 fields := {"S3-KMS": ["encryptionAlgorithm", "kmsKeyArn"], "S3-VERSION": ["versioning"], "KMS-ROTATE": ["keyRotation"], "LAMBDA-TRACE": ["tracing"], "API-LOG": ["logging"]}
 
+types := {"S3-KMS":"aws_s3_bucket_server_side_encryption_configuration", "S3-VERSION":"aws_s3_bucket_versioning", "KMS-ROTATE":"aws_kms_key", "LAMBDA-TRACE":"aws_lambda_function", "API-LOG":"aws_api_gateway_stage"}
+
+# No trusted infrastructure admission exists yet. Never authorize from an input label.
 default allow := false
-allow if {
+gate_denials := ["Trusted infrastructure admission is not implemented; configuration results cannot authorize deployment"]
+default configuration_pass := false
+configuration_pass if {
  input.schema == "beacon.inventory.gate.v1"
  is_array(input.expected)
  count(input.expected) > 0
@@ -36,6 +41,7 @@ deny contains sprintf("Missing or duplicated expected resource: %s", [e.id]) if 
  matches := [r | some r in input.resources; r.id == e.id]
  count(matches) != 1
 }
+deny contains sprintf("Check does not apply to resource type: %s / %s", [e.id,id]) if { some e in input.expected; some id in e.checks; types[id] != e.type }
 deny contains "Duplicate expected IDs" if { count({e.id | some e in input.expected}) != count(input.expected) }
 deny contains sprintf("Unregistered resource: %s", [r.id]) if { some r in input.resources; not registered(r.id) }
 registered(id) if { some e in input.expected; e.id == id }

@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {seed,execute,snapshot,verifyBundle} from '../../lib/beacon/engine.mjs';
 import {infrastructureView} from '../../lib/beacon/infrastructure.mjs';
+import {repository} from '../../portable/store.mjs';
 import {projectPlan} from '../../portable/terraform-project.mjs';
 const now=Date.parse('2026-09-06T12:00:00Z');
 test('declared inventory separates planned, runtime, missing and recovered states',async()=>{
@@ -34,4 +35,28 @@ test('Terraform projection visits nested modules and strips unknown and sensitiv
 });
 test('TUI reads the same snapshot and emits an inspectable read-only posture',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'beacon-tui-'));try{const s=await seed();await execute(s,'infra-demo',{scenario:'drift'},'operator',Date.now());const file=join(dir,'snapshot.json');writeFileSync(file,JSON.stringify(await snapshot(s)));const result=spawnSync('python3',['portable/tui.py','--snapshot',file,'--once'],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);const view=JSON.parse(result.stdout);assert.equal(view.infrastructure.length,5);assert.equal(view.infrastructure[0].status,'FAIL');assert.equal(view.claims.length,6);}finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('Terraform projection honors both independent sensitivity masks',()=>{
+ const resource={address:'aws_api_gateway_stage.api',type:'aws_api_gateway_stage',mode:'managed',values:{access_log_settings:[{destination_arn:'SENSITIVE_DESTINATION'}]},sensitive_values:{access_log_settings:[{destination_arn:true}]}};
+ const plan={format_version:'1.2',planned_values:{root_module:{resources:[resource]}},resource_changes:[{address:resource.address,change:{after_sensitive:{}}}]};
+ assert.equal(projectPlan(plan)[0].facts.logging,null);
+ assert.equal(JSON.stringify(projectPlan(plan)).includes('SENSITIVE_DESTINATION'),false);
+ resource.sensitive_values={};plan.resource_changes[0].change.after_sensitive={access_log_settings:true};
+ assert.equal(projectPlan(plan)[0].facts.logging,null);
+});
+
+test('CLI gate blocks imported, simulated and self-labeled observations while diagnostics remain available',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'beacon-infra-gate-'));const db=join(dir,'workspace.sqlite');const repo=repository(db);
+ try{
+  await repo.mutate('local-owner','infra-demo',{scenario:'healthy'});
+  const invoke=command=>spawnSync(process.execPath,['portable/infra-cli.mjs',command,'capstone-demo','observed'],{env:{...process.env,BEACON_DATABASE:db,BEACON_WORKSPACE:'local-owner'},encoding:'utf8'});
+  const blocked=()=>{const r=invoke('gate');assert.equal(r.status,2);assert.equal(r.stdout,'');assert.match(r.stderr,/trusted admission is not implemented/);};
+  blocked();
+  const {state}=await repo.read();const observation=structuredClone(state.infrastructure.runs.at(-1).observation);observation.sourceSha256='d'.repeat(64);observation.collectedAt=new Date().toISOString();
+  await repo.mutate('local-owner','infra-import',{observation});blocked();
+  const diagnostic=invoke('evaluate');assert.equal(diagnostic.status,0,diagnostic.stderr);assert.equal(JSON.parse(diagnostic.stdout).context.provenance,'UNVERIFIED_IMPORT');
+  // Even changing stored labels cannot enable admission: no such capability exists.
+  const {DatabaseSync}=await import('node:sqlite');const raw=new DatabaseSync(db);const row=raw.prepare('SELECT body FROM workspaces WHERE owner=?').get('local-owner');const tampered=JSON.parse(row.body);for(const run of tampered.infrastructure.runs)run.provenance='VERIFIED';raw.prepare('UPDATE workspaces SET body=? WHERE owner=?').run(JSON.stringify(tampered),'local-owner');raw.close();blocked();
+ }finally{repo.close();rmSync(dir,{recursive:true,force:true});}
 });

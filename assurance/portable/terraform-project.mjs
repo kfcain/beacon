@@ -2,7 +2,6 @@
 // Minimize a Terraform show -json PLAN before it leaves the trusted runner.
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {INFRA_CHECKS} from '../lib/beacon/infrastructure.mjs';
 import {digest} from '../lib/beacon/engine.mjs';
 import {fileURLToPath} from 'node:url';
 const PATHS={
@@ -13,11 +12,11 @@ const PATHS={
  aws_api_gateway_stage:{logging:['access_log_settings',0,'destination_arn']}
 };
 function valueAt(object,path){let value=object;for(const key of path){if(value===true)return true;if(value==null)return undefined;value=value[key];}return value;}
-function fact(values,unknown,sensitive,path){if(valueAt(unknown,path)===true||valueAt(sensitive,path)===true)return null;let value=values;for(const key of path){if(value==null)return null;value=value[key];}return typeof value==='string'||typeof value==='boolean'?value:null;}
+function fact(values,unknown,sensitive,plannedSensitive,path){if(valueAt(unknown,path)===true||valueAt(sensitive,path)===true||valueAt(plannedSensitive,path)===true)return null;let value=values;for(const key of path){if(value==null)return null;value=value[key];}return typeof value==='string'||typeof value==='boolean'?value:null;}
 export function projectPlan(plan){
  if(typeof plan.format_version!=='string'||!/^1\./.test(plan.format_version)||!plan.planned_values?.root_module||plan.errored===true)throw new Error('A successful Terraform JSON plan with format major 1 is required');
  const changes=new Map((plan.resource_changes||[]).map(r=>[r.address,r.change]));const resources=[];const seen=new Set();
- function visit(module,depth=0){if(depth>30)throw new Error('Module nesting limit');for(const r of module.resources||[]){if(r.mode!=='managed')continue;if(typeof r.address!=='string'||typeof r.type!=='string'||seen.has(r.address))throw new Error('Invalid resource identity');seen.add(r.address);if(seen.size>500)throw new Error('Split plans with over 500 resources');const change=changes.get(r.address),facts={};for(const [name,path] of Object.entries(PATHS[r.type]||{}))facts[name]=fact(r.values,change?.after_unknown,change?.after_sensitive||r.sensitive_values,path);resources.push({id:r.address,type:r.type,collectionStatus:'complete',facts});}for(const child of module.child_modules||[])visit(child,depth+1);}
+ function visit(module,depth=0){if(depth>30)throw new Error('Module nesting limit');for(const r of module.resources||[]){if(r.mode!=='managed')continue;if(typeof r.address!=='string'||typeof r.type!=='string'||seen.has(r.address))throw new Error('Invalid resource identity');seen.add(r.address);if(seen.size>500)throw new Error('Split plans with over 500 resources');const change=changes.get(r.address),facts={};for(const [name,path] of Object.entries(PATHS[r.type]||{}))facts[name]=fact(r.values,change?.after_unknown,change?.after_sensitive,r.sensitive_values,path);resources.push({id:r.address,type:r.type,collectionStatus:'complete',facts});}for(const child of module.child_modules||[])visit(child,depth+1);}
  visit(plan.planned_values.root_module);return resources;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){

@@ -151,12 +151,12 @@ node portable/infra-cli.mjs register approved-manifest.json
 terraform show -json reviewed.tfplan > /protected/plan.json
 node portable/terraform-project.mjs /protected/plan.json approved-manifest.json FULL_COMMIT_SHA > observation.json
 node portable/infra-cli.mjs import observation.json
-node portable/infra-cli.mjs gate BOUNDARY_ID planned > gate-input.json
+node portable/infra-cli.mjs evaluate BOUNDARY_ID planned > gate-input.json
 opa test policies/beacon -v
 node portable/opa-gate.mjs /approved/opa APPROVED_OPA_SHA256 policies/beacon/inventory.rego gate-input.json > gate-result.json
 ```
 
-The last command exits 2 on failure/error and still writes its structured result. Preserve that file on unsuccessful CI runs too. The OPA digest is an independently approved release input, not a checksum accepted from the submitted evidence. The result is a technical configuration gate; it does not authenticate collection or authorize production publication. The current infrastructure path is not yet connected to the separate signed-admission service.
+The last command always exits 2 and writes its structured result: configuration PASS is reported as overall BLOCKED; failed assertions produce FAIL. The production `infra-cli gate` command also rejects every observation until trusted infrastructure admission is implemented. `evaluate` exports diagnostics only. Rego exposes `configuration_pass` for diagnostics and keeps `allow` false even for self-labeled VERIFIED inputs. Preserve that file on unsuccessful CI runs too. The OPA digest is an independently approved release input, not a checksum accepted from the submitted evidence. The result is a technical configuration diagnostic; it does not authenticate collection or authorize production publication. The current infrastructure path is not yet connected to the separate signed-admission service.
 
 ## Implementation limits and next releases
 

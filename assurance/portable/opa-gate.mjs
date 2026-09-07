@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A configuration gate. A passing result is not source authentication or release approval.
+// Emits configuration diagnostics. Deployment remains blocked until trusted infrastructure admission exists.
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
@@ -13,7 +13,7 @@ try{
  const parsed=JSON.parse(input);if(parsed.schema!=='beacon.inventory.gate.v1')throw new Error('Unexpected gate input');
  const policy=readFileSync(policyPath);output={...output,inputSha256:sha(input),policySha256:sha(policy),binarySha256:approvedBinaryHash,stage:parsed.context?.stage||'unspecified',manifestHash:parsed.context?.manifestHash||null,observationHash:parsed.context?.observationHash||null};
  const raw=execFileSync(binary,['eval','--format=json','--strict-builtin-errors','--data',policyPath,'--stdin-input','data.beacon.inventory'],{input,timeout:10000,maxBuffer:1000000,stdio:['pipe','pipe','pipe']});
- const evaluation=JSON.parse(raw).result?.[0]?.expressions?.[0]?.value;if(!evaluation||typeof evaluation.allow!=='boolean')throw new Error('OPA did not return a complete decision');
- output={...output,status:evaluation.allow?'PASS':'FAIL',denials:evaluation.deny||[],evaluatedAt:new Date().toISOString(),limitation:'Technical configuration assertion only; signed source provenance and release authority are separate gates.'};
+ const evaluation=JSON.parse(raw).result?.[0]?.expressions?.[0]?.value;if(!evaluation||typeof evaluation.allow!=='boolean'||typeof evaluation.configuration_pass!=='boolean')throw new Error('OPA did not return a complete decision');
+ output={...output,status:evaluation.configuration_pass?'BLOCKED':'FAIL',configurationStatus:evaluation.configuration_pass?'PASS':'FAIL',denials:evaluation.deny||[],gateDenials:['Trusted infrastructure admission is not implemented; configuration results cannot authorize deployment'],evaluatedAt:new Date().toISOString(),limitation:'Diagnostic configuration result only. Deployment is blocked regardless of caller-supplied provenance or policy allow.'};
 }catch(error){output.error=error.message;}
-console.log(JSON.stringify(output,null,2));process.exitCode=output.status==='PASS'?0:2;
+console.log(JSON.stringify(output,null,2));process.exitCode=2;

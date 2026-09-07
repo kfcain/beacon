@@ -4,7 +4,7 @@ import {registerManifest,importInventory,infrastructureDemo,infrastructureView} 
 import CR26 from './cr26.json' with {type:'json'};
 // One credential-free domain engine for the GUI, API, CLI and MCP.
 export const VERSION='0.2.0';
-export const FRAMEWORKS=['FedRAMP 20x','FedRAMP Rev5','CMMC L2','ISO 27001','SOC 2'];
+export const FRAMEWORKS=['FedRAMP 20x','FedRAMP Rev5','CMMC L2','ISO 27001','SOC 2','ISO 42001'];
 export const SCENARIOS=['healthy','drift','missing-region','access-denied','stale','tampered'];
 export const scope=['us-gov-west-1','us-gov-east-1'].map(region=>({partition:'aws-us-gov',account:'111111111111',region}));
 export const catalog=[

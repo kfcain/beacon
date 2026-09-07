@@ -13,6 +13,7 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=high
       - run: npm test
       - name: Verify pinned OPA and run policy regressions
         shell: bash

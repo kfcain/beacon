@@ -63,7 +63,7 @@ node --test tests/beacon/*.test.mjs
 python3 tests/beacon/test_collector.py
 ```
 
-34 Node tests and 9 Rego tests passed after the infrastructure/TUI update, along with an actual Python mapper/API integration run. The 4 collector tests passed in the earlier milestone. Both the Worker and portable React client built successfully. Docker was unavailable, so images were not built/scanned. Browser visual QA was not performed. Hosted API persistence is provisioned at private deployment.
+36 Node tests and 14 Rego tests passed after the Greptile security fixes, along with an actual Python mapper/API integration run. The 4 collector tests passed in the earlier milestone. Both the Worker and portable React client built successfully. Docker was unavailable, so images were not built/scanned. Browser visual QA was not performed. Hosted API persistence is provisioned at private deployment.
 
 ## Scope and source
 

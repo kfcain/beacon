@@ -21,13 +21,14 @@ export async function registerContract(s,input,actor,now){
 export async function submitEvidence(s,input,actor,now){
  const e=input.evidence;check(e&&canonical(e).length<=150000,'Evidence envelope missing or too large');check(e.facts&&typeof e.facts==='object'&&!Array.isArray(e.facts),'Facts must be a flat object');
  check(Object.keys(e.facts).length<=100&&Object.entries(e.facts).every(([k,v])=>!['__proto__','constructor','prototype'].includes(k)&&k.length<=300&&primitive(v)&&(typeof v!=='string'||v.length<=12000)),'Invalid facts');
- const previous=current(state(s).evidence).find(r=>r.key===e.id);if(previous)check(['scopeId','subjectId','kind'].every(k=>previous.body[k]===e[k]),'Evidence identity cannot change scope, subject or kind');const observedAt=iso(e.observedAt);if(previous)check(observedAt>=previous.body.observedAt,'Evidence replay predates current version');check(Date.parse(observedAt)<=now,'Future evidence is not accepted');
+ const evidenceKey=str(e.id);const previous=current(state(s).evidence).find(r=>r.key===evidenceKey);if(previous)check(['scopeId','subjectId','kind'].every(k=>previous.body[k]===e[k]),'Evidence identity cannot change scope, subject or kind');const observedAt=iso(e.observedAt);if(previous)check(observedAt>=previous.body.observedAt,'Evidence replay predates current version');check(Date.parse(observedAt)<=now,'Future evidence is not accepted');
  const collectionStatus=e.collectionStatus||'OK';check(['OK','ERROR','DENIED','INVALID'].includes(collectionStatus),'Invalid collection status');const sourceType=e.source?.type;check(['collector','document','human','llm','test','external-engine'].includes(sourceType),'Unknown source type');
  const content=e.content??null;check(content===null||typeof content==='string'||typeof content==='object','Invalid content');
  const contentHash=await digest(content);if(e.contentHash!==undefined)check(e.contentHash===contentHash,'Content digest mismatch');
  const body={id:str(e.id),scopeId:str(e.scopeId),subjectId:str(e.subjectId),kind:str(e.kind),collectionStatus,mediaType:str(e.mediaType||'application/json'),observedAt,source:{type:sourceType,name:str(e.source.name),version:str(e.source.version||'unspecified')},facts:structuredClone(e.facts),content,contentHash,provenance:'UNVERIFIED_IMPORT',assertionAuthority:'NONE',citations:(e.citations||[]).map(c=>({locator:str(c.locator,1000),sourceHash:str(c.sourceHash,64)}))};
  check(body.citations.length<=30&&body.citations.every(c=>/^[a-f0-9]{64}$/.test(c.sourceHash)),'Invalid source citations');
  if(e.period){body.period={start:iso(e.period.start),end:iso(e.period.end)};check(body.period.start<=body.period.end&&Date.parse(body.period.end)<=now,'Invalid evidence period');}
+ if(previous){check(await intact(previous),'Previous evidence integrity failure');if(observedAt===previous.body.observedAt){check(canonical(body)===canonical(previous.body),'Equal-timestamp evidence replacement rejected; corrections require an authorized revision workflow');return previous;}}
  return save(state(s).evidence,body.id,body,actor,now);
 }
 async function intact(record){const {hash,...body}=record;return await digest(body)===hash;}

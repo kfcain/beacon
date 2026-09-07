@@ -5,7 +5,7 @@ Beacon now has a provider-neutral diagnostic contract engine alongside its AWS a
 ## What is implemented
 
 - Versioned contracts, evidence envelopes and custom report section blueprints, with record hashes and application audit events.
-- Explicit scope and subject matching; missing population, expired evidence, collection errors, record corruption and failed assertions remain distinct. Replayed older versions and identity changes are rejected.
+- Explicit scope and subject matching; missing population, expired evidence, collection errors, record corruption and failed assertions remain distinct. Replayed older versions and identity changes are rejected. Identical equal-timestamp retries return the existing record; changed facts, content or source metadata at that timestamp are rejected. Later observations create versions; an authorized correction workflow is not implemented.
 - Flat typed assertions (`eq`, `gte`, `lte`, `present`). Heterogeneous artifacts can carry text or JSON, a media type, normalized facts and citation references. These are envelope support, not universal file decoding or semantic validation.
 - Policy references pin a mapper document ID, version, location and source hash. A missing document or changed imported version opens a reassessment finding even if technical assertions pass. Matching hashes do not approve the interpretation or authenticate the document.
 - Automatic reconciliation on contract/evidence import, policy changes and report generation. The existing reconcile action also includes these contracts. A local watcher can detect expiration without another upstream event.

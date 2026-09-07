@@ -1,3 +1,4 @@
+import {registerContract,submitEvidence,registerTemplate,generateReport,reconcileVerification,verificationView,verifyVerification} from './verification.mjs';
 import {importPolicy,reviewPolicy,policyLinks} from './policies.mjs';
 import {registerManifest,importInventory,infrastructureDemo,infrastructureView} from './infrastructure.mjs';
 import CR26 from './cr26.json' with {type:'json'};
@@ -60,13 +61,18 @@ export async function seed(actor='local-owner'){
 export function latest(s,id){return s.runs.filter(r=>r.claimId===id).at(-1);}
 function earliestObservation(r){const times=[r.raw.completedAt,...(r.raw.observations||[]).map(x=>x.observedAt)].map(Date.parse).filter(Number.isFinite);return times.length?new Date(Math.min(...times)).toISOString():null;}
 export async function snapshot(state,now=Date.now()){
- const s=structuredClone(state);s.infrastructureView=infrastructureView(state,now);for(const c of s.claims){c.policyReferences=policyLinks(s,c.id);const r=latest(s,c.id);if(r)r.evaluation=await evaluate(c,r.raw,c.scope,now);c.current=r?{...r.evaluation,runId:r.id,at:earliestObservation(r),provenance:r.provenance,review:r.review}:{status:'UNKNOWN',coverage:0,expected:c.scope.length,reasons:['Evidence and review required']};}return s;
+ const s=structuredClone(state);s.infrastructureView=infrastructureView(state,now);s.verificationView=await verificationView(s,now);for(const c of s.claims){c.policyReferences=policyLinks(s,c.id);const r=latest(s,c.id);if(r)r.evaluation=await evaluate(c,r.raw,c.scope,now);c.current=r?{...r.evaluation,runId:r.id,at:earliestObservation(r),provenance:r.provenance,review:r.review}:{status:'UNKNOWN',coverage:0,expected:c.scope.length,reasons:['Evidence and review required']};}return s;
 }
 const text=(v,max=12000)=>{assert(typeof v==='string'&&v.trim().length>0&&v.length<=max,'Invalid text');return v.trim();};
-export const ACTIONS=['run','import','review','document','publish','reconcile','configure','relay','requirement','policy-import','policy-review','infra-register','infra-import','infra-demo'];
+export const ACTIONS=['run','import','review','document','publish','reconcile','configure','relay','requirement','policy-import','policy-review','infra-register','infra-import','infra-demo','verification-contract','verification-evidence','verification-template','verification-report','verification-reconcile'];
 export async function execute(s,action,input,actor,now=Date.now()){
  assert(ACTIONS.includes(action),'Unknown action');assert(s.audit.length<5000&&s.runs.length<500,'Archive and rotate workspace before continuing');const c=input.claimId?s.claims.find(c=>c.id===input.claimId):null;
  if(['run','import','review','document','configure'].includes(action))assert(c,'Unknown claim');let out;
+ if(action==='verification-contract')out=await registerContract(s,input,actor,now);
+ if(action==='verification-evidence')out=await submitEvidence(s,input,actor,now);
+ if(action==='verification-template')out=await registerTemplate(s,input,actor,now);
+ if(action==='verification-report')out=await generateReport(s,input,actor,now);
+ if(['verification-contract','verification-evidence','verification-reconcile'].includes(action)){const reconciliation=await reconcileVerification(s,actor,now);if(action==='verification-reconcile')out=reconciliation;}
  if(action==='infra-register')out=await registerManifest(s,input,actor,now);
  if(action==='infra-import')out=await importInventory(s,{observation:input.observation},actor,now);
  if(action==='infra-demo')out=await infrastructureDemo(s,input.scenario,actor,now);
@@ -96,6 +102,8 @@ export async function execute(s,action,input,actor,now=Date.now()){
  }
  if(action==='reconcile'){s.lastReconciled=new Date(now).toISOString();const v=await snapshot(s,now);out={at:s.lastReconciled,results:v.claims.map(c=>({id:c.id,status:c.current.status,reasons:c.current.reasons})),documentsNeedingRevision:s.documents.filter(d=>d.runId!==latest(s,d.claimId)?.id).map(d=>d.id)};}
  if(action==='relay'){const r=s.releases.at(-1);assert(r,'Create a sandbox release first');out={id:crypto.randomUUID(),releaseId:r.id,releaseSha256:r.sha256,destination:'Beacon sandbox trust center',at:new Date(now).toISOString(),status:'DELIVERED',external:false};s.relays.push(out);}
+ if(action==='reconcile'&&s.verification)out.verification=await reconcileVerification(s,actor,now);
+ if(['policy-import','policy-review','verification-report'].includes(action)&&s.verification)await reconcileVerification(s,actor,now);
  await appendEvent(s,actor,action,`${c?.id||'workspace'} · ${out.id||out.at||'updated'}`);assert(canonical(s).length<3500000,'Workspace size limit reached');return out;
 }
-export async function verifyBundle(s){const errors=[];let prev=null;for(const e of s.audit||[]){const {sha256,...body}=e;if(body.previous!==prev||await digest(body)!==sha256)errors.push('Audit integrity failure');prev=sha256;}for(const r of s.runs||[]){const c=s.claims.find(c=>c.id===r.claimId);const v=await evaluate(c,r.raw,c.scope);if(v.status==='ERROR')errors.push(...v.reasons);if(r.evaluation.inputSha256&&await digest(r.raw)!==r.evaluation.inputSha256)errors.push('Run manifest mismatch');}for(const p of s.policies||[]){if(await digest(p.report)!==p.reportHash||p.sourceHash!==p.report.ingest.source_hash)errors.push('Policy report integrity failure');}for(const r of s.infrastructure?.runs||[]){if(await digest(r.observation)!==r.hash)errors.push('Infrastructure observation integrity failure');}for(const m of s.infrastructure?.manifests||[]){if(await digest(m.manifest)!==m.hash)errors.push('Infrastructure manifest integrity failure');}return {ok:!errors.length,errors,checkpoint:prev,assurance:'Hash integrity only. Signer trust and an external checkpoint are separate requirements.'};}
+export async function verifyBundle(s){const errors=await verifyVerification(s);let prev=null;for(const e of s.audit||[]){const {sha256,...body}=e;if(body.previous!==prev||await digest(body)!==sha256)errors.push('Audit integrity failure');prev=sha256;}for(const r of s.runs||[]){const c=s.claims.find(c=>c.id===r.claimId);const v=await evaluate(c,r.raw,c.scope);if(v.status==='ERROR')errors.push(...v.reasons);if(r.evaluation.inputSha256&&await digest(r.raw)!==r.evaluation.inputSha256)errors.push('Run manifest mismatch');}for(const p of s.policies||[]){if(await digest(p.report)!==p.reportHash||p.sourceHash!==p.report.ingest.source_hash)errors.push('Policy report integrity failure');}for(const r of s.infrastructure?.runs||[]){if(await digest(r.observation)!==r.hash)errors.push('Infrastructure observation integrity failure');}for(const m of s.infrastructure?.manifests||[]){if(await digest(m.manifest)!==m.hash)errors.push('Infrastructure manifest integrity failure');}return {ok:!errors.length,errors,checkpoint:prev,assurance:'Hash integrity only. Signer trust and an external checkpoint are separate requirements.'};}

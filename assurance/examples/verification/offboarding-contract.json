@@ -1,0 +1,10 @@
+{
+  "contract": {
+    "id": "demo-offboarding", "title": "Access removal within four hours", "scopeId": "demo-organization", "owner": "Identity team", "maxAgeHours": 24,
+    "objectives": [{
+      "id": "revoke-access", "title": "Termination event to production access removal", "kind": "identity.offboarding", "subjects": ["demo-termination-001"],
+      "assertions": [{"field": "elapsedHours", "op": "lte", "value": 4}, {"field": "allProductionAccessRemoved", "op": "eq", "value": true}],
+      "mappings": [{"framework": "SOC 2", "edition": "2017 TSC / 2022 points of focus", "reference": "CC6.2"}, {"framework": "ISO 27001", "edition": "2022", "reference": "A.5.18"}]
+    }]
+  }
+}

@@ -51,6 +51,12 @@ def rows_for(state, view):
     if view == 'Infrastructure':
         return [{'label': r['id'], 'status': r['status'], 'context': b['manifest']['name'], 'detail': {'boundary': b['manifest'], 'resource': r, 'provenance': b.get('observed', {}).get('provenance', 'MISSING') if b.get('observed') else 'MISSING'}}
                 for b in state.get('infrastructureView', {}).get('boundaries', []) for r in b['rows']]
+    if view == 'Verification':
+        return [{'label': e['contractId'], 'status': e['configurationStatus'], 'context': e['scopeId'], 'detail': e} for e in state.get('verificationView', {}).get('evaluations', [])]
+    if view == 'Alerts':
+        return [{'label': a['body']['subjectId'], 'status': a['body']['state'], 'context': ', '.join(a['body']['categories']), 'detail': a} for a in state.get('verificationView', {}).get('alerts', [])]
+    if view == 'Reports':
+        return [{'label': r['body']['title'], 'status': 'STALE' if r['needsRefresh'] else 'DRAFT', 'context': r['body']['scopeId'], 'detail': r} for r in state.get('verificationView', {}).get('reports', [])]
     if view == 'Claims':
         return [{'label': c['id'] + ' ' + c['title'], 'status': c.get('current', {}).get('status', 'UNKNOWN'), 'context': c['owner'], 'detail': c} for c in state.get('claims', [])]
     return [{'label': p['docId'] + ' v' + str(p['version']), 'status': 'REVIEW', 'context': str(len(p['report']['statements'])) + ' statements', 'detail': p} for p in state.get('policies', [])]
@@ -59,7 +65,7 @@ def screen(stdscr, args):
     curses.curs_set(0)
     stdscr.keypad(True)
     stdscr.timeout(500)
-    views = ['Infrastructure', 'Claims', 'Policies']
+    views = ['Infrastructure', 'Claims', 'Policies', 'Verification', 'Alerts', 'Reports']
     view, selected, query, details, offset = 0, 0, '', False, 0
     state, error, refreshed, next_refresh = {}, '', 0, 0
     while True:
@@ -126,7 +132,7 @@ def main():
     try:
         if args.once:
             state=load_snapshot(args)
-            print(json.dumps({'scope':state.get('infrastructureView',{}).get('scope','No inventory snapshot'),'infrastructure':rows_for(state,'Infrastructure'),'claims':rows_for(state,'Claims')},ensure_ascii=True))
+            print(json.dumps({'scope':state.get('infrastructureView',{}).get('scope','No inventory snapshot'),'infrastructure':rows_for(state,'Infrastructure'),'claims':rows_for(state,'Claims'),'verification':rows_for(state,'Verification'),'alerts':rows_for(state,'Alerts'),'reports':rows_for(state,'Reports')},ensure_ascii=True))
         else: curses.wrapper(screen,args)
     except (Exception,KeyboardInterrupt) as exc:
         parser.exit(2, clean(exc)+'\n')

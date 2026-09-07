@@ -2,6 +2,10 @@
 
 A working application for evidence, validation, framework records, documentation, sandbox trust-center delivery, and MCP. The same domain engine powers the hosted application and the portable GUI/API/CLI/MCP runtime.
 
+## Persistent verification and reporting
+
+The Verification engine workspace adds scoped evidence contracts, correlated local alerts, policy-version reassessment, and 32 framework report blueprints. Use GUI, API, CLI, TUI or the 16-tool MCP server. See [Persistent verification](docs/PERSISTENT-VERIFICATION.md) for the walkthrough, report coverage and production boundaries. Imports remain unverified; reports are drafts and external notification delivery is not configured.
+
 ## Start locally
 
 Requires Node 24 or later for the portable SQLite runtime.
@@ -25,7 +29,7 @@ Open `http://127.0.0.1:8787`, sign in with the assigned token, and explore the w
 node portable/mcp.mjs
 ```
 
-Use `portable/mcp-config.example.json`, replacing absolute paths. Point `BEACON_DATABASE` and `BEACON_WORKSPACE` at the same workspace as the portable API. Stdio is read-only unless `BEACON_MCP_WRITES=true`. Tools: `beacon_status`, `beacon_claim`, `beacon_validate`, `beacon_run_demo`, `beacon_document`, `beacon_verify`, `beacon_trust_release`. Streamable HTTP is available at `/api/mcp` with API authentication. The private hosted application's access gate does not provide external OAuth client onboarding.
+Use `portable/mcp-config.example.json`, replacing absolute paths. Point `BEACON_DATABASE` and `BEACON_WORKSPACE` at the same workspace as the portable API. Stdio is read-only unless `BEACON_MCP_WRITES=true`. Discover all 16 tools through MCP `tools/list`, including infrastructure, policies, generic verification, report templates, evidence submission, draft generation and integrity checks. Streamable HTTP is available at `/api/mcp` with API authentication. The private hosted application's access gate does not provide external OAuth client onboarding.
 
 ## Try the full workflow
 

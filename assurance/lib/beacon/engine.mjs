@@ -1,3 +1,4 @@
+import {advanceSaasDemo} from './saas-demo.mjs';
 import {registerContract,submitEvidence,registerTemplate,generateReport,reconcileVerification,verificationView,verifyVerification} from './verification.mjs';
 import {importPolicy,reviewPolicy,policyLinks} from './policies.mjs';
 import {registerManifest,importInventory,infrastructureDemo,infrastructureView} from './infrastructure.mjs';
@@ -64,10 +65,11 @@ export async function snapshot(state,now=Date.now()){
  const s=structuredClone(state);s.infrastructureView=infrastructureView(state,now);s.verificationView=await verificationView(s,now);for(const c of s.claims){c.policyReferences=policyLinks(s,c.id);const r=latest(s,c.id);if(r)r.evaluation=await evaluate(c,r.raw,c.scope,now);c.current=r?{...r.evaluation,runId:r.id,at:earliestObservation(r),provenance:r.provenance,review:r.review}:{status:'UNKNOWN',coverage:0,expected:c.scope.length,reasons:['Evidence and review required']};}return s;
 }
 const text=(v,max=12000)=>{assert(typeof v==='string'&&v.trim().length>0&&v.length<=max,'Invalid text');return v.trim();};
-export const ACTIONS=['run','import','review','document','publish','reconcile','configure','relay','requirement','policy-import','policy-review','infra-register','infra-import','infra-demo','verification-contract','verification-evidence','verification-template','verification-report','verification-reconcile'];
+export const ACTIONS=['saas-demo','run','import','review','document','publish','reconcile','configure','relay','requirement','policy-import','policy-review','infra-register','infra-import','infra-demo','verification-contract','verification-evidence','verification-template','verification-report','verification-reconcile'];
 export async function execute(s,action,input,actor,now=Date.now()){
  assert(ACTIONS.includes(action),'Unknown action');assert(s.audit.length<5000&&s.runs.length<500,'Archive and rotate workspace before continuing');const c=input.claimId?s.claims.find(c=>c.id===input.claimId):null;
  if(['run','import','review','document','configure'].includes(action))assert(c,'Unknown claim');let out;
+ if(action==='saas-demo')out=await advanceSaasDemo(s,input,actor,now);
  if(action==='verification-contract')out=await registerContract(s,input,actor,now);
  if(action==='verification-evidence')out=await submitEvidence(s,input,actor,now);
  if(action==='verification-template')out=await registerTemplate(s,input,actor,now);

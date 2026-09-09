@@ -17,10 +17,11 @@ from beacon.scf.engine import collect_named
 from beacon.storage.s3 import (
     assert_upload_allowed,
     checkpoint_id,
+    checkpoints_jsonl_key,
     evidence_object_key,
     pack_object_key,
     pull_workspace,
-    record_object_key,
+    records_jsonl_key,
     sync_workspace,
 )
 from beacon.workspace import seed_workspace
@@ -127,15 +128,12 @@ def test_kms_defaults_to_alias_when_bucket_set(beacon_home: Path, monkeypatch: p
 
 
 def test_object_key_scheme():
-    sealed = "2026-09-09T12:00:00Z"
-    assert (
-        evidence_object_key("t1", "w1", "ev-1", sealed)
-        == "t1/w1/evidence/2026/09/ev-1.json"
-    )
-    assert record_object_key("t1", "w1", "ev-1") == "t1/w1/chain/records/ev-1.json"
+    assert evidence_object_key("t1", "w1", "ev-1") == "t1/w1/evidence/ev-1.json"
+    assert records_jsonl_key("t1", "w1") == "t1/w1/chain/records.jsonl"
+    assert checkpoints_jsonl_key("t1", "w1") == "t1/w1/chain/checkpoints.jsonl"
     assert (
         pack_object_key("t1", "w1", "20260909T120000Z", prefix="lake")
-        == "lake/t1/w1/exports/packs/20260909T120000Z/beacon-pack.json"
+        == "lake/t1/w1/export/beacon-pack-20260909T120000Z.json"
     )
 
 
@@ -152,6 +150,18 @@ def test_refuses_private_key_material(initialized: Path):
     with pytest.raises(BeaconError) as caught_tsa:
         assert_upload_allowed(settings, settings.keys_dir / "tsa.pem")
     assert caught_tsa.value.code == E_REMOTE
+    with pytest.raises(BeaconError) as caught_pub:
+        assert_upload_allowed(settings, settings.keys_dir / "recorder.pub")
+    assert caught_pub.value.code == E_REMOTE
+    with pytest.raises(BeaconError) as caught_cfg:
+        assert_upload_allowed(settings, settings.home / "config.json")
+    assert caught_cfg.value.code == E_REMOTE
+    cache = settings.cache_dir / "scf" / "IAC-01.json"
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text("{}", encoding="utf-8")
+    with pytest.raises(BeaconError) as caught_cache:
+        assert_upload_allowed(settings, cache)
+    assert caught_cache.value.code == E_REMOTE
 
 
 def test_collect_skips_remote_when_bucket_unset(initialized: Path):
@@ -193,7 +203,7 @@ def test_collect_dual_writes_s3_and_index(aws_lake):
     result = collect_named(settings, "aws.inspector", CollectContext(live=False))
     assert result["remote"]["ok"] is True
     record = load_records(settings)[0]
-    key = evidence_object_key(TENANT, WORKSPACE, record.evidence_id, record.ts)
+    key = evidence_object_key(TENANT, WORKSPACE, record.evidence_id)
     s3 = aws_lake["s3"]
     head = s3.head_object(Bucket=BUCKET, Key=key)
     meta = {k.lower(): v for k, v in (head.get("Metadata") or {}).items()}
@@ -204,20 +214,30 @@ def test_collect_dual_writes_s3_and_index(aws_lake):
     assert meta["sealed_at"] == record.ts
     assert head.get("ServerSideEncryption") == "aws:kms"
     assert head.get("ObjectLockMode") in {None, "GOVERNANCE"}
-    rec_key = record_object_key(TENANT, WORKSPACE, record.evidence_id)
-    s3.head_object(Bucket=BUCKET, Key=rec_key)
-    cp = load_checkpoints(settings)[0]
-    cp_key = f"{TENANT}/{WORKSPACE}/chain/checkpoints/{checkpoint_id(cp)}.json"
-    s3.head_object(Bucket=BUCKET, Key=cp_key)
+    s3.head_object(Bucket=BUCKET, Key=records_jsonl_key(TENANT, WORKSPACE))
+    s3.head_object(Bucket=BUCKET, Key=checkpoints_jsonl_key(TENANT, WORKSPACE))
     ddb = aws_lake["ddb"]
     ev_item = ddb.get_item(Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": f"EVIDENCE#{record.evidence_id}"})[
         "Item"
     ]
     assert ev_item["s3_uri"] == f"s3://{BUCKET}/{key}"
     assert ev_item["sha256"] == record.payload_sha256
+    listed = [
+        obj["Key"]
+        for obj in s3.list_objects_v2(Bucket=BUCKET).get("Contents") or []
+    ]
+    for key_name in listed:
+        assert "/keys/" not in key_name
+        assert "/cache/" not in key_name
+        assert not key_name.endswith("config.json")
+        assert "/exports/" not in key_name
+        assert "/meta/" not in key_name
+        parts = key_name.split("/")
+        assert "evidence" not in parts or parts[-1].endswith(".json")
     assert "IAC-01" in list(ev_item["control_ids"])
     fresh = ddb.get_item(Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": "FRESH#aws.inspector"})["Item"]
     assert fresh["s3_uri"] == ev_item["s3_uri"]
+    cp = load_checkpoints(settings)[0]
     cp_item = ddb.get_item(
         Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": f"CP#{checkpoint_id(cp)}"}
     )["Item"]
@@ -235,8 +255,9 @@ def test_push_dual_writes_pack(aws_lake):
     assert result.path.exists()
     assert result.remote is not None
     pack_uri = result.remote["pack"]["s3_uri"]
-    assert pack_uri.endswith("/beacon-pack.json")
-    assert "/exports/packs/" in pack_uri
+    assert pack_uri.endswith(f"/export/beacon-pack-{result.remote['pack']['pack_id']}.json")
+    assert "/export/beacon-pack-" in pack_uri
+    assert "/keys/" not in pack_uri
     body = aws_lake["s3"].get_object(
         Bucket=BUCKET,
         Key=pack_uri.split(f"s3://{BUCKET}/", 1)[1],
@@ -276,7 +297,7 @@ def test_pull_detects_hash_mismatch(aws_lake):
     settings = load_settings()
     collect_named(settings, "aws.inspector", CollectContext(live=False))
     record = load_records(settings)[0]
-    key = evidence_object_key(TENANT, WORKSPACE, record.evidence_id, record.ts)
+    key = evidence_object_key(TENANT, WORKSPACE, record.evidence_id)
     aws_lake["s3"].put_object(
         Bucket=BUCKET,
         Key=key,
@@ -310,9 +331,7 @@ def test_prefix_is_applied(initialized: Path, monkeypatch: pytest.MonkeyPatch):
         settings = load_settings()
         result = collect_named(settings, "aws.inspector", CollectContext(live=False))
         record = load_records(settings)[0]
-        key = evidence_object_key(
-            TENANT, WORKSPACE, record.evidence_id, record.ts, prefix="lake"
-        )
+        key = evidence_object_key(TENANT, WORKSPACE, record.evidence_id, prefix="lake")
         assert key.startswith("lake/")
         boto3.client("s3", region_name=REGION).head_object(Bucket=BUCKET, Key=key)
         assert result["remote"]["ok"] is True

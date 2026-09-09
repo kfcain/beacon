@@ -37,7 +37,7 @@ beacon collect --plugin aws.inspector
 
 ## AWS evidence lake
 
-When `BEACON_S3_BUCKET` is set, collect and push dual-write sealed artifacts to S3 after the local seal. DynamoDB `beacon-artifact-index` stores pointers. Private keys (`*.sec`, `.beacon/keys`) are never uploaded.
+When `BEACON_S3_BUCKET` is set, collect and push dual-write sealed artifacts to S3 after the local seal. Remote keys match the local writers: `evidence/{uuid}.json`, `chain/records.jsonl`, `chain/checkpoints.jsonl`, `export/beacon-pack-{stamp}.json`. DynamoDB `beacon-artifact-index` stores pointers. Private keys (`*.pem`, `.beacon/keys`), `config.json`, and `cache/` are never uploaded.
 
 ```bash
 export BEACON_S3_BUCKET=...

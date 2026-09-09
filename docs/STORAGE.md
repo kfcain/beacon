@@ -9,18 +9,26 @@ Remote storage does **not** prove that evidence content is true. See [LIMITS.md]
 Optional prefix: `BEACON_S3_PREFIX` (no leading or trailing slash).
 
 ```
-{prefix/}{tenant_id}/{workspace_id}/evidence/{yyyy}/{mm}/{evidence_id}.json
-{prefix/}{tenant_id}/{workspace_id}/chain/records/{record_id}.json
-{prefix/}{tenant_id}/{workspace_id}/chain/checkpoints/{checkpoint_id}.json
-{prefix/}{tenant_id}/{workspace_id}/exports/packs/{stamp}/beacon-pack.json
-{prefix/}{tenant_id}/{workspace_id}/meta/manifests/{run_id}.json
+{prefix/}{tenant_id}/{workspace_id}/evidence/{uuid}.json
+{prefix/}{tenant_id}/{workspace_id}/chain/records.jsonl
+{prefix/}{tenant_id}/{workspace_id}/chain/checkpoints.jsonl
+{prefix/}{tenant_id}/{workspace_id}/export/beacon-pack-{YYYYMMDDTHHMMSSZ}.json
 ```
 
-`record_id` is the evidence id. `checkpoint_id` is `{from_seq}-{to_seq}-{tsa_serial}`.
+These keys match the local `.beacon/` writers on main:
+
+| Local path | Writer | Remote object |
+| --- | --- | --- |
+| `evidence/{uuid}.json` | `seal_payload` | `.../evidence/{uuid}.json` |
+| `chain/records.jsonl` | `seal_payload` | `.../chain/records.jsonl` |
+| `chain/checkpoints.jsonl` | `create_checkpoint` | `.../chain/checkpoints.jsonl` |
+| `export/beacon-pack-{stamp}.json` | `beacon push` | `.../export/beacon-pack-{stamp}.json` |
+
+Beacon does **not** upload `config.json`, `keys/` (`*.pem`, `*.pub`, `tsa.crt`), or `cache/scf/`. Packs include public keys as JSON fields only.
 
 Object metadata (when present): `sha256`, `scf_targets`, `plugin`, `sealed_at`, `record_id`.
 
-Object tags: `beacon-class` (`evidence` | `chain-record` | `checkpoint` | `pack` | `manifest`), `beacon-tenant`, `beacon-workspace`. Lifecycle moves `evidence` and `pack` to STANDARD_IA at 90 days and GLACIER at 365 days. Checkpoints stay in STANDARD.
+Object tags: `beacon-class` (`evidence` | `chain-record` | `checkpoint` | `pack`), `beacon-tenant`, `beacon-workspace`. Lifecycle moves `evidence` and `pack` to STANDARD_IA at 90 days and GLACIER at 365 days. `chain/records.jsonl` and `chain/checkpoints.jsonl` stay in STANDARD.
 
 ## DynamoDB index
 
@@ -59,9 +67,9 @@ Prefer `aws sts assume-role`. See [deploy/aws](../deploy/aws/README.md).
 
 After local seal:
 
-- `beacon collect` / `beacon seed` — dual-write evidence, records, checkpoint, and a run manifest when the bucket is set.
-- `beacon push` — write a local pack (public keys only), then dual-write the pack to S3.
-- `beacon sync` — upload every local sealed artifact that the lake accepts.
+- `beacon collect` / `beacon seed` — after local seal, dual-write evidence and `records.jsonl`; after checkpoint, dual-write `checkpoints.jsonl`.
+- `beacon push` — write a local pack (public keys only), then dual-write `export/beacon-pack-{stamp}.json`.
+- `beacon sync` — upload the three writer classes from the local workspace.
 - `beacon pull` — download objects listed in the index and verify SHA-256 against the index.
 
 Offline tests and local collect still run with no AWS configuration.

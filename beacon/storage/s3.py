@@ -1,7 +1,7 @@
 """S3 evidence lake and DynamoDB artifact index.
 
 Local seal always runs first. Remote write is a dual-write after the local
-witness chain. This module does not upload ``.beacon/keys`` or ``*.sec`` files.
+witness chain. This module does not upload ``.beacon/keys``, ``*.pem`` private keys, ``config.json``, or ``cache/``.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ import re
 from pathlib import Path
 from typing import Any, Literal, NoReturn
 from urllib.parse import urlencode
-from uuid import uuid4
 
 try:
     import boto3
@@ -35,14 +34,18 @@ from beacon.crypto.witness import (
 )
 from beacon.errors import E_REMOTE, fail
 
-ArtifactKind = Literal["evidence", "record", "checkpoint", "pack", "manifest"]
+ArtifactKind = Literal["evidence", "records", "checkpoints", "pack"]
 
 PRIVATE_NAMES = frozenset({"recorder.pem", "witness.pem", "tsa.pem"})
-PRIVATE_SUFFIXES = frozenset({".sec"})
+PRIVATE_SUFFIXES = frozenset({".sec", ".pem"})
 LOCK_MODES = frozenset({"GOVERNANCE", "COMPLIANCE"})
 TAG_SAFE = re.compile(r"[^0-9A-Za-z+\-.:/@_]")
 PACK_NAME_RE = re.compile(r"^beacon-pack-(.+)\.json$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$")
+
+
+def _never(value: object) -> NoReturn:
+    raise AssertionError(f"unhandled value: {value}")
 
 
 def validate_scope_id(name: str, value: str) -> str:
@@ -69,12 +72,6 @@ def record_id(record: Record) -> str:
     return record.evidence_id
 
 
-def _yyyy_mm(sealed_at: str) -> tuple[str, str]:
-    stamp = sealed_at.replace("Z", "+00:00")
-    when = dt.datetime.fromisoformat(stamp)
-    return when.strftime("%Y"), when.strftime("%m")
-
-
 def _join_prefix(prefix: str, key: str) -> str:
     prefix = (prefix or "").strip().strip("/")
     if prefix:
@@ -86,35 +83,21 @@ def evidence_object_key(
     tenant_id: str,
     workspace_id: str,
     evidence_id: str,
-    sealed_at: str,
     *,
     prefix: str = "",
 ) -> str:
-    year, month = _yyyy_mm(sealed_at)
-    return _join_prefix(
-        prefix,
-        f"{tenant_id}/{workspace_id}/evidence/{year}/{month}/{evidence_id}.json",
-    )
+    """Match local ``evidence/{uuid}.json``."""
+    return _join_prefix(prefix, f"{tenant_id}/{workspace_id}/evidence/{evidence_id}.json")
 
 
-def record_object_key(
-    tenant_id: str,
-    workspace_id: str,
-    rec_id: str,
-    *,
-    prefix: str = "",
-) -> str:
-    return _join_prefix(prefix, f"{tenant_id}/{workspace_id}/chain/records/{rec_id}.json")
+def records_jsonl_key(tenant_id: str, workspace_id: str, *, prefix: str = "") -> str:
+    """Match local ``chain/records.jsonl``."""
+    return _join_prefix(prefix, f"{tenant_id}/{workspace_id}/chain/records.jsonl")
 
 
-def checkpoint_object_key(
-    tenant_id: str,
-    workspace_id: str,
-    cp_id: str,
-    *,
-    prefix: str = "",
-) -> str:
-    return _join_prefix(prefix, f"{tenant_id}/{workspace_id}/chain/checkpoints/{cp_id}.json")
+def checkpoints_jsonl_key(tenant_id: str, workspace_id: str, *, prefix: str = "") -> str:
+    """Match local ``chain/checkpoints.jsonl``."""
+    return _join_prefix(prefix, f"{tenant_id}/{workspace_id}/chain/checkpoints.jsonl")
 
 
 def pack_object_key(
@@ -124,20 +107,11 @@ def pack_object_key(
     *,
     prefix: str = "",
 ) -> str:
+    """Match local ``export/beacon-pack-{stamp}.json``."""
     return _join_prefix(
         prefix,
-        f"{tenant_id}/{workspace_id}/exports/packs/{stamp}/beacon-pack.json",
+        f"{tenant_id}/{workspace_id}/export/beacon-pack-{stamp}.json",
     )
-
-
-def manifest_object_key(
-    tenant_id: str,
-    workspace_id: str,
-    run_id: str,
-    *,
-    prefix: str = "",
-) -> str:
-    return _join_prefix(prefix, f"{tenant_id}/{workspace_id}/meta/manifests/{run_id}.json")
 
 
 def s3_uri(bucket: str, key: str) -> str:
@@ -152,24 +126,30 @@ def class_tag(kind: ArtifactKind) -> str:
     match kind:
         case "evidence":
             return "evidence"
-        case "record":
+        case "records":
             return "chain-record"
-        case "checkpoint":
+        case "checkpoints":
             return "checkpoint"
         case "pack":
             return "pack"
-        case "manifest":
-            return "manifest"
         case _:
             _never(kind)
 
 
 def assert_upload_allowed(settings: Settings, path: Path) -> None:
-    """Refuse private key material. Never upload ``*.sec`` or ``.beacon/keys``."""
+    """Refuse keys, cache, config, and private key material.
+
+    Never upload ``*.pem`` private keys, ``*.sec``, ``.beacon/keys``,
+    ``config.json``, or ``cache/``.
+    """
     resolved = path.resolve()
-    keys_dir = settings.keys_dir.resolve()
-    if resolved.is_relative_to(keys_dir):
+    home = settings.home.resolve()
+    if resolved.is_relative_to(settings.keys_dir.resolve()):
         fail(E_REMOTE, f"refusing to upload private key material: {path}")
+    if resolved.is_relative_to(settings.cache_dir.resolve()):
+        fail(E_REMOTE, f"refusing to upload cache: {path}")
+    if resolved == (home / "config.json"):
+        fail(E_REMOTE, f"refusing to upload workspace config: {path}")
     if resolved.suffix.lower() in PRIVATE_SUFFIXES:
         fail(E_REMOTE, f"refusing to upload {path.name}")
     if resolved.name in PRIVATE_NAMES:
@@ -255,24 +235,19 @@ class ArtifactLake:
                     self.tenant_id,
                     self.workspace_id,
                     parts["evidence_id"],
-                    parts["sealed_at"],
                     prefix=self.prefix,
                 )
-            case "record":
-                return record_object_key(
-                    self.tenant_id, self.workspace_id, parts["record_id"], prefix=self.prefix
+            case "records":
+                return records_jsonl_key(
+                    self.tenant_id, self.workspace_id, prefix=self.prefix
                 )
-            case "checkpoint":
-                return checkpoint_object_key(
-                    self.tenant_id, self.workspace_id, parts["checkpoint_id"], prefix=self.prefix
+            case "checkpoints":
+                return checkpoints_jsonl_key(
+                    self.tenant_id, self.workspace_id, prefix=self.prefix
                 )
             case "pack":
                 return pack_object_key(
                     self.tenant_id, self.workspace_id, parts["stamp"], prefix=self.prefix
-                )
-            case "manifest":
-                return manifest_object_key(
-                    self.tenant_id, self.workspace_id, parts["run_id"], prefix=self.prefix
                 )
             case _:
                 _never(kind)
@@ -345,6 +320,34 @@ class ArtifactLake:
             fail(E_REMOTE, f"DynamoDB Query failed: {exc}")
         return items
 
+    def put_records_jsonl(self) -> dict[str, Any]:
+        path = self.settings.chain_path
+        assert_upload_allowed(self.settings, path)
+        body = path.read_bytes() if path.exists() else b""
+        digest = sha256_bytes(body)
+        key = self._key("records")
+        uri = self._put_bytes(
+            key,
+            body,
+            kind="records",
+            metadata={"sha256": digest, "sealed_at": _now()},
+        )
+        return {"kind": "records", "s3_uri": uri, "sha256": digest}
+
+    def put_checkpoints_jsonl(self) -> dict[str, Any]:
+        path = self.settings.checkpoints_path
+        assert_upload_allowed(self.settings, path)
+        body = path.read_bytes() if path.exists() else b""
+        digest = sha256_bytes(body)
+        key = self._key("checkpoints")
+        uri = self._put_bytes(
+            key,
+            body,
+            kind="checkpoints",
+            metadata={"sha256": digest, "sealed_at": _now()},
+        )
+        return {"kind": "checkpoints", "s3_uri": uri, "sha256": digest}
+
     def put_record_and_evidence(
         self,
         record: Record,
@@ -352,6 +355,7 @@ class ArtifactLake:
         *,
         merkle_root: str = "",
         pack_id: str = "",
+        sync_jsonl: bool = True,
     ) -> list[dict[str, Any]]:
         assert_upload_allowed(self.settings, evidence_path)
         payload = evidence_path.read_bytes()
@@ -359,12 +363,14 @@ class ArtifactLake:
         if digest != record.payload_sha256:
             fail(E_REMOTE, f"local evidence hash mismatch for {record.evidence_id}")
         rec_id = record_id(record)
-        rec_body = dumps(record.to_dict())
-        rec_digest = sha256_bytes(rec_body)
-        ev_key = self._key(
-            "evidence", evidence_id=record.evidence_id, sealed_at=record.ts
-        )
-        rec_key = self._key("record", record_id=rec_id)
+        rec_digest = sha256_bytes(dumps(record.to_dict()))
+        ev_key = self._key("evidence", evidence_id=record.evidence_id)
+        rec_uri = s3_uri(self.bucket, self._key("records"))
+        extras: list[dict[str, Any]] = []
+        if sync_jsonl:
+            jsonl = self.put_records_jsonl()
+            rec_uri = jsonl["s3_uri"]
+            extras.append(jsonl)
         meta_common = {
             "sha256": digest,
             "scf_targets": ",".join(record.scf_targets),
@@ -383,6 +389,7 @@ class ArtifactLake:
                 updates["pack_id"] = pack_id
             if merkle_root and existing.get("merkle_root") != merkle_root:
                 updates["merkle_root"] = merkle_root
+            updates["record_s3_uri"] = rec_uri
             if updates:
                 merged = {k: v for k, v in existing.items() if k not in {"pk", "sk"}}
                 merged.update(updates)
@@ -395,22 +402,14 @@ class ArtifactLake:
                     "sha256": digest,
                     "skipped": True,
                     "pack_id": pack_id or existing.get("pack_id"),
-                }
+                },
+                *extras,
             ]
         ev_uri = self._put_bytes(
             ev_key,
             payload,
             kind="evidence",
             metadata=meta_common,
-        )
-        rec_uri = self._put_bytes(
-            rec_key,
-            rec_body,
-            kind="record",
-            metadata={
-                **meta_common,
-                "sha256": rec_digest,
-            },
         )
         fields = {
             "s3_uri": ev_uri,
@@ -429,7 +428,7 @@ class ArtifactLake:
         self._index_put(f"FRESH#{record.plugin}", dict(fields))
         return [
             {"kind": "evidence", "s3_uri": ev_uri, "sha256": digest},
-            {"kind": "record", "s3_uri": rec_uri, "sha256": rec_digest, "record_id": rec_id},
+            *extras,
         ]
 
     def _unchanged(self, sk: str, digest: str, field: str = "sha256") -> bool:
@@ -438,33 +437,28 @@ class ArtifactLake:
 
     def put_checkpoint(self, checkpoint: Checkpoint, *, pack_id: str = "") -> dict[str, Any]:
         cp_id = checkpoint_id(checkpoint)
-        body = dumps(checkpoint.to_dict())
-        digest = sha256_bytes(body)
+        digest = sha256_bytes(dumps(checkpoint.to_dict()))
         sk = f"CP#{cp_id}"
+        jsonl = self.put_checkpoints_jsonl()
         if self._unchanged(sk, digest):
             existing = self._index_get(sk)
+            if existing:
+                merged = {k: v for k, v in existing.items() if k not in {"pk", "sk"}}
+                merged["s3_uri"] = jsonl["s3_uri"]
+                if pack_id:
+                    merged["pack_id"] = pack_id
+                self._index_put(sk, merged)
             return {
-                "kind": "checkpoint",
-                "s3_uri": (existing or {}).get("s3_uri"),
+                "kind": "checkpoints",
+                "s3_uri": jsonl["s3_uri"],
                 "sha256": digest,
                 "checkpoint_id": cp_id,
                 "skipped": True,
             }
-        key = self._key("checkpoint", checkpoint_id=cp_id)
-        uri = self._put_bytes(
-            key,
-            body,
-            kind="checkpoint",
-            metadata={
-                "sha256": digest,
-                "sealed_at": checkpoint.created_at,
-                "record_id": cp_id,
-            },
-        )
         self._index_put(
             sk,
             {
-                "s3_uri": uri,
+                "s3_uri": jsonl["s3_uri"],
                 "sha256": digest,
                 "sealed_at": checkpoint.created_at,
                 "control_ids": [],
@@ -473,7 +467,12 @@ class ArtifactLake:
                 "checkpoint_id": cp_id,
             },
         )
-        return {"kind": "checkpoint", "s3_uri": uri, "sha256": digest, "checkpoint_id": cp_id}
+        return {
+            "kind": "checkpoints",
+            "s3_uri": jsonl["s3_uri"],
+            "sha256": digest,
+            "checkpoint_id": cp_id,
+        }
 
     def put_pack(self, path: Path, *, stamp: str | None = None) -> dict[str, Any]:
         assert_upload_allowed(self.settings, path)
@@ -488,25 +487,6 @@ class ArtifactLake:
             metadata={"sha256": digest, "sealed_at": _now(), "record_id": stamp},
         )
         return {"kind": "pack", "s3_uri": uri, "sha256": digest, "pack_id": stamp}
-
-    def put_manifest(self, run_id: str, objects: list[dict[str, Any]]) -> dict[str, Any]:
-        payload = {
-            "run_id": run_id,
-            "tenant_id": self.tenant_id,
-            "workspace_id": self.workspace_id,
-            "sealed_at": _now(),
-            "objects": objects,
-        }
-        body = dumps(payload)
-        digest = sha256_bytes(body)
-        key = self._key("manifest", run_id=run_id)
-        uri = self._put_bytes(
-            key,
-            body,
-            kind="manifest",
-            metadata={"sha256": digest, "sealed_at": payload["sealed_at"], "record_id": run_id},
-        )
-        return {"kind": "manifest", "s3_uri": uri, "sha256": digest, "run_id": run_id}
 
     def _workspace_prefix(self) -> str:
         return _join_prefix(self.prefix, f"{self.tenant_id}/{self.workspace_id}/")
@@ -537,9 +517,7 @@ class ArtifactLake:
         *,
         merkle_root: str = "",
         pack_id: str = "",
-        run_id: str | None = None,
     ) -> dict[str, Any]:
-        run_id = run_id or str(uuid4())
         objects: list[dict[str, Any]] = []
         for record in records:
             path = self.settings.evidence_dir / f"{record.evidence_id}.json"
@@ -547,19 +525,21 @@ class ArtifactLake:
                 fail(E_REMOTE, f"missing local evidence file for {record.evidence_id}")
             objects.extend(
                 self.put_record_and_evidence(
-                    record, path, merkle_root=merkle_root, pack_id=pack_id
+                    record,
+                    path,
+                    merkle_root=merkle_root,
+                    pack_id=pack_id,
+                    sync_jsonl=False,
                 )
             )
+        if records or self.settings.chain_path.exists():
+            objects.append(self.put_records_jsonl())
         for checkpoint in checkpoints:
             objects.append(self.put_checkpoint(checkpoint, pack_id=pack_id))
-        manifest = self.put_manifest(run_id, objects)
-        objects.append(manifest)
         return {
             "ok": True,
-            "run_id": run_id,
             "bucket": self.bucket,
             "objects": objects,
-            "manifest_s3_uri": manifest["s3_uri"],
         }
 
 
@@ -573,6 +553,34 @@ def _parse_s3_uri(uri: str) -> tuple[str, str]:
     return bucket, key
 
 
+def _parse_jsonl(body: bytes) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in body.decode("utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        rows.append(json.loads(line))
+    return rows
+
+
+def publish_sealed_record(settings: Settings, record: Record) -> dict[str, Any] | None:
+    """Dual-write ``evidence/{uuid}.json`` and ``chain/records.jsonl`` after local seal."""
+    lake = remote_ready(settings)
+    if lake is None:
+        return None
+    path = settings.evidence_dir / f"{record.evidence_id}.json"
+    objects = lake.put_record_and_evidence(record, path, sync_jsonl=True)
+    return {"ok": True, "objects": objects}
+
+
+def publish_sealed_checkpoint(settings: Settings, checkpoint: Checkpoint) -> dict[str, Any] | None:
+    """Dual-write ``chain/checkpoints.jsonl`` after local checkpoint."""
+    lake = remote_ready(settings)
+    if lake is None:
+        return None
+    return {"ok": True, **lake.put_checkpoint(checkpoint)}
+
+
 def publish_collect_run(
     settings: Settings,
     *,
@@ -583,11 +591,39 @@ def publish_collect_run(
     lake = remote_ready(settings)
     if lake is None:
         return None
-    wanted = set(evidence_ids)
-    records = [row for row in load_records(settings) if row.evidence_id in wanted]
-    checkpoints = [checkpoint] if checkpoint is not None else []
-    merkle = checkpoint.merkle_root if checkpoint is not None else ""
-    return lake.publish_records(records, checkpoints, merkle_root=merkle, run_id=run_id)
+    objects: list[dict[str, Any]] = []
+    for eid in evidence_ids:
+        item = lake._index_get(f"EVIDENCE#{eid}")
+        if item is None:
+            fail(E_REMOTE, f"remote seal missing for evidence {eid}")
+        objects.append(
+            {
+                "kind": "evidence",
+                "s3_uri": item.get("s3_uri"),
+                "sha256": item.get("sha256"),
+            }
+        )
+    objects.append(
+        {
+            "kind": "records",
+            "s3_uri": s3_uri(
+                lake.bucket,
+                records_jsonl_key(lake.tenant_id, lake.workspace_id, prefix=lake.prefix),
+            ),
+        }
+    )
+    if checkpoint is not None:
+        objects.append(
+            {
+                "kind": "checkpoints",
+                "s3_uri": s3_uri(
+                    lake.bucket,
+                    checkpoints_jsonl_key(lake.tenant_id, lake.workspace_id, prefix=lake.prefix),
+                ),
+                "merkle_root": checkpoint.merkle_root,
+            }
+        )
+    return {"ok": True, "bucket": lake.bucket, "objects": objects}
 
 
 def publish_pack(settings: Settings, path: Path, *, stamp: str | None = None) -> dict[str, Any] | None:
@@ -604,17 +640,21 @@ def publish_pack(settings: Settings, path: Path, *, stamp: str | None = None) ->
         if ev.exists():
             objects.extend(
                 lake.put_record_and_evidence(
-                    record, ev, merkle_root=merkle, pack_id=uploaded["pack_id"]
+                    record,
+                    ev,
+                    merkle_root=merkle,
+                    pack_id=uploaded["pack_id"],
+                    sync_jsonl=False,
                 )
             )
+    if records:
+        objects.append(lake.put_records_jsonl())
     for checkpoint in checkpoints:
         objects.append(lake.put_checkpoint(checkpoint, pack_id=uploaded["pack_id"]))
-    manifest = lake.put_manifest(f"pack-{uploaded['pack_id']}", objects)
     return {
         "ok": True,
         "pack": uploaded,
-        "manifest_s3_uri": manifest["s3_uri"],
-        "objects": objects + [manifest],
+        "objects": objects,
     }
 
 
@@ -624,9 +664,10 @@ def sync_workspace(settings: Settings) -> dict[str, Any]:
     records = load_records(settings)
     checkpoints = load_checkpoints(settings)
     merkle = checkpoints[-1].merkle_root if checkpoints else ""
-    result = lake.publish_records(records, checkpoints, merkle_root=merkle, run_id=str(uuid4()))
+    result = lake.publish_records(records, checkpoints, merkle_root=merkle)
     packs = []
     for path in sorted(settings.export_dir.glob("beacon-pack-*.json")):
+        assert_upload_allowed(settings, path)
         packs.append(lake.put_pack(path))
     result["packs"] = packs
     return result
@@ -642,65 +683,111 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
     verified = 0
     incoming_records: dict[int, dict[str, Any]] = {}
     incoming_checkpoints: dict[str, dict[str, Any]] = {}
+    jsonl_cache: dict[str, bytes] = {}
+
+    def cached_get(uri: str) -> bytes:
+        if uri not in jsonl_cache:
+            jsonl_cache[uri] = lake._get_object(uri)
+        return jsonl_cache[uri]
+
+    evidence_items: list[dict[str, Any]] = []
+    checkpoint_items: list[dict[str, Any]] = []
     for item in items:
         sk = str(item.get("sk") or "")
         if sk.startswith("FRESH#"):
             continue
+        if sk.startswith("EVIDENCE#"):
+            validate_artifact_id("evidence_id", sk.split("#", 1)[1])
+            evidence_items.append(item)
+        elif sk.startswith("CP#"):
+            raw_id = str(item.get("checkpoint_id") or sk.split("#", 1)[1])
+            validate_artifact_id("checkpoint_id", raw_id)
+            checkpoint_items.append(item)
+        else:
+            fail(E_REMOTE, f"unexpected index sort key {sk}")
+
+    records_by_eid: dict[str, dict[str, Any]] = {}
+    records_uri = ""
+    for item in evidence_items:
+        maybe = str(item.get("record_s3_uri") or "")
+        if maybe:
+            records_uri = maybe
+            break
+    if not records_uri and evidence_items:
+        records_uri = s3_uri(
+            lake.bucket,
+            records_jsonl_key(lake.tenant_id, lake.workspace_id, prefix=lake.prefix),
+        )
+    if records_uri:
+        for row in _parse_jsonl(cached_get(records_uri)):
+            records_by_eid[str(row["evidence_id"])] = row
+        pulled += 1
+        verified += 1
+
+    for item in evidence_items:
+        sk = str(item.get("sk") or "")
         uri = str(item.get("s3_uri") or "")
         expected = str(item.get("sha256") or "")
         if not uri or not expected:
             fail(E_REMOTE, f"index item {sk} missing s3_uri or sha256")
-        if sk.startswith("EVIDENCE#"):
-            evidence_id = validate_artifact_id("evidence_id", sk.split("#", 1)[1])
-            dest = (settings.evidence_dir / f"{evidence_id}.json").resolve()
-            if not dest.is_relative_to(settings.evidence_dir.resolve()):
-                fail(E_REMOTE, f"refusing evidence path outside evidence dir: {evidence_id}")
-            body = lake._get_object(uri)
-            digest = sha256_bytes(body)
-            if digest != expected:
-                fail(E_REMOTE, f"sha256 mismatch for {uri}")
-            verified += 1
-            if dest.exists() and sha256_bytes(dest.read_bytes()) != digest:
-                fail(E_REMOTE, f"local evidence conflict for {evidence_id}")
-            rec_uri = str(item.get("record_s3_uri") or "")
-            rec_expected = str(item.get("record_sha256") or "")
-            if not rec_uri:
-                fail(E_REMOTE, f"index item {sk} missing record_s3_uri")
-            rec_body = lake._get_object(rec_uri)
-            rec_digest = sha256_bytes(rec_body)
-            if rec_expected and rec_digest != rec_expected:
-                fail(E_REMOTE, f"sha256 mismatch for {rec_uri}")
-            record = json.loads(rec_body.decode("utf-8"))
-            if str(record.get("evidence_id")) != evidence_id:
-                fail(E_REMOTE, f"record evidence_id mismatch for {evidence_id}")
-            if str(record.get("payload_sha256")) != digest:
-                fail(E_REMOTE, f"evidence does not match record payload_sha256 for {evidence_id}")
-            seq = int(record["seq"])
-            prior = incoming_records.get(seq)
-            if prior and sha256_obj(prior) != sha256_obj(record):
-                fail(E_REMOTE, f"record conflict at seq {seq}")
-            incoming_records[seq] = record
-            dest.write_bytes(body)
-            pulled += 2
-            verified += 1
-        elif sk.startswith("CP#"):
-            raw_id = str(item.get("checkpoint_id") or sk.split("#", 1)[1])
-            cp_id = validate_artifact_id("checkpoint_id", raw_id)
-            body = lake._get_object(uri)
-            digest = sha256_bytes(body)
-            if digest != expected:
-                fail(E_REMOTE, f"sha256 mismatch for {uri}")
-            verified += 1
-            checkpoint = json.loads(body.decode("utf-8"))
-            if checkpoint_id(Checkpoint.from_dict(checkpoint)) != cp_id:
-                fail(E_REMOTE, f"checkpoint id mismatch for {cp_id}")
-            prior = incoming_checkpoints.get(cp_id)
-            if prior and sha256_obj(prior) != sha256_obj(checkpoint):
-                fail(E_REMOTE, f"checkpoint conflict for {cp_id}")
-            incoming_checkpoints[cp_id] = checkpoint
-            pulled += 1
-        else:
-            fail(E_REMOTE, f"unexpected index sort key {sk}")
+        evidence_id = validate_artifact_id("evidence_id", sk.split("#", 1)[1])
+        dest = (settings.evidence_dir / f"{evidence_id}.json").resolve()
+        if not dest.is_relative_to(settings.evidence_dir.resolve()):
+            fail(E_REMOTE, f"refusing evidence path outside evidence dir: {evidence_id}")
+        body = lake._get_object(uri)
+        digest = sha256_bytes(body)
+        if digest != expected:
+            fail(E_REMOTE, f"sha256 mismatch for {uri}")
+        verified += 1
+        if dest.exists() and sha256_bytes(dest.read_bytes()) != digest:
+            fail(E_REMOTE, f"local evidence conflict for {evidence_id}")
+        record = records_by_eid.get(evidence_id)
+        if record is None:
+            fail(E_REMOTE, f"records.jsonl missing evidence_id {evidence_id}")
+        rec_expected = str(item.get("record_sha256") or "")
+        rec_digest = sha256_bytes(dumps(record))
+        if rec_expected and rec_digest != rec_expected:
+            fail(E_REMOTE, f"record sha256 mismatch for {evidence_id}")
+        if str(record.get("payload_sha256")) != digest:
+            fail(E_REMOTE, f"evidence does not match record payload_sha256 for {evidence_id}")
+        seq = int(record["seq"])
+        prior = incoming_records.get(seq)
+        if prior and sha256_obj(prior) != sha256_obj(record):
+            fail(E_REMOTE, f"record conflict at seq {seq}")
+        incoming_records[seq] = record
+        dest.write_bytes(body)
+        pulled += 1
+
+    checkpoints_by_id: dict[str, dict[str, Any]] = {}
+    checkpoints_uri = ""
+    for item in checkpoint_items:
+        maybe = str(item.get("s3_uri") or "")
+        if maybe:
+            checkpoints_uri = maybe
+            break
+    if checkpoints_uri:
+        for row in _parse_jsonl(cached_get(checkpoints_uri)):
+            checkpoints_by_id[checkpoint_id(Checkpoint.from_dict(row))] = row
+        pulled += 1
+        verified += 1
+
+    for item in checkpoint_items:
+        sk = str(item.get("sk") or "")
+        expected = str(item.get("sha256") or "")
+        raw_id = str(item.get("checkpoint_id") or sk.split("#", 1)[1])
+        cp_id = validate_artifact_id("checkpoint_id", raw_id)
+        checkpoint = checkpoints_by_id.get(cp_id)
+        if checkpoint is None:
+            fail(E_REMOTE, f"checkpoints.jsonl missing {cp_id}")
+        digest = sha256_bytes(dumps(checkpoint))
+        if expected and digest != expected:
+            fail(E_REMOTE, f"checkpoint sha256 mismatch for {cp_id}")
+        verified += 1
+        prior = incoming_checkpoints.get(cp_id)
+        if prior and sha256_obj(prior) != sha256_obj(checkpoint):
+            fail(E_REMOTE, f"checkpoint conflict for {cp_id}")
+        incoming_checkpoints[cp_id] = checkpoint
+
     _merge_records(settings, incoming_records)
     _merge_checkpoints(settings, incoming_checkpoints)
     chain = None

@@ -213,7 +213,15 @@ def seal_payload(
     evidence_path = settings.evidence_dir / f"{evidence_id}.json"
     evidence_path.write_bytes(dumps(payload))
     _append_jsonl(settings.chain_path, record.to_dict())
+    _dual_write_seal(settings, record)
     return record
+
+
+def _dual_write_seal(settings: Settings, record: Record) -> None:
+    # Circular import: beacon.storage.s3 imports Record from this module.
+    from beacon.storage.s3 import publish_sealed_record
+
+    publish_sealed_record(settings, record)
 
 
 def create_checkpoint(
@@ -247,7 +255,15 @@ def create_checkpoint(
         created_at=_now(),
     )
     _append_jsonl(settings.checkpoints_path, checkpoint.to_dict())
+    _dual_write_checkpoint(settings, checkpoint)
     return checkpoint
+
+
+def _dual_write_checkpoint(settings: Settings, checkpoint: Checkpoint) -> None:
+    # Circular import: beacon.storage.s3 imports Checkpoint from this module.
+    from beacon.storage.s3 import publish_sealed_checkpoint
+
+    publish_sealed_checkpoint(settings, checkpoint)
 
 
 def _covered_seqs(checkpoints: list[Checkpoint]) -> set[int]:

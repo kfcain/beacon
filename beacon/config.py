@@ -23,6 +23,22 @@ def env(name: str, default: str | None = None) -> str | None:
     return os.environ.get(f"BEACON_{name}", default)
 
 
+DEFAULT_DDB_TABLE = "beacon-artifact-index"
+DEFAULT_OBJECT_LOCK_MODE = "GOVERNANCE"
+DEFAULT_OBJECT_LOCK_DAYS = 365
+KMS_ALIAS_BEACON_EVIDENCE = "alias/beacon-evidence"
+
+
+def _int_env(name: str, default: int) -> int:
+    raw = env(name)
+    if raw is None or not str(raw).strip():
+        return default
+    try:
+        return int(str(raw).strip())
+    except ValueError:
+        return default
+
+
 @dataclass(frozen=True)
 class Settings:
     home: Path
@@ -31,6 +47,15 @@ class Settings:
     plugin_path: tuple[Path, ...]
     tsa_url: str | None
     force_fixture: bool
+    s3_bucket: str | None
+    s3_prefix: str
+    kms_key_arn: str | None
+    ddb_table: str | None
+    object_lock_mode: str
+    object_lock_days: int
+    tenant_id: str | None
+    workspace_id: str | None
+    require_remote: bool
 
     @property
     def keys_dir(self) -> Path:
@@ -70,6 +95,17 @@ def load_settings(cwd: Path | None = None) -> Settings:
     plugin_raw = env("PLUGIN_PATH") or ""
     plugin_path = tuple(Path(p).expanduser() for p in plugin_raw.split(os.pathsep) if p.strip())
     tsa_url = env("TSA_URL")
+    bucket = (env("S3_BUCKET") or "").strip() or None
+    prefix = (env("S3_PREFIX") or "").strip().strip("/")
+    kms_key = (env("KMS_KEY_ARN") or "").strip() or None
+    table = (env("DDB_TABLE") or "").strip() or None
+    if bucket and not table:
+        table = DEFAULT_DDB_TABLE
+    if bucket and not kms_key:
+        kms_key = KMS_ALIAS_BEACON_EVIDENCE
+    lock_mode = (env("OBJECT_LOCK_MODE") or DEFAULT_OBJECT_LOCK_MODE).strip().upper()
+    tenant = (env("TENANT_ID") or "").strip() or None
+    workspace = (env("WORKSPACE_ID") or "").strip() or None
     return Settings(
         home=home,
         scf_api_base=(env("SCF_API_BASE") or DEFAULT_SCF_API_BASE).rstrip("/") + "/",
@@ -77,6 +113,15 @@ def load_settings(cwd: Path | None = None) -> Settings:
         plugin_path=plugin_path,
         tsa_url=tsa_url if tsa_url else None,
         force_fixture=_truthy(env("FORCE_FIXTURE")),
+        s3_bucket=bucket,
+        s3_prefix=prefix,
+        kms_key_arn=kms_key,
+        ddb_table=table,
+        object_lock_mode=lock_mode,
+        object_lock_days=_int_env("OBJECT_LOCK_DAYS", DEFAULT_OBJECT_LOCK_DAYS),
+        tenant_id=tenant,
+        workspace_id=workspace,
+        require_remote=_truthy(env("REQUIRE_REMOTE")),
     )
 
 

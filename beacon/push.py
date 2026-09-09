@@ -3,16 +3,25 @@
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from beacon import __version__
 from beacon.canonical import dumps
 from beacon.config import Settings
 from beacon.crypto.witness import load_checkpoints, load_records
 from beacon.errors import E_NOT_INITIALIZED, fail
+from beacon.storage import publish_pack
 
 
-def write_pack(settings: Settings, out_path: Path | None = None) -> Path:
+@dataclass
+class PackWrite:
+    path: Path
+    remote: dict[str, Any] | None = None
+
+
+def write_pack(settings: Settings, out_path: Path | None = None) -> PackWrite:
     rec_pub = settings.keys_dir / "recorder.pub"
     wit_pub = settings.keys_dir / "witness.pub"
     tsa_crt = settings.keys_dir / "tsa.crt"
@@ -39,8 +48,13 @@ def write_pack(settings: Settings, out_path: Path | None = None) -> Path:
         "evidence": evidence,
     }
     settings.export_dir.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     if out_path is None:
-        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         out_path = settings.export_dir / f"beacon-pack-{stamp}.json"
+    else:
+        name = Path(out_path).name
+        if name.startswith("beacon-pack-") and name.endswith(".json"):
+            stamp = name[len("beacon-pack-") : -len(".json")]
     out_path.write_bytes(dumps(pack))
-    return out_path
+    remote = publish_pack(settings, out_path, stamp=stamp)
+    return PackWrite(path=out_path, remote=remote)

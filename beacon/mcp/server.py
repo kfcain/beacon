@@ -87,8 +87,11 @@ def tool_beacon_scf_lookup(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def tool_beacon_push(args: dict[str, Any]) -> dict[str, Any]:
-    path = write_pack(load_settings(), None)
-    return {"ok": True, "path": str(path)}
+    result = write_pack(load_settings(), None)
+    payload = {"ok": True, "path": str(result.path)}
+    if result.remote:
+        payload["remote"] = result.remote
+    return payload
 
 
 def tool_beacon_validation(_args: dict[str, Any]) -> dict[str, Any]:

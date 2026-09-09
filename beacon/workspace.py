@@ -73,6 +73,18 @@ def system_status(settings: Settings) -> dict:
         "plugins": plugins,
         "records": len(load_records(settings)) if initialized else 0,
         "checkpoints": len(load_checkpoints(settings)) if initialized else 0,
+        "storage": {
+            "enabled": bool(settings.s3_bucket),
+            "s3_bucket": settings.s3_bucket,
+            "s3_prefix": settings.s3_prefix or None,
+            "ddb_table": settings.ddb_table,
+            "kms_key_arn": settings.kms_key_arn,
+            "tenant_id": settings.tenant_id,
+            "workspace_id": settings.workspace_id,
+            "require_remote": settings.require_remote,
+            "object_lock_mode": settings.object_lock_mode,
+            "object_lock_days": settings.object_lock_days,
+        },
     }
 
 

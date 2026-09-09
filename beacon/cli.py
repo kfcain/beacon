@@ -1,4 +1,4 @@
-"""Beacon CLI: init, seed, collect, check, serve, tui, mcp."""
+"""Beacon CLI: init, seed, collect, check, sync, pull, serve, tui, mcp."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from beacon.errors import BeaconError
 from beacon.plugins.loader import load_plugins
 from beacon.plugins.spec import CollectContext
 from beacon.scf.engine import collect_all, collect_named, collect_target
+from beacon.storage import pull_workspace, sync_workspace
 from beacon.workspace import freshness, init_workspace, seed_workspace, system_status, validation
 
 
@@ -125,10 +126,13 @@ def cmd_push(out_path: Path | None) -> None:
 
     settings = _settings()
     try:
-        path = write_pack(settings, out_path)
+        result = write_pack(settings, out_path)
     except BeaconError as exc:
         _die(exc)
-    _emit({"ok": True, "path": str(path)})
+    payload = {"ok": True, "path": str(result.path)}
+    if result.remote:
+        payload["remote"] = result.remote
+    _emit(payload)
 
 
 @main.command("freshness")
@@ -185,6 +189,26 @@ def cmd_records() -> None:
             "checkpoints": [row.to_dict() for row in load_checkpoints(settings)],
         }
     )
+
+
+@main.command("sync")
+def cmd_sync() -> None:
+    """Upload local sealed artifacts to the S3 evidence lake. Skips private keys."""
+    try:
+        result = sync_workspace(_settings())
+    except BeaconError as exc:
+        _die(exc)
+    _emit({"ok": True, **result})
+
+
+@main.command("pull")
+def cmd_pull() -> None:
+    """Download sealed artifacts from the DynamoDB index and verify SHA-256."""
+    try:
+        result = pull_workspace(_settings())
+    except BeaconError as exc:
+        _die(exc)
+    _emit({"ok": True, **result})
 
 
 if __name__ == "__main__":

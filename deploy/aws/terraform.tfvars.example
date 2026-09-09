@@ -1,0 +1,10 @@
+aws_region             = "us-east-1"
+bucket_name            = ""
+ddb_table_name         = "beacon-artifact-index"
+kms_alias              = "alias/beacon-evidence"
+object_lock_mode       = "GOVERNANCE"
+object_lock_days       = 365
+trusted_principal_arns = []
+writer_role_name       = "BeaconWriter"
+auditor_role_name      = "BeaconAuditor"
+enable_instance_profile = false

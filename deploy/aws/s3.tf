@@ -54,47 +54,28 @@ resource "aws_s3_bucket_lifecycle_configuration" "evidence" {
 
   depends_on = [aws_s3_bucket_versioning.evidence]
 
-  rule {
-    id     = "evidence-to-cold"
-    status = "Enabled"
+  dynamic "rule" {
+    for_each = toset(local.cold_classes)
+    content {
+      id     = "${rule.value}-to-cold"
+      status = "Enabled"
 
-    filter {
-      tag {
-        key   = "beacon-class"
-        value = "evidence"
+      filter {
+        tag {
+          key   = "beacon-class"
+          value = rule.value
+        }
       }
-    }
 
-    transition {
-      days          = 90
-      storage_class = "STANDARD_IA"
-    }
-
-    transition {
-      days          = 365
-      storage_class = "GLACIER"
-    }
-  }
-
-  rule {
-    id     = "packs-to-cold"
-    status = "Enabled"
-
-    filter {
-      tag {
-        key   = "beacon-class"
-        value = "pack"
+      transition {
+        days          = 90
+        storage_class = "STANDARD_IA"
       }
-    }
 
-    transition {
-      days          = 90
-      storage_class = "STANDARD_IA"
-    }
-
-    transition {
-      days          = 365
-      storage_class = "GLACIER"
+      transition {
+        days          = 365
+        storage_class = "GLACIER"
+      }
     }
   }
 }
@@ -144,6 +125,36 @@ data "aws_iam_policy_document" "bucket" {
       variable = "s3:x-amz-server-side-encryption"
       values   = ["aws:kms"]
     }
+  }
+
+  statement {
+    sid     = "DenyRawInTrustCenterByClass"
+    effect  = "Deny"
+    actions = ["s3:PutObject"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    resources = ["${aws_s3_bucket.evidence.arn}/*/public/trust-center/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "s3:RequestObjectTag/beacon-class"
+      values   = ["observation", "finding", "chain-record", "checkpoint", "import"]
+    }
+  }
+
+  statement {
+    sid     = "DenyObservationsUnderTrustCenterPrefix"
+    effect  = "Deny"
+    actions = ["s3:PutObject"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    resources = [
+      "${aws_s3_bucket.evidence.arn}/*/public/trust-center/observations/*",
+      "${aws_s3_bucket.evidence.arn}/*/public/trust-center/*/observations/*",
+    ]
   }
 }
 

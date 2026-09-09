@@ -39,6 +39,11 @@ output "object_lock_days" {
   value = var.object_lock_days
 }
 
+output "aws_region" {
+  value       = var.aws_region
+  description = "Deploy region. Supported targets: us-east-1 (commercial), us-gov-west-1 (GovCloud)."
+}
+
 output "beacon_env" {
   description = "Shell exports for Beacon after terraform apply."
   value       = <<-EOT

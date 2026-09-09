@@ -5,15 +5,16 @@ from __future__ import annotations
 import json
 
 from beacon import __version__
-from beacon.config import Settings, ensure_layout
+from beacon.config import Settings, ensure_layout, observation_expires_at, observation_is_expired
 from beacon.crypto.keys import generate_distinct_roles, load_roles
 from beacon.crypto.tsa import generate_tsa
 from beacon.crypto.witness import check_chain, checkpoint_status, load_checkpoints, load_records
-from beacon.errors import E_ALREADY_INITIALIZED, fail
+from beacon.errors import E_ALREADY_INITIALIZED, BeaconError, fail
 from beacon.plugins.loader import load_plugins
 from beacon.plugins.spec import CollectContext
 from beacon.scf.client import expected_version, summary
 from beacon.scf.engine import collect_all
+from beacon.storage.s3 import remote_ready
 
 
 def init_workspace(settings: Settings) -> dict:
@@ -84,6 +85,8 @@ def system_status(settings: Settings) -> dict:
             "require_remote": settings.require_remote,
             "object_lock_mode": settings.object_lock_mode,
             "object_lock_days": settings.object_lock_days,
+            "pack_type": settings.pack_type,
+            "trust_center_export": settings.trust_center_export,
         },
     }
 
@@ -92,15 +95,41 @@ def freshness(settings: Settings) -> list[dict]:
     records = load_records(settings)
     latest: dict[str, dict] = {}
     for record in records:
+        try:
+            expires_at = observation_expires_at(record.ts)
+            expired = observation_is_expired(record.ts)
+        except ValueError:
+            expires_at = ""
+            expired = True
         latest[record.plugin] = {
             "plugin": record.plugin,
             "seq": record.seq,
             "ts": record.ts,
+            "sealed_at": record.ts,
+            "expires_at": expires_at,
+            "expired": expired,
             "mode": record.mode,
             "evidence_id": record.evidence_id,
             "scf_targets": record.scf_targets,
         }
-    return list(latest.values())
+    rows = list(latest.values())
+    if settings.s3_bucket:
+        try:
+            lake = remote_ready(settings)
+        except BeaconError:
+            lake = None
+        if lake is not None:
+            remote = {str(item.get("plugin") or ""): item for item in lake.query_freshness()}
+            for row in rows:
+                extra = remote.get(row["plugin"])
+                if not extra:
+                    continue
+                if extra.get("expires_at"):
+                    row["expires_at"] = extra["expires_at"]
+                if "expired" in extra:
+                    row["expired"] = extra["expired"]
+                row["remote"] = True
+    return rows
 
 
 def validation(settings: Settings) -> dict:

@@ -2,6 +2,10 @@
 
 Local seal always runs first. Remote write is a dual-write after the local
 witness chain. This module does not upload ``.beacon/keys``, ``*.pem`` private keys, ``config.json``, or ``cache/``.
+
+Raw observations stay under ``observations/``. Derived findings stay under
+``evidence/``. Draft packs stay under ``exports/packs/``. The allowlisted
+``public/trust-center/`` prefix never holds raw observations by default.
 """
 
 from __future__ import annotations
@@ -23,7 +27,14 @@ except ImportError:  # pragma: no cover
     ClientError = Exception  # type: ignore[misc, assignment]
 
 from beacon.canonical import dumps, sha256_bytes, sha256_obj
-from beacon.config import KMS_ALIAS_BEACON_EVIDENCE, Settings
+from beacon.config import (
+    KMS_ALIAS_BEACON_EVIDENCE,
+    PACK_TYPES,
+    REPORT_FORMATS,
+    Settings,
+    observation_expires_at,
+    observation_is_expired,
+)
 from beacon.crypto.witness import (
     Checkpoint,
     Record,
@@ -32,9 +43,17 @@ from beacon.crypto.witness import (
     load_checkpoints,
     load_records,
 )
-from beacon.errors import E_REMOTE, fail
+from beacon.errors import E_REMOTE, BeaconError, fail
 
-ArtifactKind = Literal["evidence", "records", "checkpoints", "pack"]
+ArtifactKind = Literal[
+    "observation",
+    "finding",
+    "records",
+    "checkpoints",
+    "pack",
+    "report",
+    "import",
+]
 
 PRIVATE_NAMES = frozenset({"recorder.pem", "witness.pem", "tsa.pem"})
 PRIVATE_SUFFIXES = frozenset({".sec", ".pem"})
@@ -42,6 +61,10 @@ LOCK_MODES = frozenset({"GOVERNANCE", "COMPLIANCE"})
 TAG_SAFE = re.compile(r"[^0-9A-Za-z+\-.:/@_]")
 PACK_NAME_RE = re.compile(r"^beacon-pack-(.+)\.json$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$")
+TRUST_CENTER_KINDS = frozenset({"pack", "report"})
+CONTENT_TYPE_JSON = "application/json"
+CONTENT_TYPE_MARKDOWN = "text/markdown; charset=utf-8"
+CONTENT_TYPE_ACTIVITY_LOG = "application/x-ndjson"
 
 
 def _never(value: object) -> NoReturn:
@@ -64,6 +87,24 @@ def validate_artifact_id(name: str, value: str) -> str:
     return value
 
 
+def validate_pack_type(pack_type: str) -> str:
+    value = (pack_type or "").strip().lower()
+    if value not in PACK_TYPES:
+        fail(
+            E_REMOTE,
+            "BEACON_PACK_TYPE must be bundle, ongoing-certification-report, "
+            "secure-configuration-guide, or security-decision-record",
+        )
+    return value
+
+
+def validate_report_format(report_format: str) -> str:
+    value = (report_format or "").strip().lower()
+    if value not in REPORT_FORMATS:
+        fail(E_REMOTE, "report_format must be bundle, json, markdown, or activity-log")
+    return value
+
+
 def checkpoint_id(checkpoint: Checkpoint) -> str:
     return f"{checkpoint.from_seq:08d}-{checkpoint.to_seq:08d}-{checkpoint.tsa_serial}"
 
@@ -79,6 +120,30 @@ def _join_prefix(prefix: str, key: str) -> str:
     return key
 
 
+def observation_object_key(
+    tenant_id: str,
+    workspace_id: str,
+    evidence_id: str,
+    *,
+    prefix: str = "",
+) -> str:
+    """Raw observation payload. Local file remains ``evidence/{uuid}.json``."""
+    return _join_prefix(
+        prefix, f"{tenant_id}/{workspace_id}/observations/{evidence_id}.json"
+    )
+
+
+def finding_object_key(
+    tenant_id: str,
+    workspace_id: str,
+    evidence_id: str,
+    *,
+    prefix: str = "",
+) -> str:
+    """Derived finding/assertion: canonical sealed Record JSON."""
+    return _join_prefix(prefix, f"{tenant_id}/{workspace_id}/evidence/{evidence_id}.json")
+
+
 def evidence_object_key(
     tenant_id: str,
     workspace_id: str,
@@ -86,8 +151,18 @@ def evidence_object_key(
     *,
     prefix: str = "",
 ) -> str:
-    """Match local ``evidence/{uuid}.json``."""
-    return _join_prefix(prefix, f"{tenant_id}/{workspace_id}/evidence/{evidence_id}.json")
+    """Finding object (derived Record). Use ``observation_object_key`` for raw payload."""
+    return finding_object_key(tenant_id, workspace_id, evidence_id, prefix=prefix)
+
+
+def import_object_key(
+    tenant_id: str,
+    workspace_id: str,
+    import_id: str,
+    *,
+    prefix: str = "",
+) -> str:
+    return _join_prefix(prefix, f"{tenant_id}/{workspace_id}/imports/{import_id}.json")
 
 
 def records_jsonl_key(tenant_id: str, workspace_id: str, *, prefix: str = "") -> str:
@@ -106,11 +181,61 @@ def pack_object_key(
     stamp: str,
     *,
     prefix: str = "",
+    pack_type: str = "bundle",
+    version: str | None = None,
+    filename: str = "beacon-pack.json",
 ) -> str:
-    """Match local ``export/beacon-pack-{stamp}.json``."""
+    """Versioned pack under ``exports/packs/{pack_type}/{version}/``."""
+    pack_type = validate_pack_type(pack_type)
+    version = validate_artifact_id("pack_version", version or stamp)
+    validate_artifact_id("pack_filename", filename.replace(".", "-"))
+    if "/" in filename or "\\" in filename or ".." in filename:
+        fail(E_REMOTE, "invalid pack filename")
     return _join_prefix(
         prefix,
-        f"{tenant_id}/{workspace_id}/export/beacon-pack-{stamp}.json",
+        f"{tenant_id}/{workspace_id}/exports/packs/{pack_type}/{version}/{filename}",
+    )
+
+
+def activity_log_object_key(
+    tenant_id: str,
+    workspace_id: str,
+    stamp: str,
+    *,
+    prefix: str = "",
+) -> str:
+    stamp = validate_artifact_id("activity_log_stamp", stamp)
+    return _join_prefix(
+        prefix, f"{tenant_id}/{workspace_id}/exports/activity-log/{stamp}.jsonl"
+    )
+
+
+def _relative_parts(relative: str) -> list[str]:
+    parts: list[str] = []
+    for part in relative.replace("\\", "/").split("/"):
+        if part in {"", "."}:
+            continue
+        if part == ".." or part == "~":
+            fail(E_REMOTE, "invalid trust-center relative key")
+        parts.append(part)
+    return parts
+
+
+def trust_center_object_key(
+    tenant_id: str,
+    workspace_id: str,
+    relative: str,
+    *,
+    prefix: str = "",
+) -> str:
+    parts = _relative_parts(relative.strip())
+    if not parts:
+        fail(E_REMOTE, "invalid trust-center relative key")
+    if any(part.lower() == "observations" for part in parts):
+        fail(E_REMOTE, "trust-center refuses observation paths")
+    rel = "/".join(parts)
+    return _join_prefix(
+        prefix, f"{tenant_id}/{workspace_id}/public/trust-center/{rel}"
     )
 
 
@@ -124,16 +249,93 @@ def partition_key(tenant_id: str, workspace_id: str) -> str:
 
 def class_tag(kind: ArtifactKind) -> str:
     match kind:
-        case "evidence":
-            return "evidence"
+        case "observation":
+            return "observation"
+        case "finding":
+            return "finding"
         case "records":
             return "chain-record"
         case "checkpoints":
             return "checkpoint"
         case "pack":
             return "pack"
+        case "report":
+            return "report"
+        case "import":
+            return "import"
         case _:
             _never(kind)
+
+
+def is_trust_center_key(
+    key: str,
+    *,
+    prefix: str = "",
+    tenant_id: str | None = None,
+    workspace_id: str | None = None,
+) -> bool:
+    """True only for ``{prefix/}{tenant}/{workspace}/public/trust-center/``."""
+    if not tenant_id or not workspace_id:
+        return False
+    root = _join_prefix(prefix, f"{tenant_id}/{workspace_id}/")
+    if not key.startswith(root):
+        return False
+    rel = key[len(root) :]
+    return rel == "public/trust-center" or rel.startswith("public/trust-center/")
+
+
+def assert_key_kind_allowed(
+    key: str,
+    kind: ArtifactKind,
+    *,
+    prefix: str = "",
+    tenant_id: str | None = None,
+    workspace_id: str | None = None,
+) -> None:
+    """Raw observations never land in the public/trust-center prefix."""
+    if is_trust_center_key(
+        key, prefix=prefix, tenant_id=tenant_id, workspace_id=workspace_id
+    ) and kind not in TRUST_CENTER_KINDS:
+        fail(
+            E_REMOTE,
+            "public/trust-center may hold pack or report exports only; "
+            f"refusing kind={kind}",
+        )
+    if kind == "observation" and "/observations/" not in f"/{key}":
+        fail(E_REMOTE, f"observation objects must use observations/: {key}")
+    if kind == "import" and "/imports/" not in f"/{key}":
+        fail(E_REMOTE, f"import objects must use imports/: {key}")
+
+
+def _reject_secret_bytes(body: bytes, *, name: str) -> None:
+    markers = (
+        b"BEGIN PRIVATE KEY",
+        b"BEGIN RSA PRIVATE KEY",
+        b"BEGIN EC PRIVATE KEY",
+        b"BEGIN OPENSSH PRIVATE KEY",
+    )
+    if any(marker in body for marker in markers):
+        fail(E_REMOTE, f"refusing to upload private key material: {name}")
+
+
+def _public_pack_bytes(body: bytes) -> bytes:
+    """Trust-center packs keep hashes and findings, never raw observation payloads."""
+    try:
+        data = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        fail(E_REMOTE, "trust-center pack must be JSON")
+    if not isinstance(data, dict):
+        fail(E_REMOTE, "trust-center pack must be a JSON object")
+    _reject_secret_bytes(body, name="trust-center pack")
+    public = dict(data)
+    evidence_rows = []
+    for row in public.get("evidence") or []:
+        if not isinstance(row, dict):
+            continue
+        evidence_rows.append({"evidence_id": row.get("evidence_id")})
+    public["evidence"] = evidence_rows
+    public["trust_center"] = True
+    return dumps(public)
 
 
 def assert_upload_allowed(settings: Settings, path: Path) -> None:
@@ -166,7 +368,12 @@ def _tag_value(value: str) -> str:
 
 
 def _now() -> str:
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        dt.datetime.now(dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def _stamp_from_pack_path(path: Path) -> str:
@@ -199,8 +406,12 @@ def remote_ready(settings: Settings, *, command: bool = False) -> ArtifactLake |
                 validate_scope_id("BEACON_S3_PREFIX", part)
     if not settings.ddb_table:
         fail(E_REMOTE, "BEACON_DDB_TABLE is required when S3 is configured")
+    if not settings.kms_key_arn:
+        fail(E_REMOTE, "BEACON_KMS_KEY_ARN is required; S3 SSE-KMS is mandatory")
     if settings.object_lock_mode not in LOCK_MODES:
         fail(E_REMOTE, "BEACON_OBJECT_LOCK_MODE must be GOVERNANCE or COMPLIANCE")
+    if settings.pack_type:
+        validate_pack_type(settings.pack_type)
     return ArtifactLake(settings)
 
 
@@ -214,6 +425,8 @@ class ArtifactLake:
             fail(E_REMOTE, "S3 bucket and DynamoDB table are required")
         if not settings.tenant_id or not settings.workspace_id:
             fail(E_REMOTE, "tenant_id and workspace_id are required")
+        if not settings.kms_key_arn:
+            fail(E_REMOTE, "BEACON_KMS_KEY_ARN is required; S3 SSE-KMS is mandatory")
         self.settings = settings
         self.bucket = settings.s3_bucket
         self.table_name = settings.ddb_table
@@ -228,30 +441,6 @@ class ArtifactLake:
     def pk(self) -> str:
         return partition_key(self.tenant_id, self.workspace_id)
 
-    def _key(self, kind: ArtifactKind, **parts: str) -> str:
-        match kind:
-            case "evidence":
-                return evidence_object_key(
-                    self.tenant_id,
-                    self.workspace_id,
-                    parts["evidence_id"],
-                    prefix=self.prefix,
-                )
-            case "records":
-                return records_jsonl_key(
-                    self.tenant_id, self.workspace_id, prefix=self.prefix
-                )
-            case "checkpoints":
-                return checkpoints_jsonl_key(
-                    self.tenant_id, self.workspace_id, prefix=self.prefix
-                )
-            case "pack":
-                return pack_object_key(
-                    self.tenant_id, self.workspace_id, parts["stamp"], prefix=self.prefix
-                )
-            case _:
-                _never(kind)
-
     def _put_bytes(
         self,
         key: str,
@@ -259,22 +448,35 @@ class ArtifactLake:
         *,
         kind: ArtifactKind,
         metadata: dict[str, str],
+        content_type: str = CONTENT_TYPE_JSON,
+        extra_tags: dict[str, str] | None = None,
     ) -> str:
+        assert_key_kind_allowed(
+            key,
+            kind,
+            prefix=self.prefix,
+            tenant_id=self.tenant_id,
+            workspace_id=self.workspace_id,
+        )
+        kms_key = self.settings.kms_key_arn or KMS_ALIAS_BEACON_EVIDENCE
+        merged_meta = {"kind": kind, **metadata}
+        tags = {
+            "beacon-class": class_tag(kind),
+            "beacon-tenant": _tag_value(self.tenant_id),
+            "beacon-workspace": _tag_value(self.workspace_id),
+            "beacon-kind": kind,
+        }
+        if extra_tags:
+            tags.update({k: _tag_value(v) for k, v in extra_tags.items() if v})
         extra: dict[str, Any] = {
             "Bucket": self.bucket,
             "Key": key,
             "Body": body,
-            "ContentType": "application/json",
-            "Metadata": {k: _meta_value(v) for k, v in metadata.items() if v},
-            "Tagging": urlencode(
-                {
-                    "beacon-class": class_tag(kind),
-                    "beacon-tenant": _tag_value(self.tenant_id),
-                    "beacon-workspace": _tag_value(self.workspace_id),
-                }
-            ),
+            "ContentType": content_type,
+            "Metadata": {k: _meta_value(v) for k, v in merged_meta.items() if v},
+            "Tagging": urlencode(tags),
             "ServerSideEncryption": "aws:kms",
-            "SSEKMSKeyId": self.settings.kms_key_arn or KMS_ALIAS_BEACON_EVIDENCE,
+            "SSEKMSKeyId": kms_key,
         }
         if self.settings.object_lock_days > 0:
             retain = dt.datetime.now(dt.timezone.utc).replace(microsecond=0) + dt.timedelta(
@@ -320,17 +522,63 @@ class ArtifactLake:
             fail(E_REMOTE, f"DynamoDB Query failed: {exc}")
         return items
 
+    def query_freshness(self) -> list[dict[str, Any]]:
+        """Return FRESH# index rows with expired flags from sealed_at / expires_at."""
+        now = dt.datetime.now(dt.timezone.utc)
+        raw_items: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {
+            "IndexName": "freshness",
+            "KeyConditionExpression": Key("pk").eq(self.pk),
+        }
+        try:
+            while True:
+                resp = self.ddb.query(**kwargs)
+                raw_items.extend(resp.get("Items") or [])
+                last = resp.get("LastEvaluatedKey")
+                if not last:
+                    break
+                kwargs["ExclusiveStartKey"] = last
+        except ClientError:
+            raw_items = [
+                item
+                for item in self.query_index()
+                if str(item.get("sk") or "").startswith("FRESH#")
+            ]
+        rows: list[dict[str, Any]] = []
+        for item in raw_items:
+            sk = str(item.get("sk") or "")
+            if not sk.startswith("FRESH#"):
+                continue
+            sealed = str(item.get("sealed_at") or "")
+            expires = str(item.get("expires_at") or "")
+            expired = True
+            if sealed:
+                try:
+                    expired = observation_is_expired(sealed, now=now)
+                    if not expires:
+                        expires = observation_expires_at(sealed)
+                except ValueError:
+                    expired = True
+            rows.append(
+                {
+                    **item,
+                    "expires_at": expires,
+                    "expired": expired,
+                }
+            )
+        return rows
+
     def put_records_jsonl(self) -> dict[str, Any]:
         path = self.settings.chain_path
         assert_upload_allowed(self.settings, path)
         body = path.read_bytes() if path.exists() else b""
         digest = sha256_bytes(body)
-        key = self._key("records")
+        key = records_jsonl_key(self.tenant_id, self.workspace_id, prefix=self.prefix)
         uri = self._put_bytes(
             key,
             body,
             kind="records",
-            metadata={"sha256": digest, "sealed_at": _now()},
+            metadata={"sha256": digest, "sealed_at": _now(), "report_format": "json"},
         )
         return {"kind": "records", "s3_uri": uri, "sha256": digest}
 
@@ -339,7 +587,7 @@ class ArtifactLake:
         assert_upload_allowed(self.settings, path)
         body = path.read_bytes() if path.exists() else b""
         digest = sha256_bytes(body)
-        key = self._key("checkpoints")
+        key = checkpoints_jsonl_key(self.tenant_id, self.workspace_id, prefix=self.prefix)
         uri = self._put_bytes(
             key,
             body,
@@ -356,33 +604,56 @@ class ArtifactLake:
         merkle_root: str = "",
         pack_id: str = "",
         sync_jsonl: bool = True,
+        verified: bool = True,
     ) -> list[dict[str, Any]]:
         assert_upload_allowed(self.settings, evidence_path)
         payload = evidence_path.read_bytes()
+        _reject_secret_bytes(payload, name=str(evidence_path))
         digest = sha256_bytes(payload)
         if digest != record.payload_sha256:
             fail(E_REMOTE, f"local evidence hash mismatch for {record.evidence_id}")
         rec_id = record_id(record)
-        rec_digest = sha256_bytes(dumps(record.to_dict()))
-        ev_key = self._key("evidence", evidence_id=record.evidence_id)
-        rec_uri = s3_uri(self.bucket, self._key("records"))
+        finding_body = dumps(record.to_dict())
+        rec_digest = sha256_bytes(finding_body)
+        obs_key = observation_object_key(
+            self.tenant_id, self.workspace_id, record.evidence_id, prefix=self.prefix
+        )
+        finding_key = finding_object_key(
+            self.tenant_id, self.workspace_id, record.evidence_id, prefix=self.prefix
+        )
+        rec_uri = s3_uri(
+            self.bucket,
+            records_jsonl_key(self.tenant_id, self.workspace_id, prefix=self.prefix),
+        )
         extras: list[dict[str, Any]] = []
         if sync_jsonl:
             jsonl = self.put_records_jsonl()
             rec_uri = jsonl["s3_uri"]
             extras.append(jsonl)
+        expires_at = observation_expires_at(record.ts)
+        verified_flag = "true" if verified else "false"
         meta_common = {
             "sha256": digest,
+            "input_sha256": digest,
+            "audit_sha256": rec_digest,
+            "audit_seq": str(record.seq),
+            "prev_sha256": record.prev_sha256,
             "scf_targets": ",".join(record.scf_targets),
             "plugin": record.plugin,
             "sealed_at": record.ts,
+            "expires_at": expires_at,
             "record_id": rec_id,
+            "verified": verified_flag,
         }
         existing = self._index_get(f"EVIDENCE#{record.evidence_id}")
         if (
             existing
             and existing.get("sha256") == digest
+            and existing.get("input_sha256") == digest
+            and existing.get("audit_sha256") == rec_digest
             and existing.get("record_sha256") == rec_digest
+            and self._object_matches(existing.get("s3_uri") or existing.get("observation_s3_uri"), digest)
+            and self._object_matches(existing.get("finding_s3_uri"), rec_digest)
         ):
             updates = {}
             if pack_id and existing.get("pack_id") != pack_id:
@@ -390,6 +661,8 @@ class ArtifactLake:
             if merkle_root and existing.get("merkle_root") != merkle_root:
                 updates["merkle_root"] = merkle_root
             updates["record_s3_uri"] = rec_uri
+            updates["expires_at"] = expires_at
+            updates["verified"] = verified_flag
             if updates:
                 merged = {k: v for k, v in existing.items() if k not in {"pk", "sk"}}
                 merged.update(updates)
@@ -397,24 +670,52 @@ class ArtifactLake:
                 self._index_put(f"FRESH#{record.plugin}", dict(merged))
             return [
                 {
-                    "kind": "evidence",
+                    "kind": "observation",
                     "s3_uri": existing.get("s3_uri"),
                     "sha256": digest,
                     "skipped": True,
                     "pack_id": pack_id or existing.get("pack_id"),
                 },
+                {
+                    "kind": "finding",
+                    "s3_uri": existing.get("finding_s3_uri"),
+                    "sha256": rec_digest,
+                    "skipped": True,
+                },
                 *extras,
             ]
-        ev_uri = self._put_bytes(
-            ev_key,
+        extra_tags = {"beacon-verified": verified_flag}
+        obs_uri = self._put_bytes(
+            obs_key,
             payload,
-            kind="evidence",
-            metadata=meta_common,
+            kind="observation",
+            metadata={**meta_common, "kind": "observation"},
+            extra_tags=extra_tags,
+        )
+        finding_uri = self._put_bytes(
+            finding_key,
+            finding_body,
+            kind="finding",
+            metadata={
+                **meta_common,
+                "kind": "finding",
+                "sha256": rec_digest,
+                "input_sha256": digest,
+            },
+            extra_tags=extra_tags,
         )
         fields = {
-            "s3_uri": ev_uri,
+            "s3_uri": obs_uri,
+            "observation_s3_uri": obs_uri,
+            "finding_s3_uri": finding_uri,
             "sha256": digest,
+            "input_sha256": digest,
+            "audit_sha256": rec_digest,
+            "finding_sha256": rec_digest,
+            "prev_sha256": record.prev_sha256,
+            "audit_seq": record.seq,
             "sealed_at": record.ts,
+            "expires_at": expires_at,
             "control_ids": list(record.scf_targets),
             "merkle_root": merkle_root,
             "pack_id": pack_id,
@@ -423,13 +724,59 @@ class ArtifactLake:
             "record_s3_uri": rec_uri,
             "record_sha256": rec_digest,
             "seq": record.seq,
+            "verified": verified_flag,
+            "kind": "finding",
         }
         self._index_put(f"EVIDENCE#{record.evidence_id}", fields)
         self._index_put(f"FRESH#{record.plugin}", dict(fields))
         return [
-            {"kind": "evidence", "s3_uri": ev_uri, "sha256": digest},
+            {"kind": "observation", "s3_uri": obs_uri, "sha256": digest},
+            {"kind": "finding", "s3_uri": finding_uri, "sha256": rec_digest},
             *extras,
         ]
+
+    def put_unverified_import(self, import_id: str, body: bytes) -> dict[str, Any]:
+        """Store an import as unverified until a review seal."""
+        import_id = validate_artifact_id("import_id", import_id)
+        _reject_secret_bytes(body, name=import_id)
+        digest = sha256_bytes(body)
+        key = import_object_key(
+            self.tenant_id, self.workspace_id, import_id, prefix=self.prefix
+        )
+        sealed_at = _now()
+        uri = self._put_bytes(
+            key,
+            body,
+            kind="import",
+            metadata={
+                "kind": "import",
+                "sha256": digest,
+                "input_sha256": digest,
+                "sealed_at": sealed_at,
+                "expires_at": observation_expires_at(sealed_at),
+                "verified": "false",
+            },
+            extra_tags={"beacon-verified": "false"},
+        )
+        fields = {
+            "s3_uri": uri,
+            "sha256": digest,
+            "input_sha256": digest,
+            "sealed_at": sealed_at,
+            "expires_at": observation_expires_at(sealed_at),
+            "verified": "false",
+            "kind": "import",
+        }
+        self._index_put(f"IMPORT#{import_id}", fields)
+        return {"kind": "import", "s3_uri": uri, "sha256": digest, "verified": False}
+
+    def _object_matches(self, uri: object, digest: str) -> bool:
+        if not uri:
+            return False
+        try:
+            return sha256_bytes(self._get_object(str(uri))) == digest
+        except BeaconError:
+            return False
 
     def _unchanged(self, sk: str, digest: str, field: str = "sha256") -> bool:
         item = self._index_get(sk)
@@ -474,19 +821,213 @@ class ArtifactLake:
             "checkpoint_id": cp_id,
         }
 
-    def put_pack(self, path: Path, *, stamp: str | None = None) -> dict[str, Any]:
+    def _maybe_trust_center(
+        self,
+        *,
+        relative: str,
+        body: bytes,
+        kind: ArtifactKind,
+        metadata: dict[str, str],
+        content_type: str,
+    ) -> dict[str, Any] | None:
+        if not self.settings.trust_center_export:
+            return None
+        if kind not in TRUST_CENTER_KINDS:
+            fail(E_REMOTE, "trust-center export refuses raw observations")
+        export_body = body
+        export_meta = dict(metadata)
+        if kind == "pack" and content_type.split(";", 1)[0].strip() == CONTENT_TYPE_JSON:
+            export_body = _public_pack_bytes(body)
+            export_meta["sha256"] = sha256_bytes(export_body)
+            export_meta["public"] = "true"
+        key = trust_center_object_key(
+            self.tenant_id, self.workspace_id, relative, prefix=self.prefix
+        )
+        uri = self._put_bytes(
+            key,
+            export_body,
+            kind=kind,
+            metadata=export_meta,
+            content_type=content_type,
+        )
+        return {"kind": kind, "s3_uri": uri, "relative": relative}
+
+    def put_pack(
+        self,
+        path: Path,
+        *,
+        stamp: str | None = None,
+        pack_type: str | None = None,
+        draft: bool | None = None,
+        markdown_path: Path | None = None,
+        report_format: str = "json",
+    ) -> dict[str, Any]:
         assert_upload_allowed(self.settings, path)
         stamp = stamp or _stamp_from_pack_path(path)
+        pack_type = validate_pack_type(pack_type or self.settings.pack_type)
+        report_format = validate_report_format(report_format)
+        if draft is None:
+            draft = pack_type != "bundle"
         body = path.read_bytes()
         digest = sha256_bytes(body)
-        key = self._key("pack", stamp=stamp)
+        key = pack_object_key(
+            self.tenant_id,
+            self.workspace_id,
+            stamp,
+            prefix=self.prefix,
+            pack_type=pack_type,
+            version=stamp,
+        )
+        meta = {
+            "sha256": digest,
+            "sealed_at": _now(),
+            "record_id": stamp,
+            "pack_type": pack_type,
+            "pack_version": stamp,
+            "draft": "true" if draft else "false",
+            "report_format": report_format,
+            "verified": "true",
+        }
         uri = self._put_bytes(
             key,
             body,
             kind="pack",
-            metadata={"sha256": digest, "sealed_at": _now(), "record_id": stamp},
+            metadata=meta,
+            content_type=CONTENT_TYPE_JSON,
+            extra_tags={"beacon-verified": "true"},
         )
-        return {"kind": "pack", "s3_uri": uri, "sha256": digest, "pack_id": stamp}
+        extras: list[dict[str, Any]] = []
+        md_path = markdown_path
+        if md_path is None:
+            candidate = path.with_suffix(".md")
+            if candidate.exists():
+                md_path = candidate
+        if md_path is not None:
+            extras.append(
+                self.put_markdown_report(
+                    md_path, pack_type=pack_type, version=stamp, draft=draft
+                )
+            )
+        extras.append(self.put_activity_log(stamp=stamp))
+        trust = self._maybe_trust_center(
+            relative=f"packs/{pack_type}/{stamp}/beacon-pack.json",
+            body=body,
+            kind="pack",
+            metadata=meta,
+            content_type=CONTENT_TYPE_JSON,
+        )
+        if trust:
+            extras.append(trust)
+        return {
+            "kind": "pack",
+            "s3_uri": uri,
+            "sha256": digest,
+            "pack_id": stamp,
+            "pack_type": pack_type,
+            "pack_version": stamp,
+            "draft": draft,
+            "report_format": report_format,
+            "exports": extras,
+        }
+
+    def put_markdown_report(
+        self,
+        path: Path,
+        *,
+        pack_type: str,
+        version: str,
+        draft: bool = True,
+    ) -> dict[str, Any]:
+        assert_upload_allowed(self.settings, path)
+        pack_type = validate_pack_type(pack_type)
+        version = validate_artifact_id("pack_version", version)
+        body = path.read_bytes()
+        digest = sha256_bytes(body)
+        key = pack_object_key(
+            self.tenant_id,
+            self.workspace_id,
+            version,
+            prefix=self.prefix,
+            pack_type=pack_type,
+            version=version,
+            filename="report.md",
+        )
+        meta = {
+            "sha256": digest,
+            "sealed_at": _now(),
+            "pack_type": pack_type,
+            "pack_version": version,
+            "draft": "true" if draft else "false",
+            "report_format": "markdown",
+            "verified": "true",
+        }
+        uri = self._put_bytes(
+            key,
+            body,
+            kind="report",
+            metadata=meta,
+            content_type=CONTENT_TYPE_MARKDOWN,
+            extra_tags={"beacon-verified": "true"},
+        )
+        trust = self._maybe_trust_center(
+            relative=f"packs/{pack_type}/{version}/report.md",
+            body=body,
+            kind="report",
+            metadata=meta,
+            content_type=CONTENT_TYPE_MARKDOWN,
+        )
+        result = {
+            "kind": "report",
+            "s3_uri": uri,
+            "sha256": digest,
+            "report_format": "markdown",
+            "content_type": CONTENT_TYPE_MARKDOWN,
+        }
+        if trust:
+            result["trust_center"] = trust
+        return result
+
+    def put_activity_log(self, *, stamp: str) -> dict[str, Any]:
+        path = self.settings.chain_path
+        assert_upload_allowed(self.settings, path)
+        body = path.read_bytes() if path.exists() else b""
+        digest = sha256_bytes(body)
+        stamp = validate_artifact_id("activity_log_stamp", stamp)
+        key = activity_log_object_key(
+            self.tenant_id, self.workspace_id, stamp, prefix=self.prefix
+        )
+        meta = {
+            "sha256": digest,
+            "sealed_at": _now(),
+            "report_format": "activity-log",
+            "pack_version": stamp,
+            "verified": "true",
+        }
+        uri = self._put_bytes(
+            key,
+            body,
+            kind="report",
+            metadata=meta,
+            content_type=CONTENT_TYPE_ACTIVITY_LOG,
+            extra_tags={"beacon-verified": "true"},
+        )
+        trust = self._maybe_trust_center(
+            relative=f"activity-log/{stamp}.jsonl",
+            body=body,
+            kind="report",
+            metadata=meta,
+            content_type=CONTENT_TYPE_ACTIVITY_LOG,
+        )
+        result = {
+            "kind": "report",
+            "s3_uri": uri,
+            "sha256": digest,
+            "report_format": "activity-log",
+            "content_type": CONTENT_TYPE_ACTIVITY_LOG,
+        }
+        if trust:
+            result["trust_center"] = trust
+        return result
 
     def _workspace_prefix(self) -> str:
         return _join_prefix(self.prefix, f"{self.tenant_id}/{self.workspace_id}/")
@@ -564,12 +1105,12 @@ def _parse_jsonl(body: bytes) -> list[dict[str, Any]]:
 
 
 def publish_sealed_record(settings: Settings, record: Record) -> dict[str, Any] | None:
-    """Dual-write ``evidence/{uuid}.json`` and ``chain/records.jsonl`` after local seal."""
+    """Dual-write observation + finding and ``chain/records.jsonl`` after local seal."""
     lake = remote_ready(settings)
     if lake is None:
         return None
     path = settings.evidence_dir / f"{record.evidence_id}.json"
-    objects = lake.put_record_and_evidence(record, path, sync_jsonl=True)
+    objects = lake.put_record_and_evidence(record, path, sync_jsonl=True, verified=True)
     return {"ok": True, "objects": objects}
 
 
@@ -579,6 +1120,15 @@ def publish_sealed_checkpoint(settings: Settings, checkpoint: Checkpoint) -> dic
     if lake is None:
         return None
     return {"ok": True, **lake.put_checkpoint(checkpoint)}
+
+
+def publish_unverified_import(
+    settings: Settings, import_id: str, body: bytes
+) -> dict[str, Any] | None:
+    lake = remote_ready(settings)
+    if lake is None:
+        return None
+    return {"ok": True, **lake.put_unverified_import(import_id, body)}
 
 
 def publish_collect_run(
@@ -598,11 +1148,19 @@ def publish_collect_run(
             fail(E_REMOTE, f"remote seal missing for evidence {eid}")
         objects.append(
             {
-                "kind": "evidence",
+                "kind": "observation",
                 "s3_uri": item.get("s3_uri"),
                 "sha256": item.get("sha256"),
             }
         )
+        if item.get("finding_s3_uri"):
+            objects.append(
+                {
+                    "kind": "finding",
+                    "s3_uri": item.get("finding_s3_uri"),
+                    "sha256": item.get("audit_sha256") or item.get("finding_sha256"),
+                }
+            )
     objects.append(
         {
             "kind": "records",
@@ -626,11 +1184,25 @@ def publish_collect_run(
     return {"ok": True, "bucket": lake.bucket, "objects": objects}
 
 
-def publish_pack(settings: Settings, path: Path, *, stamp: str | None = None) -> dict[str, Any] | None:
+def publish_pack(
+    settings: Settings,
+    path: Path,
+    *,
+    stamp: str | None = None,
+    markdown_path: Path | None = None,
+    pack_type: str | None = None,
+    draft: bool | None = None,
+) -> dict[str, Any] | None:
     lake = remote_ready(settings)
     if lake is None:
         return None
-    uploaded = lake.put_pack(path, stamp=stamp)
+    uploaded = lake.put_pack(
+        path,
+        stamp=stamp,
+        pack_type=pack_type,
+        draft=draft,
+        markdown_path=markdown_path,
+    )
     records = load_records(settings)
     checkpoints = load_checkpoints(settings)
     merkle = checkpoints[-1].merkle_root if checkpoints else ""
@@ -694,7 +1266,7 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
     checkpoint_items: list[dict[str, Any]] = []
     for item in items:
         sk = str(item.get("sk") or "")
-        if sk.startswith("FRESH#"):
+        if sk.startswith("FRESH#") or sk.startswith("IMPORT#"):
             continue
         if sk.startswith("EVIDENCE#"):
             validate_artifact_id("evidence_id", sk.split("#", 1)[1])
@@ -726,10 +1298,29 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
 
     for item in evidence_items:
         sk = str(item.get("sk") or "")
-        uri = str(item.get("s3_uri") or "")
+        uri = str(item.get("s3_uri") or item.get("observation_s3_uri") or "")
+        if not uri:
+            fail(E_REMOTE, f"index item {sk} missing s3_uri")
+        lake._assert_lake_uri(uri)
+        finding_uri = str(item.get("finding_s3_uri") or "")
+        if not finding_uri:
+            fail(E_REMOTE, f"index item {sk} missing finding_s3_uri")
+        lake._assert_lake_uri(finding_uri)
         expected = str(item.get("sha256") or "")
-        if not uri or not expected:
-            fail(E_REMOTE, f"index item {sk} missing s3_uri or sha256")
+        input_expected = str(item.get("input_sha256") or "")
+        rec_expected = str(item.get("record_sha256") or item.get("audit_sha256") or "")
+        finding_expected = str(item.get("finding_sha256") or item.get("audit_sha256") or "")
+        prev_expected = str(item.get("prev_sha256") or "")
+        if not expected or not input_expected:
+            fail(E_REMOTE, f"index item {sk} missing sha256 or input_sha256")
+        if expected != input_expected:
+            fail(E_REMOTE, f"index item {sk} sha256 does not match input_sha256")
+        if not rec_expected or not finding_expected:
+            fail(E_REMOTE, f"index item {sk} missing linked audit hash")
+        if item.get("audit_seq") is None:
+            fail(E_REMOTE, f"index item {sk} missing audit_seq")
+        if not prev_expected:
+            fail(E_REMOTE, f"index item {sk} missing prev_sha256")
         evidence_id = validate_artifact_id("evidence_id", sk.split("#", 1)[1])
         dest = (settings.evidence_dir / f"{evidence_id}.json").resolve()
         if not dest.is_relative_to(settings.evidence_dir.resolve()):
@@ -737,20 +1328,32 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
         body = lake._get_object(uri)
         digest = sha256_bytes(body)
         if digest != expected:
-            fail(E_REMOTE, f"sha256 mismatch for {uri}")
+            fail(E_REMOTE, f"altered artifact: sha256 mismatch for {uri}")
+        if digest != input_expected:
+            fail(E_REMOTE, f"altered artifact: input hash mismatch for {uri}")
         verified += 1
         if dest.exists() and sha256_bytes(dest.read_bytes()) != digest:
             fail(E_REMOTE, f"local evidence conflict for {evidence_id}")
         record = records_by_eid.get(evidence_id)
         if record is None:
             fail(E_REMOTE, f"records.jsonl missing evidence_id {evidence_id}")
-        rec_expected = str(item.get("record_sha256") or "")
         rec_digest = sha256_bytes(dumps(record))
-        if rec_expected and rec_digest != rec_expected:
-            fail(E_REMOTE, f"record sha256 mismatch for {evidence_id}")
+        if rec_digest != rec_expected:
+            fail(E_REMOTE, f"altered artifact: linked audit hash mismatch for {evidence_id}")
         if str(record.get("payload_sha256")) != digest:
             fail(E_REMOTE, f"evidence does not match record payload_sha256 for {evidence_id}")
+        finding_body = lake._get_object(finding_uri)
+        finding_digest = sha256_bytes(finding_body)
+        if finding_digest != finding_expected:
+            fail(E_REMOTE, f"altered artifact: finding sha256 mismatch for {finding_uri}")
+        if finding_digest != rec_digest:
+            fail(E_REMOTE, f"altered artifact: finding does not match record for {evidence_id}")
+        verified += 1
         seq = int(record["seq"])
+        if int(item["audit_seq"]) != seq:
+            fail(E_REMOTE, f"altered artifact: audit sequence mismatch for {evidence_id}")
+        if str(record.get("prev_sha256")) != prev_expected:
+            fail(E_REMOTE, f"altered artifact: prev hash mismatch for {evidence_id}")
         prior = incoming_records.get(seq)
         if prior and sha256_obj(prior) != sha256_obj(record):
             fail(E_REMOTE, f"record conflict at seq {seq}")
@@ -781,7 +1384,7 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
             fail(E_REMOTE, f"checkpoints.jsonl missing {cp_id}")
         digest = sha256_bytes(dumps(checkpoint))
         if expected and digest != expected:
-            fail(E_REMOTE, f"checkpoint sha256 mismatch for {cp_id}")
+            fail(E_REMOTE, f"altered artifact: checkpoint sha256 mismatch for {cp_id}")
         verified += 1
         prior = incoming_checkpoints.get(cp_id)
         if prior and sha256_obj(prior) != sha256_obj(checkpoint):

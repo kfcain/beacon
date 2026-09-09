@@ -1,7 +1,9 @@
+# Commercial: us-east-1. GovCloud: us-gov-west-1.
 aws_region             = "us-east-1"
 bucket_name            = ""
 ddb_table_name         = "beacon-artifact-index"
 kms_alias              = "alias/beacon-evidence"
+# GOVERNANCE is default. COMPLIANCE is opt-in after retain days are fixed.
 object_lock_mode       = "GOVERNANCE"
 object_lock_days       = 365
 trusted_principal_arns = []

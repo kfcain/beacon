@@ -14,6 +14,18 @@ resource "aws_dynamodb_table" "index" {
     type = "S"
   }
 
+  attribute {
+    name = "expires_at"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "freshness"
+    hash_key        = "pk"
+    range_key       = "expires_at"
+    projection_type = "ALL"
+  }
+
   point_in_time_recovery {
     enabled = true
   }

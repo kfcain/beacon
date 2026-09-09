@@ -63,7 +63,10 @@ data "aws_iam_policy_document" "writer" {
       "dynamodb:Query",
       "dynamodb:DescribeTable",
     ]
-    resources = [aws_dynamodb_table.index.arn]
+    resources = [
+      aws_dynamodb_table.index.arn,
+      "${aws_dynamodb_table.index.arn}/index/*",
+    ]
   }
 }
 
@@ -111,7 +114,10 @@ data "aws_iam_policy_document" "auditor" {
       "dynamodb:Query",
       "dynamodb:DescribeTable",
     ]
-    resources = [aws_dynamodb_table.index.arn]
+    resources = [
+      aws_dynamodb_table.index.arn,
+      "${aws_dynamodb_table.index.arn}/index/*",
+    ]
   }
 }
 

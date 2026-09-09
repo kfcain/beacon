@@ -2,29 +2,36 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
-from beacon.canonical import sha256_bytes
+from beacon.canonical import dumps, sha256_bytes
 from beacon.cli import main
-from beacon.config import load_settings
+from beacon.config import load_settings, observation_expires_at
 from beacon.crypto.witness import check_chain, load_checkpoints, load_records, seal_payload
 from beacon.errors import E_NO_CHECKPOINT, E_REMOTE, BeaconError
 from beacon.plugins.spec import CollectContext
 from beacon.scf.engine import collect_named
 from beacon.storage.s3 import (
+    activity_log_object_key,
+    assert_key_kind_allowed,
     assert_upload_allowed,
     checkpoint_id,
     checkpoints_jsonl_key,
-    evidence_object_key,
+    finding_object_key,
+    observation_object_key,
     pack_object_key,
+    publish_unverified_import,
     pull_workspace,
     records_jsonl_key,
+    remote_ready,
     sync_workspace,
+    trust_center_object_key,
 )
-from beacon.workspace import seed_workspace
+from beacon.workspace import freshness, seed_workspace
 
 boto3 = pytest.importorskip("boto3")
 pytest.importorskip("moto")
@@ -95,8 +102,19 @@ def _provision_lake() -> str:
         AttributeDefinitions=[
             {"AttributeName": "pk", "AttributeType": "S"},
             {"AttributeName": "sk", "AttributeType": "S"},
+            {"AttributeName": "expires_at", "AttributeType": "S"},
         ],
         BillingMode="PAY_PER_REQUEST",
+        GlobalSecondaryIndexes=[
+            {
+                "IndexName": "freshness",
+                "KeySchema": [
+                    {"AttributeName": "pk", "KeyType": "HASH"},
+                    {"AttributeName": "expires_at", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            }
+        ],
     )
     ddb.get_waiter("table_exists").wait(TableName=TABLE)
     return key["Arn"]
@@ -128,12 +146,27 @@ def test_kms_defaults_to_alias_when_bucket_set(beacon_home: Path, monkeypatch: p
 
 
 def test_object_key_scheme():
-    assert evidence_object_key("t1", "w1", "ev-1") == "t1/w1/evidence/ev-1.json"
+    assert observation_object_key("t1", "w1", "ev-1") == "t1/w1/observations/ev-1.json"
+    assert finding_object_key("t1", "w1", "ev-1") == "t1/w1/evidence/ev-1.json"
     assert records_jsonl_key("t1", "w1") == "t1/w1/chain/records.jsonl"
     assert checkpoints_jsonl_key("t1", "w1") == "t1/w1/chain/checkpoints.jsonl"
     assert (
         pack_object_key("t1", "w1", "20260909T120000Z", prefix="lake")
-        == "lake/t1/w1/export/beacon-pack-20260909T120000Z.json"
+        == "lake/t1/w1/exports/packs/bundle/20260909T120000Z/beacon-pack.json"
+    )
+    assert (
+        pack_object_key(
+            "t1",
+            "w1",
+            "20260909T120000Z",
+            pack_type="ongoing-certification-report",
+            filename="report.md",
+        )
+        == "t1/w1/exports/packs/ongoing-certification-report/20260909T120000Z/report.md"
+    )
+    assert (
+        trust_center_object_key("t1", "w1", "packs/bundle/v1/beacon-pack.json")
+        == "t1/w1/public/trust-center/packs/bundle/v1/beacon-pack.json"
     )
 
 
@@ -203,25 +236,47 @@ def test_collect_dual_writes_s3_and_index(aws_lake):
     result = collect_named(settings, "aws.inspector", CollectContext(live=False))
     assert result["remote"]["ok"] is True
     record = load_records(settings)[0]
-    key = evidence_object_key(TENANT, WORKSPACE, record.evidence_id)
+    rec_digest = sha256_bytes(dumps(record.to_dict()))
+    obs_key = observation_object_key(TENANT, WORKSPACE, record.evidence_id)
+    find_key = finding_object_key(TENANT, WORKSPACE, record.evidence_id)
     s3 = aws_lake["s3"]
-    head = s3.head_object(Bucket=BUCKET, Key=key)
+    head = s3.head_object(Bucket=BUCKET, Key=obs_key)
     meta = {k.lower(): v for k, v in (head.get("Metadata") or {}).items()}
+    assert meta["kind"] == "observation"
     assert meta["sha256"] == record.payload_sha256
+    assert meta["input_sha256"] == record.payload_sha256
+    assert meta["audit_sha256"] == rec_digest
+    assert meta["audit_seq"] == str(record.seq)
+    assert meta["prev_sha256"] == record.prev_sha256
     assert meta["plugin"] == "aws.inspector"
     assert "iac-01" in meta["scf_targets"].lower() or "IAC-01" in meta["scf_targets"]
     assert meta["record_id"] == record.evidence_id
     assert meta["sealed_at"] == record.ts
+    assert meta["expires_at"] == observation_expires_at(record.ts)
+    assert meta["verified"] == "true"
     assert head.get("ServerSideEncryption") == "aws:kms"
     assert head.get("ObjectLockMode") in {None, "GOVERNANCE"}
+    find_head = s3.head_object(Bucket=BUCKET, Key=find_key)
+    find_meta = {k.lower(): v for k, v in (find_head.get("Metadata") or {}).items()}
+    assert find_meta["kind"] == "finding"
+    assert find_meta["sha256"] == rec_digest
+    assert find_meta["input_sha256"] == record.payload_sha256
     s3.head_object(Bucket=BUCKET, Key=records_jsonl_key(TENANT, WORKSPACE))
     s3.head_object(Bucket=BUCKET, Key=checkpoints_jsonl_key(TENANT, WORKSPACE))
     ddb = aws_lake["ddb"]
     ev_item = ddb.get_item(Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": f"EVIDENCE#{record.evidence_id}"})[
         "Item"
     ]
-    assert ev_item["s3_uri"] == f"s3://{BUCKET}/{key}"
+    assert ev_item["s3_uri"] == f"s3://{BUCKET}/{obs_key}"
+    assert ev_item["observation_s3_uri"] == f"s3://{BUCKET}/{obs_key}"
+    assert ev_item["finding_s3_uri"] == f"s3://{BUCKET}/{find_key}"
     assert ev_item["sha256"] == record.payload_sha256
+    assert ev_item["input_sha256"] == record.payload_sha256
+    assert ev_item["audit_sha256"] == rec_digest
+    assert int(ev_item["audit_seq"]) == record.seq
+    assert ev_item["prev_sha256"] == record.prev_sha256
+    assert ev_item["expires_at"] == observation_expires_at(record.ts)
+    assert str(ev_item["verified"]).lower() == "true"
     listed = [
         obj["Key"]
         for obj in s3.list_objects_v2(Bucket=BUCKET).get("Contents") or []
@@ -232,11 +287,20 @@ def test_collect_dual_writes_s3_and_index(aws_lake):
         assert not key_name.endswith("config.json")
         assert "/exports/" not in key_name
         assert "/meta/" not in key_name
+        assert "/public/trust-center/" not in key_name
         parts = key_name.split("/")
         assert "evidence" not in parts or parts[-1].endswith(".json")
+        assert "observations" not in parts or parts[-1].endswith(".json")
     assert "IAC-01" in list(ev_item["control_ids"])
     fresh = ddb.get_item(Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": "FRESH#aws.inspector"})["Item"]
     assert fresh["s3_uri"] == ev_item["s3_uri"]
+    assert fresh["expires_at"] == ev_item["expires_at"]
+    lake = remote_ready(settings)
+    assert lake is not None
+    rows = lake.query_freshness()
+    assert rows
+    assert rows[0]["expires_at"] == ev_item["expires_at"]
+    assert rows[0]["expired"] is False
     cp = load_checkpoints(settings)[0]
     cp_item = ddb.get_item(
         Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": f"CP#{checkpoint_id(cp)}"}
@@ -253,23 +317,42 @@ def test_push_dual_writes_pack(aws_lake):
     seed_workspace(settings)
     result = write_pack(settings)
     assert result.path.exists()
+    assert result.path.with_suffix(".md").exists()
     assert result.remote is not None
     pack_uri = result.remote["pack"]["s3_uri"]
-    assert pack_uri.endswith(f"/export/beacon-pack-{result.remote['pack']['pack_id']}.json")
-    assert "/export/beacon-pack-" in pack_uri
+    pack_id = result.remote["pack"]["pack_id"]
+    assert pack_uri.endswith(f"/exports/packs/bundle/{pack_id}/beacon-pack.json")
+    assert "/exports/packs/bundle/" in pack_uri
     assert "/keys/" not in pack_uri
-    body = aws_lake["s3"].get_object(
-        Bucket=BUCKET,
-        Key=pack_uri.split(f"s3://{BUCKET}/", 1)[1],
-    )["Body"].read()
+    pack_key = pack_uri.split(f"s3://{BUCKET}/", 1)[1]
+    head = aws_lake["s3"].head_object(Bucket=BUCKET, Key=pack_key)
+    meta = {k.lower(): v for k, v in (head.get("Metadata") or {}).items()}
+    assert meta["kind"] == "pack"
+    assert meta["pack_type"] == "bundle"
+    assert meta["pack_version"] == pack_id
+    assert meta["report_format"] == "json"
+    assert meta["draft"] == "false"
+    assert head.get("ContentType") == "application/json"
+    body = aws_lake["s3"].get_object(Bucket=BUCKET, Key=pack_key)["Body"].read()
     assert sha256_bytes(body) == result.remote["pack"]["sha256"]
     assert b"recorder.pem" not in body
     assert b"BEGIN PRIVATE KEY" not in body
+    md_key = pack_object_key(TENANT, WORKSPACE, pack_id, filename="report.md")
+    md_head = aws_lake["s3"].head_object(Bucket=BUCKET, Key=md_key)
+    md_meta = {k.lower(): v for k, v in (md_head.get("Metadata") or {}).items()}
+    assert md_meta["report_format"] == "markdown"
+    assert "markdown" in (md_head.get("ContentType") or "")
+    log_key = activity_log_object_key(TENANT, WORKSPACE, pack_id)
+    log_head = aws_lake["s3"].head_object(Bucket=BUCKET, Key=log_key)
+    log_meta = {k.lower(): v for k, v in (log_head.get("Metadata") or {}).items()}
+    assert log_meta["report_format"] == "activity-log"
+    listed = [obj["Key"] for obj in aws_lake["s3"].list_objects_v2(Bucket=BUCKET).get("Contents") or []]
+    assert not any("/public/trust-center/" in key and "/observations/" in key for key in listed)
     record = load_records(settings)[0]
     ev_item = aws_lake["ddb"].get_item(
         Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": f"EVIDENCE#{record.evidence_id}"}
     )["Item"]
-    assert ev_item["pack_id"] == result.remote["pack"]["pack_id"]
+    assert ev_item["pack_id"] == pack_id
 
 
 def test_sync_and_pull_roundtrip(aws_lake):
@@ -297,7 +380,7 @@ def test_pull_detects_hash_mismatch(aws_lake):
     settings = load_settings()
     collect_named(settings, "aws.inspector", CollectContext(live=False))
     record = load_records(settings)[0]
-    key = evidence_object_key(TENANT, WORKSPACE, record.evidence_id)
+    key = observation_object_key(TENANT, WORKSPACE, record.evidence_id)
     aws_lake["s3"].put_object(
         Bucket=BUCKET,
         Key=key,
@@ -331,9 +414,14 @@ def test_prefix_is_applied(initialized: Path, monkeypatch: pytest.MonkeyPatch):
         settings = load_settings()
         result = collect_named(settings, "aws.inspector", CollectContext(live=False))
         record = load_records(settings)[0]
-        key = evidence_object_key(TENANT, WORKSPACE, record.evidence_id, prefix="lake")
+        key = observation_object_key(TENANT, WORKSPACE, record.evidence_id, prefix="lake")
         assert key.startswith("lake/")
+        assert "/observations/" in key
         boto3.client("s3", region_name=REGION).head_object(Bucket=BUCKET, Key=key)
+        boto3.client("s3", region_name=REGION).head_object(
+            Bucket=BUCKET,
+            Key=finding_object_key(TENANT, WORKSPACE, record.evidence_id, prefix="lake"),
+        )
         assert result["remote"]["ok"] is True
     finally:
         mock.stop()
@@ -392,6 +480,152 @@ def test_iam_docs_omit_delete_object():
     assert "DenyDeleteObject" in bucket
     assert "STANDARD_IA" in bucket
     assert "GLACIER" in bucket
+    assert "DenyRawInTrustCenterByClass" in bucket
+    assert "public/trust-center" in bucket
     kms = Path("deploy/aws/kms.tf").read_text(encoding="utf-8")
     assert "alias/beacon-evidence" in Path("deploy/aws/variables.tf").read_text(encoding="utf-8")
     assert "enable_key_rotation" in kms
+    variables = Path("deploy/aws/variables.tf").read_text(encoding="utf-8")
+    assert "us-east-1" in variables
+    assert "us-gov-west-1" in variables
+    assert "COMPLIANCE is opt-in" in variables
+    dynamo = Path("deploy/aws/dynamodb.tf").read_text(encoding="utf-8")
+    assert 'name            = "freshness"' in dynamo
+    assert "expires_at" in dynamo
+    assert "aws_partition" in Path("deploy/aws/versions.tf").read_text(encoding="utf-8")
+
+
+def test_trust_center_refuses_raw_observations():
+    with pytest.raises(BeaconError) as caught:
+        assert_key_kind_allowed(
+            f"{TENANT}/{WORKSPACE}/public/trust-center/observations/x.json",
+            "observation",
+            tenant_id=TENANT,
+            workspace_id=WORKSPACE,
+        )
+    assert caught.value.code == E_REMOTE
+    with pytest.raises(BeaconError) as caught_rel:
+        trust_center_object_key(TENANT, WORKSPACE, "observations/secret.json")
+    assert caught_rel.value.code == E_REMOTE
+    with pytest.raises(BeaconError) as caught_nested:
+        trust_center_object_key(TENANT, WORKSPACE, "packs/observations/x.json")
+    assert caught_nested.value.code == E_REMOTE
+    # Tenant/workspace names that match the prefix must still store observations.
+    assert_key_kind_allowed(
+        "public/trust-center/observations/ev-1.json",
+        "observation",
+        tenant_id="public",
+        workspace_id="trust-center",
+    )
+
+
+def test_trust_center_export_copies_pack_not_observations(aws_lake, monkeypatch: pytest.MonkeyPatch):
+    from beacon.push import write_pack
+
+    monkeypatch.setenv("BEACON_TRUST_CENTER_EXPORT", "1")
+    settings = load_settings()
+    seed_workspace(settings)
+    result = write_pack(settings)
+    assert result.remote is not None
+    pack_id = result.remote["pack"]["pack_id"]
+    listed = [
+        obj["Key"] for obj in aws_lake["s3"].list_objects_v2(Bucket=BUCKET).get("Contents") or []
+    ]
+    assert any(
+        f"/public/trust-center/packs/bundle/{pack_id}/beacon-pack.json" in key for key in listed
+    )
+    assert not any("/public/trust-center/" in key and "/observations/" in key for key in listed)
+    obs_keys = [key for key in listed if "/observations/" in key]
+    assert obs_keys
+    for key in obs_keys:
+        assert "/public/trust-center/" not in key
+    tc_key = f"{TENANT}/{WORKSPACE}/public/trust-center/packs/bundle/{pack_id}/beacon-pack.json"
+    public_pack = json.loads(aws_lake["s3"].get_object(Bucket=BUCKET, Key=tc_key)["Body"].read())
+    assert public_pack.get("trust_center") is True
+    for row in public_pack.get("evidence") or []:
+        assert "payload" not in row
+
+
+def test_unverified_import_until_review_seal(aws_lake):
+    settings = load_settings()
+    published = publish_unverified_import(settings, "imp-1", b'{"raw":true}')
+    assert published is not None
+    assert published["verified"] is False
+    key = f"{TENANT}/{WORKSPACE}/imports/imp-1.json"
+    head = aws_lake["s3"].head_object(Bucket=BUCKET, Key=key)
+    meta = {k.lower(): v for k, v in (head.get("Metadata") or {}).items()}
+    assert meta["kind"] == "import"
+    assert meta["verified"] == "false"
+    item = aws_lake["ddb"].get_item(Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": "IMPORT#imp-1"})["Item"]
+    assert str(item["verified"]).lower() == "false"
+    with pytest.raises(BeaconError) as caught:
+        publish_unverified_import(settings, "imp-key", b"-----BEGIN PRIVATE KEY-----\nnope\n")
+    assert caught.value.code == E_REMOTE
+
+
+def test_pull_requires_finding_and_audit_fields(aws_lake):
+    settings = load_settings()
+    collect_named(settings, "aws.inspector", CollectContext(live=False))
+    record = load_records(settings)[0]
+    key = {"pk": f"{TENANT}#{WORKSPACE}", "sk": f"EVIDENCE#{record.evidence_id}"}
+    item = aws_lake["ddb"].get_item(Key=key)["Item"]
+    item.pop("finding_s3_uri", None)
+    aws_lake["ddb"].put_item(Item=item)
+    with pytest.raises(BeaconError) as caught:
+        pull_workspace(settings)
+    assert caught.value.code == E_REMOTE
+    assert "finding_s3_uri" in str(caught.value)
+
+
+def test_freshness_24h_offline(initialized: Path):
+    settings = load_settings()
+    seal_payload(
+        settings,
+        plugin="aws.inspector",
+        mode="fixture",
+        scf_targets=["IAC-01"],
+        payload={"n": 1},
+    )
+    rows = freshness(settings)
+    assert rows
+    assert rows[0]["sealed_at"] == rows[0]["ts"]
+    assert rows[0]["expires_at"] == observation_expires_at(rows[0]["sealed_at"])
+    assert rows[0]["expired"] is False
+
+
+def test_pull_detects_finding_hash_mismatch(aws_lake):
+    settings = load_settings()
+    collect_named(settings, "aws.inspector", CollectContext(live=False))
+    record = load_records(settings)[0]
+    key = finding_object_key(TENANT, WORKSPACE, record.evidence_id)
+    aws_lake["s3"].put_object(
+        Bucket=BUCKET,
+        Key=key,
+        Body=b'{"tampered":true}',
+        ServerSideEncryption="aws:kms",
+        SSEKMSKeyId=aws_lake["kms_arn"],
+    )
+    with pytest.raises(BeaconError) as caught:
+        pull_workspace(settings)
+    assert caught.value.code == E_REMOTE
+    assert "sha256" in str(caught.value).lower() or "finding" in str(caught.value).lower()
+
+
+def test_named_draft_pack_type(aws_lake, monkeypatch: pytest.MonkeyPatch):
+    from beacon.push import write_pack
+
+    monkeypatch.setenv("BEACON_PACK_TYPE", "security-decision-record")
+    settings = load_settings()
+    seed_workspace(settings)
+    result = write_pack(settings)
+    assert result.remote is not None
+    pack_uri = result.remote["pack"]["s3_uri"]
+    assert "/exports/packs/security-decision-record/" in pack_uri
+    pack_key = pack_uri.split(f"s3://{BUCKET}/", 1)[1]
+    meta = {
+        k.lower(): v
+        for k, v in (aws_lake["s3"].head_object(Bucket=BUCKET, Key=pack_key).get("Metadata") or {}).items()
+    }
+    assert meta["pack_type"] == "security-decision-record"
+    assert meta["draft"] == "true"
+    assert meta["report_format"] == "json"

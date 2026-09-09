@@ -5,7 +5,7 @@ data "aws_iam_policy_document" "kms" {
     actions = ["kms:*"]
     principals {
       type        = "AWS"
-      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
     }
     resources = ["*"]
   }
@@ -35,7 +35,7 @@ data "aws_iam_policy_document" "kms" {
 }
 
 resource "aws_kms_key" "evidence" {
-  description             = "Beacon evidence lake customer CMK"
+  description             = "Beacon evidence lake customer CMK for S3 server-side encryption (SSE-KMS) and DynamoDB encryption"
   deletion_window_in_days = 30
   enable_key_rotation     = true
   policy                  = data.aws_iam_policy_document.kms.json

@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "AWS region for the evidence lake."
+  description = "AWS region for the evidence lake. Supported deploy targets: us-east-1 (commercial) and us-gov-west-1 (GovCloud). Keep this parameterized; do not hard-code the region in module resources."
   type        = string
   default     = "us-east-1"
 }
@@ -23,7 +23,7 @@ variable "kms_alias" {
 }
 
 variable "object_lock_mode" {
-  description = "Default Object Lock mode. GOVERNANCE or COMPLIANCE."
+  description = "Default Object Lock mode. GOVERNANCE is the default (configurable retain days). COMPLIANCE is opt-in after retention days are fixed; the app does not state a long-retention period."
   type        = string
   default     = "GOVERNANCE"
 
@@ -34,7 +34,7 @@ variable "object_lock_mode" {
 }
 
 variable "object_lock_days" {
-  description = "Default Object Lock retain days."
+  description = "Object Lock retain days on new objects. Configurable because the product does not publish a fixed retention period. Default 365."
   type        = number
   default     = 365
 

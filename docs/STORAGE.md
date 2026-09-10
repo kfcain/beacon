@@ -136,8 +136,10 @@ Credentials use the default AWS chain (STS assumed role, instance profile, env).
 
 ## IAM
 
-- **BeaconWriter** — `s3:PutObject`, `GetObject`, `ListBucket`; KMS `Encrypt`, `Decrypt`, `GenerateDataKey`; DynamoDB index write (table and `freshness` GSI). No `s3:DeleteObject`. No `s3:BypassGovernanceRetention`.
-- **BeaconAuditor** — read-only Get/List, KMS Decrypt, DynamoDB Query.
+- **BeaconWriter** — `s3:PutObject`, `PutObjectRetention`, `GetObject`, `ListBucket` on `{prefix/}{tenant}/{workspace}/*` only; KMS `Encrypt`, `Decrypt`, `GenerateDataKey`; DynamoDB index write with `dynamodb:LeadingKeys` = `{tenant}#{workspace}`. No `s3:DeleteObject`. No `s3:BypassGovernanceRetention`.
+- **BeaconAuditor** — the same S3 prefix and DynamoDB partition, read-only Get/List, KMS Decrypt, DynamoDB Query.
+
+Set Terraform `tenant_id` and `workspace_id` to the bound namespace. Those values must match `BEACON_TENANT_ID` and `BEACON_WORKSPACE_ID`.
 
 Prefer `aws sts assume-role`. See [deploy/aws](../deploy/aws/README.md).
 

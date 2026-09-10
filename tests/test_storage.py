@@ -474,6 +474,11 @@ def test_iam_docs_omit_delete_object():
     assert "DeleteObject" not in iam
     assert "BypassGovernanceRetention" not in iam
     assert "GenerateDataKey" in iam
+    assert "dynamodb:LeadingKeys" in iam
+    assert "s3:prefix" in iam
+    assert "workspace_prefix" in iam
+    assert "PutObjectRetention" in iam
+    assert '"${aws_s3_bucket.evidence.arn}/*"' not in iam
     bucket = Path("deploy/aws/s3.tf").read_text(encoding="utf-8")
     assert "object_lock_enabled = true" in bucket
     assert "BucketOwnerEnforced" in bucket
@@ -609,6 +614,31 @@ def test_pull_detects_finding_hash_mismatch(aws_lake):
         pull_workspace(settings)
     assert caught.value.code == E_REMOTE
     assert "sha256" in str(caught.value).lower() or "finding" in str(caught.value).lower()
+
+
+def test_failed_pull_does_not_install_partial_evidence(aws_lake):
+    settings = load_settings()
+    collect_named(settings, "aws.inspector", CollectContext(live=False))
+    collect_named(settings, "azure.inspector", CollectContext(live=False))
+    records = load_records(settings)
+    assert len(records) >= 2
+    for record in records:
+        path = settings.evidence_dir / f"{record.evidence_id}.json"
+        assert path.exists()
+        path.unlink()
+    later = records[-1]
+    aws_lake["s3"].put_object(
+        Bucket=BUCKET,
+        Key=finding_object_key(TENANT, WORKSPACE, later.evidence_id),
+        Body=b'{"tampered":true}',
+        ServerSideEncryption="aws:kms",
+        SSEKMSKeyId=aws_lake["kms_arn"],
+    )
+    with pytest.raises(BeaconError) as caught:
+        pull_workspace(settings)
+    assert caught.value.code == E_REMOTE
+    remaining = list(settings.evidence_dir.glob("*.json"))
+    assert remaining == []
 
 
 def test_named_draft_pack_type(aws_lake, monkeypatch: pytest.MonkeyPatch):

@@ -4,7 +4,9 @@ Terraform creates the S3 evidence lake, KMS CMK (S3 SSE-KMS), DynamoDB index, an
 
 Supported deploy targets: **us-east-1** (commercial) and **us-gov-west-1** (GovCloud). Set `aws_region`. Do not hard-code the region.
 
-BeaconWriter has Put/Get/List and KMS encrypt/decrypt/GenerateDataKey. It does not have DeleteObject. BeaconAuditor is read-only. Prefer STS assume-role. Do not upload private keys (`*.sec`, `.beacon/keys`).
+BeaconWriter has Put/Get/List and PutObjectRetention on `{prefix/}{tenant_id}/{workspace_id}/*` only, plus KMS encrypt/decrypt/GenerateDataKey. DynamoDB writes use `dynamodb:LeadingKeys` for `{tenant}#{workspace}`. It does not have DeleteObject. BeaconAuditor is the same prefix, read-only. Prefer STS assume-role. Do not upload private keys (`*.sec`, `.beacon/keys`).
+
+Set `tenant_id` and `workspace_id` in Terraform. Those values bind the IAM roles. They must match `BEACON_TENANT_ID` and `BEACON_WORKSPACE_ID`.
 
 Object Lock default is GOVERNANCE with configurable days. COMPLIANCE mode is opt-in after retain days are fixed.
 
@@ -15,7 +17,7 @@ The bucket policy denies raw `observation` objects under `public/trust-center/`.
 ```bash
 cd deploy/aws
 cp terraform.tfvars.example terraform.tfvars
-# set bucket_name, aws_region, and trusted_principal_arns
+# set bucket_name, aws_region, trusted_principal_arns, tenant_id, workspace_id
 terraform init
 terraform apply
 terraform output -raw beacon_env

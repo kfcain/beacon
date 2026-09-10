@@ -12,15 +12,31 @@ data "aws_iam_policy_document" "assume_role" {
 
 data "aws_iam_policy_document" "writer" {
   statement {
-    sid    = "S3ListBucket"
+    sid    = "S3BucketMeta"
     effect = "Allow"
     actions = [
-      "s3:ListBucket",
-      "s3:ListBucketVersions",
       "s3:GetBucketLocation",
       "s3:GetEncryptionConfiguration",
     ]
     resources = [aws_s3_bucket.evidence.arn]
+  }
+
+  statement {
+    sid    = "S3ListWorkspace"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+      "s3:ListBucketVersions",
+    ]
+    resources = [aws_s3_bucket.evidence.arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values = [
+        "${local.workspace_prefix}/",
+        "${local.workspace_prefix}/*",
+      ]
+    }
   }
 
   statement {
@@ -33,8 +49,9 @@ data "aws_iam_policy_document" "writer" {
       "s3:GetObjectVersion",
       "s3:GetObjectTagging",
       "s3:GetObjectRetention",
+      "s3:PutObjectRetention",
     ]
-    resources = ["${aws_s3_bucket.evidence.arn}/*"]
+    resources = ["${aws_s3_bucket.evidence.arn}/${local.workspace_prefix}/*"]
   }
 
   statement {
@@ -52,6 +69,15 @@ data "aws_iam_policy_document" "writer" {
   }
 
   statement {
+    sid    = "DynamoDescribe"
+    effect = "Allow"
+    actions = [
+      "dynamodb:DescribeTable",
+    ]
+    resources = [aws_dynamodb_table.index.arn]
+  }
+
+  statement {
     sid    = "DynamoIndexWrite"
     effect = "Allow"
     actions = [
@@ -61,26 +87,46 @@ data "aws_iam_policy_document" "writer" {
       "dynamodb:BatchGetItem",
       "dynamodb:BatchWriteItem",
       "dynamodb:Query",
-      "dynamodb:DescribeTable",
     ]
     resources = [
       aws_dynamodb_table.index.arn,
       "${aws_dynamodb_table.index.arn}/index/*",
     ]
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "dynamodb:LeadingKeys"
+      values   = [local.ddb_pk]
+    }
   }
 }
 
 data "aws_iam_policy_document" "auditor" {
   statement {
-    sid    = "S3ListBucket"
+    sid    = "S3BucketMeta"
     effect = "Allow"
     actions = [
-      "s3:ListBucket",
-      "s3:ListBucketVersions",
       "s3:GetBucketLocation",
       "s3:GetEncryptionConfiguration",
     ]
     resources = [aws_s3_bucket.evidence.arn]
+  }
+
+  statement {
+    sid    = "S3ListWorkspace"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+      "s3:ListBucketVersions",
+    ]
+    resources = [aws_s3_bucket.evidence.arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values = [
+        "${local.workspace_prefix}/",
+        "${local.workspace_prefix}/*",
+      ]
+    }
   }
 
   statement {
@@ -92,7 +138,7 @@ data "aws_iam_policy_document" "auditor" {
       "s3:GetObjectTagging",
       "s3:GetObjectRetention",
     ]
-    resources = ["${aws_s3_bucket.evidence.arn}/*"]
+    resources = ["${aws_s3_bucket.evidence.arn}/${local.workspace_prefix}/*"]
   }
 
   statement {
@@ -106,18 +152,31 @@ data "aws_iam_policy_document" "auditor" {
   }
 
   statement {
+    sid    = "DynamoDescribe"
+    effect = "Allow"
+    actions = [
+      "dynamodb:DescribeTable",
+    ]
+    resources = [aws_dynamodb_table.index.arn]
+  }
+
+  statement {
     sid    = "DynamoIndexRead"
     effect = "Allow"
     actions = [
       "dynamodb:GetItem",
       "dynamodb:BatchGetItem",
       "dynamodb:Query",
-      "dynamodb:DescribeTable",
     ]
     resources = [
       aws_dynamodb_table.index.arn,
       "${aws_dynamodb_table.index.arn}/index/*",
     ]
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "dynamodb:LeadingKeys"
+      values   = [local.ddb_pk]
+    }
   }
 }
 

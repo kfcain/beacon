@@ -26,4 +26,7 @@ locals {
   writer_name  = var.writer_role_name
   auditor_name = var.auditor_role_name
   cold_classes = ["observation", "finding", "evidence", "pack", "report"]
+  key_prefix   = trim(var.s3_key_prefix, "/")
+  workspace_prefix = local.key_prefix != "" ? "${local.key_prefix}/${var.tenant_id}/${var.workspace_id}" : "${var.tenant_id}/${var.workspace_id}"
+  ddb_pk = "${var.tenant_id}#${var.workspace_id}"
 }

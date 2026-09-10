@@ -52,8 +52,9 @@ output "beacon_env" {
     export BEACON_DDB_TABLE=${aws_dynamodb_table.index.name}
     export BEACON_OBJECT_LOCK_MODE=${var.object_lock_mode}
     export BEACON_OBJECT_LOCK_DAYS=${var.object_lock_days}
-    export BEACON_TENANT_ID="replace-me"
-    export BEACON_WORKSPACE_ID="replace-me"
+    export BEACON_TENANT_ID=${var.tenant_id}
+    export BEACON_WORKSPACE_ID=${var.workspace_id}
+    export BEACON_S3_PREFIX=${var.s3_key_prefix}
     # Prefer STS. Do not put long-lived keys in Beacon env.
     # aws sts assume-role --role-arn ${aws_iam_role.writer.arn} --role-session-name beacon-writer
   EOT

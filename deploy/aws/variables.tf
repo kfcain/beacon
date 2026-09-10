@@ -65,3 +65,36 @@ variable "enable_instance_profile" {
   type        = bool
   default     = false
 }
+
+variable "tenant_id" {
+  description = "Authorization-bound tenant id. IAM S3 prefixes and DynamoDB LeadingKeys use this value. Must match BEACON_TENANT_ID."
+  type        = string
+  default     = "acme"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$", var.tenant_id)) && !strcontains(var.tenant_id, "..") && !strcontains(var.tenant_id, "#")
+    error_message = "tenant_id must be a safe Beacon scope id."
+  }
+}
+
+variable "workspace_id" {
+  description = "Authorization-bound workspace id. IAM S3 prefixes and DynamoDB LeadingKeys use this value. Must match BEACON_WORKSPACE_ID."
+  type        = string
+  default     = "prod"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$", var.workspace_id)) && !strcontains(var.workspace_id, "..") && !strcontains(var.workspace_id, "#")
+    error_message = "workspace_id must be a safe Beacon scope id."
+  }
+}
+
+variable "s3_key_prefix" {
+  description = "Optional S3 key prefix (BEACON_S3_PREFIX). IAM object access is limited to {prefix/}{tenant}/{workspace}/."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !strcontains(var.s3_key_prefix, "..")
+    error_message = "s3_key_prefix must not contain .."
+  }
+}

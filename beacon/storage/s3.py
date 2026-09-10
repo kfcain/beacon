@@ -13,6 +13,9 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
+import shutil
+import tempfile
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal, NoReturn
 from urllib.parse import urlencode
@@ -32,6 +35,7 @@ from beacon.config import (
     PACK_TYPES,
     REPORT_FORMATS,
     Settings,
+    ensure_layout,
     observation_expires_at,
     observation_is_expired,
 )
@@ -1255,6 +1259,7 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
     verified = 0
     incoming_records: dict[int, dict[str, Any]] = {}
     incoming_checkpoints: dict[str, dict[str, Any]] = {}
+    staged_evidence: dict[str, bytes] = {}
     jsonl_cache: dict[str, bytes] = {}
 
     def cached_get(uri: str) -> bytes:
@@ -1358,7 +1363,7 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
         if prior and sha256_obj(prior) != sha256_obj(record):
             fail(E_REMOTE, f"record conflict at seq {seq}")
         incoming_records[seq] = record
-        dest.write_bytes(body)
+        staged_evidence[evidence_id] = body
         pulled += 1
 
     checkpoints_by_id: dict[str, dict[str, Any]] = {}
@@ -1391,11 +1396,22 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
             fail(E_REMOTE, f"checkpoint conflict for {cp_id}")
         incoming_checkpoints[cp_id] = checkpoint
 
-    _merge_records(settings, incoming_records)
-    _merge_checkpoints(settings, incoming_checkpoints)
-    chain = None
-    if (settings.keys_dir / "recorder.pem").exists():
-        chain = check_chain(settings)
+    merged_records = _merged_record_rows(settings, incoming_records)
+    merged_checkpoints = _merged_checkpoint_rows(settings, incoming_checkpoints)
+    chain = _validate_staged_chain(
+        settings,
+        staged_evidence=staged_evidence,
+        merged_records=merged_records,
+        merged_checkpoints=merged_checkpoints,
+    )
+    _promote_pull(
+        settings,
+        staged_evidence=staged_evidence,
+        merged_records=merged_records,
+        merged_checkpoints=merged_checkpoints,
+        incoming_records=incoming_records,
+        incoming_checkpoints=incoming_checkpoints,
+    )
     return {
         "ok": True,
         "pulled": pulled,
@@ -1407,22 +1423,21 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
     }
 
 
-def _merge_records(settings: Settings, incoming: dict[int, dict[str, Any]]) -> None:
-    if not incoming:
-        return
+def _merged_record_rows(
+    settings: Settings, incoming: dict[int, dict[str, Any]]
+) -> list[dict[str, Any]]:
     existing = {int(row["seq"]): row for row in iter_jsonl(settings.chain_path)}
     for seq, row in incoming.items():
         prior = existing.get(seq)
         if prior and sha256_obj(prior) != sha256_obj(row):
             fail(E_REMOTE, f"local record conflict at seq {seq}")
         existing[seq] = row
-    lines = [dumps(existing[seq]).decode("utf-8") for seq in sorted(existing)]
-    settings.chain_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    return [existing[seq] for seq in sorted(existing)]
 
 
-def _merge_checkpoints(settings: Settings, incoming: dict[str, dict[str, Any]]) -> None:
-    if not incoming:
-        return
+def _merged_checkpoint_rows(
+    settings: Settings, incoming: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
     existing_rows = list(iter_jsonl(settings.checkpoints_path))
     by_id: dict[str, dict[str, Any]] = {}
     for row in existing_rows:
@@ -1433,8 +1448,66 @@ def _merge_checkpoints(settings: Settings, incoming: dict[str, dict[str, Any]]) 
         if prior and sha256_obj(prior) != sha256_obj(row):
             fail(E_REMOTE, f"local checkpoint conflict for {cp_id}")
         by_id[cp_id] = row
-    ordered = sorted(by_id.values(), key=lambda row: int(row.get("tsa_serial") or 0))
-    lines = [dumps(row).decode("utf-8") for row in ordered]
-    settings.checkpoints_path.write_text(
-        "\n".join(lines) + ("\n" if lines else ""), encoding="utf-8"
-    )
+    return sorted(by_id.values(), key=lambda row: int(row.get("tsa_serial") or 0))
+
+
+def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [dumps(row).decode("utf-8") for row in rows]
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def _validate_staged_chain(
+    settings: Settings,
+    *,
+    staged_evidence: dict[str, bytes],
+    merged_records: list[dict[str, Any]],
+    merged_checkpoints: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if not (settings.keys_dir / "recorder.pem").exists():
+        return None
+    with tempfile.TemporaryDirectory() as tmp:
+        staged_settings = replace(settings, home=Path(tmp) / ".beacon")
+        ensure_layout(staged_settings)
+        if settings.keys_dir.exists():
+            shutil.copytree(settings.keys_dir, staged_settings.keys_dir, dirs_exist_ok=True)
+        for evidence_id, body in staged_evidence.items():
+            dest = (staged_settings.evidence_dir / f"{evidence_id}.json").resolve()
+            if not dest.is_relative_to(staged_settings.evidence_dir.resolve()):
+                fail(E_REMOTE, f"refusing evidence path outside evidence dir: {evidence_id}")
+            dest.write_bytes(body)
+        for row in merged_records:
+            evidence_id = str(row.get("evidence_id") or "")
+            if not evidence_id:
+                continue
+            dest = staged_settings.evidence_dir / f"{evidence_id}.json"
+            if dest.exists():
+                continue
+            src = settings.evidence_dir / f"{evidence_id}.json"
+            if src.exists():
+                dest.write_bytes(src.read_bytes())
+        _write_jsonl(staged_settings.chain_path, merged_records)
+        _write_jsonl(staged_settings.checkpoints_path, merged_checkpoints)
+        return check_chain(staged_settings)
+
+
+def _promote_pull(
+    settings: Settings,
+    *,
+    staged_evidence: dict[str, bytes],
+    merged_records: list[dict[str, Any]],
+    merged_checkpoints: list[dict[str, Any]],
+    incoming_records: dict[int, dict[str, Any]],
+    incoming_checkpoints: dict[str, dict[str, Any]],
+) -> None:
+    settings.evidence_dir.mkdir(parents=True, exist_ok=True)
+    for evidence_id, body in staged_evidence.items():
+        dest = (settings.evidence_dir / f"{evidence_id}.json").resolve()
+        if not dest.is_relative_to(settings.evidence_dir.resolve()):
+            fail(E_REMOTE, f"refusing evidence path outside evidence dir: {evidence_id}")
+        dest.write_bytes(body)
+    if incoming_records:
+        _write_jsonl(settings.chain_path, merged_records)
+    if incoming_checkpoints:
+        _write_jsonl(settings.checkpoints_path, merged_checkpoints)
+

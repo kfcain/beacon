@@ -49,4 +49,6 @@ Optional:
 - `BEACON_PACK_TYPE` (`bundle`, `ongoing-certification-report`, `secure-configuration-guide`, `security-decision-record`)
 - `BEACON_TRUST_CENTER_EXPORT=1` (pack/report copies only; never raw observations)
 
-See [docs/STORAGE.md](../../docs/STORAGE.md).
+See [docs/STORAGE.md](../../docs/STORAGE.md). Architecture: [docs/architecture/beacon-evidence-lake.md](../../docs/architecture/beacon-evidence-lake.md). Control map: [docs/architecture/terraform-compliance.md](../../docs/architecture/terraform-compliance.md).
+
+OPA/Conftest (`make policy`) checks the controls in this module. See `policy/terraform`.

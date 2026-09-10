@@ -143,6 +143,20 @@ Set Terraform `tenant_id` and `workspace_id` to the bound namespace. Those value
 
 Prefer `aws sts assume-role`. See [deploy/aws](../deploy/aws/README.md).
 
+Architecture (collectors → seal/witness → S3 + DynamoDB + KMS + IAM): [docs/architecture/beacon-evidence-lake.md](architecture/beacon-evidence-lake.md). Draw.io: [docs/architecture/beacon-evidence-lake.drawio](architecture/beacon-evidence-lake.drawio). Terraform control map: [docs/architecture/terraform-compliance.md](architecture/terraform-compliance.md).
+
+## OPA / Conftest
+
+Policies under `policy/terraform` check the controls that `deploy/aws` already encodes (SSE-KMS, Block Public Access, BucketOwnerEnforced, Object Lock, versioning, lifecycle, writer no delete / no BypassGovernanceRetention, auditor read-only, KMS rotation, DynamoDB CMK + freshness GSI, trust-center prefix deny). They do not invent missing Terraform.
+
+```bash
+make policy
+conftest verify -p policy/terraform
+conftest test --combine --parser hcl2 -p policy/terraform deploy/aws/*.tf
+```
+
+Install Conftest from https://github.com/open-policy-agent/conftest/releases. Warn results list known gaps. They do not fail the default run.
+
 ## Commands
 
 After local seal:

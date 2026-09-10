@@ -72,7 +72,7 @@ Each sealed row stores:
 - `prev_sha256` — previous audit hash
 - `audit_seq` — audit sequence (`Record.seq`)
 
-`beacon pull` fails closed on altered artifacts (hash mismatch, input hash mismatch, linked audit hash mismatch, finding mismatch, audit sequence mismatch).
+`beacon pull` fails closed on altered artifacts (hash mismatch, input hash mismatch, linked audit hash mismatch, finding mismatch, audit sequence mismatch, invalid signatures, and missing TSA material). Pull verifies the staged chain before it installs files. Private keys are not required for that check. The local TSA certificate (`tsa.crt`) is required when checkpoints exist.
 
 ## Freshness
 
@@ -150,7 +150,7 @@ After local seal:
 - `beacon collect` / `beacon seed` — after local seal, dual-write observation + finding and `records.jsonl`; after checkpoint, dual-write `checkpoints.jsonl`.
 - `beacon push` — write a local pack (public keys only) plus Markdown, then dual-write `exports/packs/...` with JSON, Markdown, and activity-log.
 - `beacon sync` — upload the writer classes from the local workspace.
-- `beacon pull` — download observation objects listed in the index, verify SHA-256 / input / audit hashes, and restore local `evidence/{uuid}.json`.
+- `beacon pull` — download observation objects listed in the index, verify SHA-256 / input / audit hashes and the staged witness chain, then restore local `evidence/{uuid}.json` only after that check.
 - `beacon freshness` — local freshness with 24-hour `expires_at`.
 
 Offline tests and local collect still run with no AWS configuration.

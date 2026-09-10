@@ -1501,9 +1501,7 @@ def _validate_staged_chain(
     staged_evidence: dict[str, bytes],
     merged_records: list[dict[str, Any]],
     merged_checkpoints: list[dict[str, Any]],
-) -> dict[str, Any] | None:
-    if not (settings.keys_dir / "recorder.pem").exists():
-        return None
+) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as tmp:
         staged_settings = replace(settings, home=Path(tmp) / ".beacon")
         ensure_layout(staged_settings)

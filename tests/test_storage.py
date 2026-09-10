@@ -13,7 +13,7 @@ from beacon.canonical import dumps, sha256_bytes
 from beacon.cli import main
 from beacon.config import load_settings, observation_expires_at
 from beacon.crypto.witness import check_chain, load_checkpoints, load_records, seal_payload
-from beacon.errors import E_NO_CHECKPOINT, E_REMOTE, BeaconError
+from beacon.errors import E_BAD_SIGNATURE, E_NO_CHECKPOINT, E_REMOTE, E_TSA, BeaconError
 from beacon.plugins.spec import CollectContext
 from beacon.scf.engine import collect_named
 from beacon.storage.s3 import (
@@ -668,6 +668,80 @@ def test_failed_promote_rolls_back_partial_workspace(
     assert settings.chain_path.read_text(encoding="utf-8") == ""
     assert settings.checkpoints_path.read_text(encoding="utf-8") == ""
     assert list(settings.home.rglob("*.pulltmp")) == []
+
+
+def test_pull_fails_closed_without_verification_material(aws_lake):
+    settings = load_settings()
+    collect_named(settings, "aws.inspector", CollectContext(live=False))
+    for path in settings.evidence_dir.glob("*.json"):
+        path.unlink()
+    settings.chain_path.write_text("", encoding="utf-8")
+    settings.checkpoints_path.write_text("", encoding="utf-8")
+    for path in settings.keys_dir.iterdir():
+        path.unlink()
+    with pytest.raises(BeaconError) as caught:
+        pull_workspace(settings)
+    assert caught.value.code == E_TSA
+    assert list(settings.evidence_dir.glob("*.json")) == []
+    assert settings.chain_path.read_text(encoding="utf-8") == ""
+
+
+def test_pull_verifies_without_private_keys(aws_lake):
+    settings = load_settings()
+    collect_named(settings, "aws.inspector", CollectContext(live=False))
+    payload = next(settings.evidence_dir.glob("*.json")).read_bytes()
+    for path in settings.evidence_dir.glob("*.json"):
+        path.unlink()
+    settings.chain_path.write_text("", encoding="utf-8")
+    settings.checkpoints_path.write_text("", encoding="utf-8")
+    for path in settings.keys_dir.iterdir():
+        if path.name != "tsa.crt":
+            path.unlink()
+    pulled = pull_workspace(settings)
+    assert pulled["ok"] is True
+    assert pulled["chain"]["ok"] is True
+    restored = list(settings.evidence_dir.glob("*.json"))
+    assert restored
+    assert restored[0].read_bytes() == payload
+
+
+def test_fresh_pull_rejects_forged_recorder_sig(aws_lake):
+    settings = load_settings()
+    collect_named(settings, "aws.inspector", CollectContext(live=False))
+    record = load_records(settings)[0]
+    forged = record.to_dict()
+    forged["recorder_sig"] = "aa" * 32
+    forged_body = dumps(forged)
+    forged_digest = sha256_bytes(forged_body)
+    aws_lake["s3"].put_object(
+        Bucket=BUCKET,
+        Key=finding_object_key(TENANT, WORKSPACE, record.evidence_id),
+        Body=forged_body,
+        ServerSideEncryption="aws:kms",
+        SSEKMSKeyId=aws_lake["kms_arn"],
+    )
+    aws_lake["s3"].put_object(
+        Bucket=BUCKET,
+        Key=records_jsonl_key(TENANT, WORKSPACE),
+        Body=forged_body + b"\n",
+        ServerSideEncryption="aws:kms",
+        SSEKMSKeyId=aws_lake["kms_arn"],
+    )
+    aws_lake["ddb"].update_item(
+        Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": f"EVIDENCE#{record.evidence_id}"},
+        UpdateExpression="SET audit_sha256 = :h, finding_sha256 = :h, record_sha256 = :h",
+        ExpressionAttributeValues={":h": forged_digest},
+    )
+    for path in settings.evidence_dir.glob("*.json"):
+        path.unlink()
+    settings.chain_path.write_text("", encoding="utf-8")
+    settings.checkpoints_path.write_text("", encoding="utf-8")
+    for path in settings.keys_dir.iterdir():
+        path.unlink()
+    with pytest.raises(BeaconError) as caught:
+        pull_workspace(settings)
+    assert caught.value.code == E_BAD_SIGNATURE
+    assert list(settings.evidence_dir.glob("*.json")) == []
 
 
 def test_named_draft_pack_type(aws_lake, monkeypatch: pytest.MonkeyPatch):

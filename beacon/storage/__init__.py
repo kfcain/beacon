@@ -1,0 +1,43 @@
+"""Remote evidence lake (S3 + DynamoDB index). Offline collect does not need AWS."""
+
+from beacon.storage.s3 import (
+    ArtifactLake,
+    activity_log_object_key,
+    assert_key_kind_allowed,
+    checkpoint_id,
+    checkpoints_jsonl_key,
+    evidence_object_key,
+    finding_object_key,
+    observation_object_key,
+    pack_object_key,
+    publish_collect_run,
+    publish_pack,
+    publish_sealed_checkpoint,
+    publish_sealed_record,
+    publish_unverified_import,
+    pull_workspace,
+    records_jsonl_key,
+    sync_workspace,
+    trust_center_object_key,
+)
+
+__all__ = [
+    "ArtifactLake",
+    "activity_log_object_key",
+    "assert_key_kind_allowed",
+    "checkpoint_id",
+    "checkpoints_jsonl_key",
+    "evidence_object_key",
+    "finding_object_key",
+    "observation_object_key",
+    "pack_object_key",
+    "publish_collect_run",
+    "publish_pack",
+    "publish_sealed_checkpoint",
+    "publish_sealed_record",
+    "publish_unverified_import",
+    "pull_workspace",
+    "records_jsonl_key",
+    "sync_workspace",
+    "trust_center_object_key",
+]

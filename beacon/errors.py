@@ -25,6 +25,7 @@ E_UNKNOWN_PLUGIN = "E_UNKNOWN_PLUGIN"
 E_UNKNOWN_CONTROL = "E_UNKNOWN_CONTROL"
 E_TSA = "E_TSA"
 E_SCF = "E_SCF"
+E_REMOTE = "E_REMOTE"
 
 
 def fail(code: str, message: str) -> NoReturn:

@@ -208,7 +208,7 @@ class BeaconTUI(App[None]):
     def _push(self) -> None:
         try:
             path = write_pack(load_settings(), None)
-            self.notify(f"wrote {path}")
+            self.notify(f"wrote {path.path}")
         except BeaconError as exc:
             self.notify(f"{exc.code}: {exc.message}", severity="error")
         self.current = "push"

@@ -20,6 +20,20 @@ def beacon_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.delenv("BEACON_TSA_URL", raising=False)
     monkeypatch.delenv("BEACON_FORCE_FIXTURE", raising=False)
     monkeypatch.delenv("BEACON_SCF_API_BASE", raising=False)
+    for key in (
+        "BEACON_S3_BUCKET",
+        "BEACON_S3_PREFIX",
+        "BEACON_KMS_KEY_ARN",
+        "BEACON_DDB_TABLE",
+        "BEACON_OBJECT_LOCK_MODE",
+        "BEACON_OBJECT_LOCK_DAYS",
+        "BEACON_TENANT_ID",
+        "BEACON_WORKSPACE_ID",
+        "BEACON_REQUIRE_REMOTE",
+        "BEACON_PACK_TYPE",
+        "BEACON_TRUST_CENTER_EXPORT",
+    ):
+        monkeypatch.delenv(key, raising=False)
     os.environ["BEACON_HOME"] = str(home)
     os.environ["BEACON_SCF_OFFLINE"] = "1"
     return home

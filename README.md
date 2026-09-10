@@ -35,6 +35,34 @@ beacon collect --plugin aws.inspector
 
 `--target IAC-01` and `--target CRY-05` select every loaded fetcher whose `FetcherSpec.scf_targets` overlap that control, then seal the results.
 
+## AWS evidence lake
+
+When `BEACON_S3_BUCKET` is set, collect and push dual-write sealed artifacts to S3 after the local seal. Remote keys keep raw observations under `observations/` and derived findings under `evidence/`. Packs go to `exports/packs/{pack_type}/{version}/`. DynamoDB `beacon-artifact-index` stores pointers, SHA-256 / input / audit hashes, `sealed_at`, and `expires_at` (24-hour freshness). Private keys (`*.pem`, `.beacon/keys`), `config.json`, and `cache/` are never uploaded. S3 server-side encryption uses KMS (SSE-KMS) on every object.
+
+```bash
+export BEACON_S3_BUCKET=...
+export BEACON_KMS_KEY_ARN=...
+export BEACON_DDB_TABLE=beacon-artifact-index
+export BEACON_TENANT_ID=...
+export BEACON_WORKSPACE_ID=...
+# optional: BEACON_S3_PREFIX, BEACON_OBJECT_LOCK_MODE, BEACON_OBJECT_LOCK_DAYS
+# optional: BEACON_REQUIRE_REMOTE=1, BEACON_PACK_TYPE, BEACON_TRUST_CENTER_EXPORT=1
+beacon collect --target IAC-01
+beacon push
+beacon sync
+beacon pull
+```
+
+Create the bucket, KMS CMK (`alias/beacon-evidence`), table, and IAM roles with Terraform. Supported regions: `us-east-1` (commercial) and `us-gov-west-1` (GovCloud).
+
+```bash
+cd deploy/aws
+terraform init
+terraform apply
+```
+
+Prefer STS assume-role for `BeaconWriter` (Put/Get/List, no DeleteObject) and `BeaconAuditor` (read-only). See [docs/STORAGE.md](docs/STORAGE.md) and [deploy/aws/README.md](deploy/aws/README.md).
+
 ## Witness chain
 
 - Recorder key and witness key are distinct Ed25519 keys.
@@ -75,3 +103,4 @@ Tools: `beacon_status`, `beacon_init`, `beacon_seed`, `beacon_check`, `beacon_co
 
 - [LIMITS.md](LIMITS.md) — what Beacon does not claim
 - [docs/SOURCES.md](docs/SOURCES.md) — GRCEngClub inspectors and Paramify fetchers as shape references
+- [docs/STORAGE.md](docs/STORAGE.md) — S3 evidence lake, DynamoDB index, IAM

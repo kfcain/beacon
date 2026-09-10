@@ -55,10 +55,13 @@ def create_app() -> FastAPI:
     @app.post("/api/push")
     def api_push() -> JSONResponse:
         try:
-            path = write_pack(load_settings(), None)
+            result = write_pack(load_settings(), None)
         except BeaconError as exc:
             return JSONResponse({"ok": False, "code": exc.code, "error": str(exc)}, status_code=400)
-        return JSONResponse({"ok": True, "path": str(path)})
+        payload = {"ok": True, "path": str(result.path)}
+        if result.remote:
+            payload["remote"] = result.remote
+        return JSONResponse(payload)
 
     @app.get("/api/system")
     def api_system() -> JSONResponse:

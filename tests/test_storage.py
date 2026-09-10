@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -639,6 +640,34 @@ def test_failed_pull_does_not_install_partial_evidence(aws_lake):
     assert caught.value.code == E_REMOTE
     remaining = list(settings.evidence_dir.glob("*.json"))
     assert remaining == []
+
+
+def test_failed_promote_rolls_back_partial_workspace(
+    aws_lake, monkeypatch: pytest.MonkeyPatch
+):
+    settings = load_settings()
+    collect_named(settings, "aws.inspector", CollectContext(live=False))
+    for path in settings.evidence_dir.glob("*.json"):
+        path.unlink()
+    settings.chain_path.write_text("", encoding="utf-8")
+    settings.checkpoints_path.write_text("", encoding="utf-8")
+
+    real_replace = os.replace
+
+    def boom(src: object, dst: object, *args: object, **kwargs: object) -> None:
+        if Path(str(dst)).name == "checkpoints.jsonl":
+            raise OSError("disk full")
+        real_replace(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(os, "replace", boom)
+    with pytest.raises(BeaconError) as caught:
+        pull_workspace(settings)
+    assert caught.value.code == E_REMOTE
+    assert "install" in str(caught.value).lower() or "disk full" in str(caught.value).lower()
+    assert list(settings.evidence_dir.glob("*.json")) == []
+    assert settings.chain_path.read_text(encoding="utf-8") == ""
+    assert settings.checkpoints_path.read_text(encoding="utf-8") == ""
+    assert list(settings.home.rglob("*.pulltmp")) == []
 
 
 def test_named_draft_pack_type(aws_lake, monkeypatch: pytest.MonkeyPatch):

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import re
 import shutil
 import tempfile
@@ -1451,10 +1452,47 @@ def _merged_checkpoint_rows(
     return sorted(by_id.values(), key=lambda row: int(row.get("tsa_serial") or 0))
 
 
+def _jsonl_bytes(rows: list[dict[str, Any]]) -> bytes:
+    lines = [dumps(row).decode("utf-8") for row in rows]
+    text = "\n".join(lines) + ("\n" if lines else "")
+    return text.encode("utf-8")
+
+
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [dumps(row).decode("utf-8") for row in rows]
-    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    path.write_bytes(_jsonl_bytes(rows))
+
+
+def _install_files_atomically(replacements: list[tuple[Path, bytes]]) -> None:
+    """Write every payload to a sibling temp file, then replace destinations.
+
+    If any replace fails, restore every destination that this call already
+    changed. Temp files live next to the destination so ``os.replace`` stays
+    on the same filesystem.
+    """
+    if not replacements:
+        return
+    temps: list[Path] = []
+    backups: list[tuple[Path, bytes | None]] = []
+    try:
+        for dest, body in replacements:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            backups.append((dest, dest.read_bytes() if dest.exists() else None))
+            tmp = dest.with_name(f"{dest.name}.pulltmp")
+            tmp.write_bytes(body)
+            temps.append(tmp)
+        for (dest, _body), tmp in zip(replacements, temps, strict=True):
+            os.replace(tmp, dest)
+    except BaseException:
+        for dest, prev in reversed(backups):
+            if prev is None:
+                dest.unlink(missing_ok=True)
+            else:
+                dest.write_bytes(prev)
+        raise
+    finally:
+        for tmp in temps:
+            tmp.unlink(missing_ok=True)
 
 
 def _validate_staged_chain(
@@ -1501,13 +1539,18 @@ def _promote_pull(
     incoming_checkpoints: dict[str, dict[str, Any]],
 ) -> None:
     settings.evidence_dir.mkdir(parents=True, exist_ok=True)
+    replacements: list[tuple[Path, bytes]] = []
     for evidence_id, body in staged_evidence.items():
         dest = (settings.evidence_dir / f"{evidence_id}.json").resolve()
         if not dest.is_relative_to(settings.evidence_dir.resolve()):
             fail(E_REMOTE, f"refusing evidence path outside evidence dir: {evidence_id}")
-        dest.write_bytes(body)
+        replacements.append((dest, body))
     if incoming_records:
-        _write_jsonl(settings.chain_path, merged_records)
+        replacements.append((settings.chain_path, _jsonl_bytes(merged_records)))
     if incoming_checkpoints:
-        _write_jsonl(settings.checkpoints_path, merged_checkpoints)
+        replacements.append((settings.checkpoints_path, _jsonl_bytes(merged_checkpoints)))
+    try:
+        _install_files_atomically(replacements)
+    except OSError as exc:
+        fail(E_REMOTE, f"failed to install pulled workspace: {exc}")
 

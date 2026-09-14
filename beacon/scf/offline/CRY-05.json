@@ -76,7 +76,8 @@
     "MT-15",
     "MT-24",
     "MT-25",
-    "MT-27"
+    "MT-27",
+    "MT-28"
   ],
   "family_name": "Cryptographic Protections",
   "crosswalks": {
@@ -152,7 +153,7 @@
     "general-iso-27018-2025": [
       "8.24"
     ],
-    "general-mitre-att&ck-16-1": [
+    "general-mitre-att_ck-16-1": [
       "T1003",
       "T1003.001",
       "T1003.002",
@@ -266,7 +267,8 @@
       "3.13.16"
     ],
     "general-nist-800-171-r3": [
-      "03.13.08"
+      "03.13.08",
+      "03.13.11"
     ],
     "general-nist-800-171a": [
       "3.8.6"
@@ -307,9 +309,6 @@
       "3.5.1.2",
       "3.5.1.3",
       "8.3.2"
-    ],
-    "general-scf-dpmp-2025": [
-      "7.2"
     ],
     "general-swift-cscf-2025": [
       "2.5A"
@@ -365,6 +364,9 @@
       "SC-28",
       "SC-28(01)"
     ],
+    "usa-federal-law-33-cfr-part-101-subpart-f": [
+      "101.650(c)(2)"
+    ],
     "usa-federal-irs-1075-2021": [
       "2.B.6-1",
       "3.3.1.e",
@@ -395,14 +397,11 @@
       "SC-28 (01)"
     ],
     "emea-eu-eba-ict-srm-2025": [
-      "3.4.4(36)(f)"
+      "3.4.4.36(f)"
     ],
     "emea-deu-c5-2020": [
-      "CRY-03"
-    ],
-    "emea-isr-cmo-1-0": [
-      "8.7",
-      "15.7"
+      "KRY-02",
+      "KRY-03"
     ],
     "emea-sau-cscc-1-2019": [
       "2-7-1-2"
@@ -413,11 +412,19 @@
     "emea-sau-ecc-1-2018": [
       "2-8-3-3"
     ],
-    "emea-zaf-popia-2013": [
-      "14.1"
+    "emea-sau-otcc-1-2022": [
+      "2-6-1-1"
+    ],
+    "emea-esp-ccn-stic-825-2026": [
+      "op.exp.10",
+      "mp.si.2",
+      "mp.info.3"
     ],
     "emea-gbr-caf-4-0": [
       "B3.c"
+    ],
+    "emea-gbr-cap-1850-2020": [
+      "B3"
     ],
     "emea-gbr-def-stan-05-138-2024": [
       "2310",
@@ -435,7 +442,7 @@
       "2310",
       "2317"
     ],
-    "apac-aus-ism-2024-june": [
+    "apac-aus-ism-2026-march": [
       "ISM-0459",
       "ISM-1080"
     ],
@@ -448,8 +455,12 @@
     "apac-nzl-ism-3-9": [
       "8.4.13.C.01"
     ],
+    "apac-sgp-mas-trm-2021": [
+      "11.1.3"
+    ],
     "americas-can-itsp-10-171-2025": [
-      "03.13.08"
+      "03.13.08",
+      "03.13.11"
     ]
   }
 }

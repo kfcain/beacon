@@ -1,0 +1,10 @@
+{
+  "erl_id": "E-QTS-05",
+  "area": "Quantum Security",
+  "artifact_name": "Cryptographic Bill of Materials (CBOM)",
+  "artifact_description": "Documented evidence of a Cryptographic Bill of Materials (CBOM).",
+  "scf_controls": [
+    "QTS-04.2"
+  ],
+  "cmmc_mapping": ""
+}

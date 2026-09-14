@@ -22,6 +22,8 @@ spec = FetcherSpec(
 
 `scf_targets` is how `beacon collect --target IAC-01` selects overlapping fetchers. A plugin is selected when a declared target equals the requested id, is a parent/child (IAC-01 vs IAC-01.1), or shares the SCF family code.
 
+Use a real SCF control id. Do not invent ids. If the id is not in the 2026.2 offline slice, collect still seals it. Binding then uses live/cache catalog data when available, or stores the id with empty hops.
+
 ## collect()
 
 ```python

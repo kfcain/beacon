@@ -1,0 +1,10 @@
+{
+  "erl_id": "E-QTS-07",
+  "area": "Quantum Security",
+  "artifact_name": "Cryptographic Exception Register",
+  "artifact_description": "Documented evidence of a formal cryptographic exception register.",
+  "scf_controls": [
+    "QTS-02.1"
+  ],
+  "cmmc_mapping": ""
+}

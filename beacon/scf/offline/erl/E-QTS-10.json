@@ -1,0 +1,11 @@
+{
+  "erl_id": "E-QTS-10",
+  "area": "Quantum Security",
+  "artifact_name": "Cryptographic Telemetry",
+  "artifact_description": "Documented evidence of situational awareness dashboards for cryptographic telemetry (e.g., SIEM/XDR dashboards).",
+  "scf_controls": [
+    "QTS-04.3",
+    "QTS-05.1"
+  ],
+  "cmmc_mapping": ""
+}

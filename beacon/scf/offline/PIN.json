@@ -1,0 +1,25 @@
+{
+  "scf_version": "2026.2",
+  "xlsx_name": "secure-controls-framework-scf-2026-2.xlsx",
+  "xlsx_sha256": "9e0a4df4993726c95e636f04b3028d8b5edeba2bda45d16ed6722b13540e6835",
+  "source": "official SCF 2026.2 workbook (CC BY-ND). Parsed with GRCEngClub/scf-api. /workspace/scf-catalog was not present on this VM.",
+  "total_controls": 1534,
+  "total_families": 34,
+  "total_evidence_requests": 316,
+  "total_crosswalk_frameworks": 249,
+  "pillar_framework_ids": [
+    "usa-federal-gsa-fedramp-5-high",
+    "general-nist-800-53-r5-2",
+    "usa-federal-dow-cmmc-2-level-2",
+    "general-aicpa-tsc-2017"
+  ],
+  "not_a_framework_id": [
+    "usa-federal-gsa-fedramp-20x-ksi"
+  ],
+  "overlay_unmapped": [
+    "KSI-CNA-OFA",
+    "KSI-PIY-RES",
+    "SA-09(07)",
+    "SC-12(06)"
+  ]
+}

@@ -10,7 +10,9 @@ from pathlib import Path
 from beacon import DATA_DIR_NAME
 
 DEFAULT_SCF_API_BASE = "https://hackidle.github.io/scf-api/"
-SCF_VERSION = "2026.1.1"
+# Pin is SCF 2026.2 (offline fixtures). Live HackIDLE/club APIs stay at 2026.1.x and are not the pin.
+SCF_VERSION = "2026.2"
+SCF_XLSX_SHA256 = "9e0a4df4993726c95e636f04b3028d8b5edeba2bda45d16ed6722b13540e6835"
 
 
 def _truthy(value: str | None) -> bool:

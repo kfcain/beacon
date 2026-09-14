@@ -1,0 +1,12 @@
+{
+  "erl_id": "E-QTS-13",
+  "area": "Quantum Security",
+  "artifact_name": "Post-Quantum Cryptography (PQC)-Specific Vendor Roadmaps",
+  "artifact_description": "Documented evidence of a vendor-related Post-Quantum Cryptography (PQC) roadmaps, contract clauses, and attestations.",
+  "scf_controls": [
+    "QTS-02.2",
+    "QTS-03.1",
+    "QTS-03.3"
+  ],
+  "cmmc_mapping": ""
+}

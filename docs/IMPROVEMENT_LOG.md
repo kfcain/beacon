@@ -2,7 +2,7 @@
 
 ## 2026-09-14 — Cycle 1
 
-PR: (this branch; URL after open)
+PR: https://github.com/kfcain/beacon/pull/5
 
 ### Why
 

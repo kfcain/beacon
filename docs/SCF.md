@@ -72,3 +72,5 @@ BEACON_SCF_OFFLINE=1 beacon collect --target QTS-01
 
 `beacon_scf_lookup` reads the same pin.
 The witness chain still fails closed with `E_NO_CHECKPOINT` when a checkpoint is missing.
+
+Remaining catalog work (standing): finish evidence binding and framework crosswalk alignment against `/workspace/scf-catalog/raw/api/` when that tree is present. This bundle is a slice. It does not vendor all 1534 controls. QTS pillar hops stay empty when the catalog has no map. Do not invent IDs or hops.

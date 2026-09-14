@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 
 from beacon.config import SCF_VERSION, Settings
-from beacon.errors import E_SCF, E_UNKNOWN_CONTROL, fail
+from beacon.errors import E_CONTROL_MISMATCH, E_SCF, E_UNKNOWN_CONTROL, fail
 
 OFFLINE_DIR = Path(__file__).resolve().parent / "offline"
 CONTROL_ID_RE = re.compile(r"^[A-Z]{2,10}-\d+(\.\d+)*$")
@@ -31,10 +31,27 @@ def _safe_json_path(root: Path, control_id: str) -> Path:
     return path
 
 
+def _require_control_id(data: Any, control_id: str) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        fail(E_SCF, f"SCF control {control_id} payload is not an object")
+    got = str(data.get("control_id") or "").strip().upper()
+    if got != control_id:
+        fail(E_CONTROL_MISMATCH, f"SCF control {control_id} payload has control_id {got!r}")
+    return data
+
+
+def _load_control_json(path: Path, control_id: str) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        fail(E_SCF, f"SCF control {control_id} JSON is invalid: {exc}")
+    return _require_control_id(data, control_id)
+
+
 def _offline_control(control_id: str) -> dict[str, Any] | None:
     path = _safe_json_path(OFFLINE_DIR, control_id)
     if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
+        return _load_control_json(path, control_id)
     return None
 
 
@@ -55,6 +72,11 @@ def offline_summary() -> dict[str, Any]:
 
 def control_url(base: str, control_id: str) -> str:
     return f"{base.rstrip('/')}/api/controls/{control_id}.json"
+
+
+def try_offline_control(control_id: str) -> dict[str, Any] | None:
+    """Return the 2026.2 pin file for one control, or None when the slice omits it."""
+    return _offline_control(normalize_control_id(control_id))
 
 
 def fetch_pinned_control(control_id: str) -> dict[str, Any]:
@@ -83,7 +105,7 @@ def fetch_control(settings: Settings, control_id: str) -> dict[str, Any]:
     cache_root.mkdir(parents=True, exist_ok=True)
     cache = _safe_json_path(cache_root, cid)
     if cache.exists():
-        return json.loads(cache.read_text(encoding="utf-8"))
+        return _load_control_json(cache, cid)
     url = control_url(settings.scf_api_base, cid)
     try:
         response = httpx.get(url, timeout=20.0, follow_redirects=True)
@@ -97,6 +119,9 @@ def fetch_control(settings: Settings, control_id: str) -> dict[str, Any]:
         data = response.json()
     except Exception as exc:
         fail(E_SCF, f"SCF API returned non-JSON: {exc}")
+    if not isinstance(data, dict):
+        fail(E_SCF, f"SCF API returned a non-object for {url}")
+    _require_control_id(data, cid)
     cache.write_text(json.dumps(data), encoding="utf-8")
     return data
 

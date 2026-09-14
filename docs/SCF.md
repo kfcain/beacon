@@ -39,12 +39,15 @@ Collect and seal add `scf_binding` on the evidence payload (the bytes that the w
 
 | Field | Rule |
 | --- | --- |
-| `scf_version` | `"2026.2"` |
-| `scf_id` | SCF control id |
-| `scf_family` | Family code (`IAC`, `CRY`, `QTS`, …) |
-| `erl_ids[]` | `evidence_requests` from the catalog |
-| `framework_hops[]` | Pillar maps only. Each hop is `{framework_id, framework_control_ids[], provenance: "scf-crosswalk"}` |
+| `scf_version` | `"2026.2"` when `pinned` is true. Live/cache or plugin-only IDs use the catalog version on that record, or `"unpinned"`. Never stamp 2026.2 on live HackIDLE data. |
+| `scf_id` | SCF control id. Empty when one seal covers more than one target. |
+| `scf_ids[]` | All SCF control ids on this seal. |
+| `scf_family` | Family code (`IAC`, `CRY`, `QTS`, …). Empty on multi-target seals. |
+| `erl_ids[]` | `evidence_requests` from the catalog for the primary `scf_id`. Empty on multi-target seals. |
+| `framework_hops[]` | Pillar maps only. Each hop is `{framework_id, framework_control_ids[], provenance}`. Pin hops use `provenance: "scf-crosswalk"`. Live/cache hops use `provenance: "scf-live-crosswalk"`. |
 | `overlay_unmapped` | Empty lists. No guessed maps. |
+| `pinned` | `true` when the control file is in the 2026.2 offline slice. |
+| `controls[]` | Present only when one seal covers more than one target. Each item is a full per-control binding. Do not mix ERLs onto a fake singular `scf_id`. |
 
 Pillar `framework_id` values (SCF FDI slugs):
 
@@ -72,5 +75,7 @@ BEACON_SCF_OFFLINE=1 beacon collect --target QTS-01
 
 `beacon_scf_lookup` reads the same pin.
 The witness chain still fails closed with `E_NO_CHECKPOINT` when a checkpoint is missing.
+
+Collect and seed still run when a plugin declares a valid SCF id that is not in the slice (example: drop-in `GOV-01`). The seal stores that id. Hops and ERLs stay empty unless live/cache or the pin supplies them.
 
 Remaining catalog work (standing): finish evidence binding and framework crosswalk alignment against `/workspace/scf-catalog/raw/api/` when that tree is present. This bundle is a slice. It does not vendor all 1534 controls. QTS pillar hops stay empty when the catalog has no map. Do not invent IDs or hops.

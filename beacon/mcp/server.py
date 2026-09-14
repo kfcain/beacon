@@ -146,7 +146,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], ToolFn]] = {
         tool_beacon_freshness,
     ),
     f"{MCP_TOOL_PREFIX}scf_lookup": (
-        "Fetch one SCF 2026.2 control from the offline pin (live HackIDLE is not the pin).",
+        "Fetch one SCF control. Prefer the 2026.2 offline pin. Live/cache is fallback only and is not stamped as 2026.2.",
         {
             "type": "object",
             "properties": {

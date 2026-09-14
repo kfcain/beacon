@@ -32,3 +32,7 @@ def test_mcp_collect_and_check(initialized):
     assert checked.get("ok") is True
     lookup = call_tool("beacon_scf_lookup", {"control_id": "IAC-01"})
     assert lookup["control_id"] == "IAC-01"
+    assert lookup["scf_version"] == "2026.2"
+    assert lookup["scf_binding"]["scf_family"] == "IAC"
+    for overlay_id in ("KSI-CNA-OFA", "KSI-PIY-RES", "SA-09(07)", "SC-12(06)"):
+        assert lookup["scf_binding"]["overlay_unmapped"][overlay_id] == []

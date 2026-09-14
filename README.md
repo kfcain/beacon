@@ -1,6 +1,6 @@
 # Beacon
 
-Beacon is a GRC evidence engine. It collects cloud inspector evidence, maps it to Secure Controls Framework (SCF) 2026.1.1, and seals every result on a signed witness chain.
+Beacon is a GRC evidence engine. It collects cloud inspector evidence, maps it to Secure Controls Framework (SCF) **2026.2**, and seals every result on a signed witness chain.
 
 Package name: `beacon`. CLI name: `beacon`. Environment prefix: `BEACON_`. Data directory: `.beacon/`. MCP tools: `beacon_*`.
 
@@ -72,7 +72,9 @@ Prefer STS assume-role for `BeaconWriter` (Put/Get/List, no DeleteObject) and `B
 
 ## SCF hub
 
-Default API: `https://hackidle.github.io/scf-api/` (SCF 2026.1.1).
+Pinned version: **SCF 2026.2** (offline fixtures). See [docs/SCF.md](docs/SCF.md).
+
+Live API (not the pin): `https://hackidle.github.io/scf-api/` (2026.1.1).
 
 - Override base URL: `BEACON_SCF_API_BASE`
 - Offline tests and air-gap: `BEACON_SCF_OFFLINE=1`
@@ -102,5 +104,7 @@ Tools: `beacon_status`, `beacon_init`, `beacon_seed`, `beacon_check`, `beacon_co
 ## Limits and sources
 
 - [LIMITS.md](LIMITS.md) — what Beacon does not claim
+- [docs/SCF.md](docs/SCF.md) — SCF 2026.2 pin, QTS fixtures, sealed `scf_binding`
 - [docs/SOURCES.md](docs/SOURCES.md) — GRCEngClub inspectors and Paramify fetchers as shape references
 - [docs/STORAGE.md](docs/STORAGE.md) — S3 evidence lake, DynamoDB index, IAM
+- [docs/IMPROVEMENT_LOG.md](docs/IMPROVEMENT_LOG.md) — cycle log

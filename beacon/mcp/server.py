@@ -13,6 +13,7 @@ from beacon.errors import BeaconError
 from beacon.plugins.loader import load_plugins
 from beacon.plugins.spec import CollectContext
 from beacon.push import write_pack
+from beacon.scf.binding import binding_for_control
 from beacon.scf.client import fetch_control
 from beacon.scf.engine import collect_all, collect_named, collect_target
 from beacon.workspace import freshness, init_workspace, seed_workspace, system_status, validation
@@ -77,12 +78,15 @@ def tool_beacon_scf_lookup(args: dict[str, Any]) -> dict[str, Any]:
     if not control_id:
         return {"ok": False, "code": "E_UNKNOWN_CONTROL", "error": "control_id is required"}
     control = fetch_control(load_settings(), control_id)
+    binding = binding_for_control(control)
     return {
         "control_id": control.get("control_id"),
         "title": control.get("title"),
         "family": control.get("family"),
         "description": control.get("description"),
         "scf_question": control.get("scf_question"),
+        "scf_version": binding["scf_version"],
+        "scf_binding": binding,
     }
 
 
@@ -142,7 +146,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], ToolFn]] = {
         tool_beacon_freshness,
     ),
     f"{MCP_TOOL_PREFIX}scf_lookup": (
-        "Fetch one SCF control from the HackIDLE API or the offline bundle.",
+        "Fetch one SCF 2026.2 control from the offline pin (live HackIDLE is not the pin).",
         {
             "type": "object",
             "properties": {

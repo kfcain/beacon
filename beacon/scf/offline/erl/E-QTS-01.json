@@ -1,0 +1,10 @@
+{
+  "erl_id": "E-QTS-01",
+  "area": "Quantum Security",
+  "artifact_name": "Quantum Risk Governance Charter",
+  "artifact_description": "Documented evidence of a quantum risk governance charter with named lead and steering committee.",
+  "scf_controls": [
+    "QTS-01"
+  ],
+  "cmmc_mapping": ""
+}

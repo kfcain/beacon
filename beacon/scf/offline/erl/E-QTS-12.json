@@ -1,0 +1,10 @@
+{
+  "erl_id": "E-QTS-12",
+  "area": "Quantum Security",
+  "artifact_name": "Cryptographic Incident Playbooks",
+  "artifact_description": "Documented evidence of incident playbooks and exercise records for cryptographic scenarios.",
+  "scf_controls": [
+    "QTS-07"
+  ],
+  "cmmc_mapping": ""
+}

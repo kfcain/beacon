@@ -1,0 +1,10 @@
+{
+  "erl_id": "E-QTS-09",
+  "area": "Quantum Security",
+  "artifact_name": "Zero Trust Network Architecture (ZTNA)",
+  "artifact_description": "Documented evidence of Zero Trust Network Architecture (ZTNA) (e.g., architecture diagrams, segmentation matrices,  access policies, etc.).",
+  "scf_controls": [
+    "QTS-01.4"
+  ],
+  "cmmc_mapping": ""
+}

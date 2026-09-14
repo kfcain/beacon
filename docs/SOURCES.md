@@ -21,7 +21,10 @@ Beacon's `FetcherSpec`, drop-in `PLUGIN` loader, TUI tabs (Dashboard, Freshness,
 
 ## SCF hub
 
-- API: [https://hackidle.github.io/scf-api/](https://hackidle.github.io/scf-api/)
-- Project: [hackIDLE/scf-api](https://github.com/hackIDLE/scf-api)
-- Version: SCF 2026.1.1 (CC BY-ND)
-- Offline bundle: verbatim `IAC-01` and `CRY-05` control JSON plus a compact summary, for `BEACON_SCF_OFFLINE=1` tests only
+- Pin: SCF **2026.2** offline bundle (`beacon/scf/offline/`, [docs/SCF.md](SCF.md))
+- Workbook SHA-256: `9e0a4df4993726c95e636f04b3028d8b5edeba2bda45d16ed6722b13540e6835`
+- Counts: 1534 controls, 34 families, 316 ERLs, 249 mapped crosswalk frameworks
+- Live API (not the pin): [https://hackidle.github.io/scf-api/](https://hackidle.github.io/scf-api/) (2026.1.1)
+- Club API (not the pin): [GRCEngClub/scf-api](https://github.com/GRCEngClub/scf-api) (2026.1)
+- License: CC BY-ND
+- Offline bundle: `IAC-01`, `CRY-05`, Quantum Security `QTS-*`, and ERL slice `E-QTS-01` … `E-QTS-13` for `BEACON_SCF_OFFLINE=1`

@@ -1,31 +1,67 @@
-"""SCF hub, offline bundle, API base override, unified collect targets."""
+"""SCF hub, 2026.2 offline pin, sealed scf_binding, unified collect targets."""
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from beacon.config import DEFAULT_SCF_API_BASE, load_settings
+from beacon.config import DEFAULT_SCF_API_BASE, SCF_XLSX_SHA256, load_settings
 from beacon.crypto.witness import check_chain, load_records
 from beacon.plugins.spec import CollectContext
 from beacon.errors import E_UNKNOWN_CONTROL, BeaconError
-from beacon.scf.client import expected_version, fetch_control, summary
+from beacon.scf.binding import (
+    FORBIDDEN_FRAMEWORK_IDS,
+    OVERLAY_UNMAPPED_IDS,
+    PILLAR_FRAMEWORK_IDS,
+    binding_for_control,
+)
+from beacon.scf.client import expected_version, fetch_control, list_offline_control_ids, summary
 from beacon.scf.engine import collect_target
 from beacon.workspace import seed_workspace
 
 
-def test_offline_summary_is_scf_2026(beacon_home):
+def test_offline_summary_is_scf_2026_2(beacon_home):
     data = summary(load_settings())
-    assert data["scf_version"] == "2026.1.1"
-    assert expected_version() == "2026.1.1"
+    assert data["scf_version"] == "2026.2"
+    assert expected_version() == "2026.2"
+    assert data["total_controls"] == 1534
+    assert data["total_families"] == 34
+    assert data["total_evidence_requests"] == 316
+    assert data["total_crosswalk_frameworks"] == 249
+    assert len(data["erl_ids"]) == 316
+    assert data["erl_ids"][0] == "E-GOV-01"
+    assert data["erl_ids"][-1] == "E-QTS-13"
+    assert {row["family_code"] for row in data["families"]} >= {"IAC", "CRY", "QTS"}
+    pin = data["pin"]
+    assert pin["xlsx_sha256"] == SCF_XLSX_SHA256
+    assert pin["xlsx_sha256"].startswith("9e0a4df4")
+    assert pin["xlsx_sha256"].endswith("6835")
+    assert "usa-federal-gsa-fedramp-20x-ksi" not in pin["pillar_framework_ids"]
 
 
-def test_offline_controls_iac_01_and_cry_05(beacon_home):
+def test_offline_controls_include_qts_family(beacon_home):
+    ids = list_offline_control_ids()
+    assert "IAC-01" in ids
+    assert "CRY-05" in ids
+    assert "QTS-01" in ids
+    assert "QTS-06.3" in ids
+    assert "QTS-06.10" in ids
+    assert "QTS-08" in ids
+    qts = [item for item in ids if item.startswith("QTS-")]
+    assert len(qts) == 34
     iac = fetch_control(load_settings(), "IAC-01")
     cry = fetch_control(load_settings(), "CRY-05")
+    qts01 = fetch_control(load_settings(), "QTS-01")
+    qts011 = fetch_control(load_settings(), "QTS-01.1")
     assert iac["control_id"] == "IAC-01"
     assert "Identity" in iac["title"]
     assert cry["control_id"] == "CRY-05"
     assert "Encrypt" in cry["title"] or "encrypt" in cry["title"].lower()
+    assert qts01["family"] == "QTS"
+    assert qts01["title"] == "Quantum Risk Governance"
+    assert "E-QTS-01" in qts01["evidence_requests"]
+    assert qts011["control_id"] == "QTS-01.1"
 
 
 def test_scf_api_base_override(beacon_home, monkeypatch):
@@ -41,9 +77,57 @@ def test_invalid_control_id_rejected(beacon_home):
     assert caught.value.code == E_UNKNOWN_CONTROL
 
 
+def test_offline_unknown_control_fails_closed(beacon_home):
+    with pytest.raises(BeaconError) as caught:
+        fetch_control(load_settings(), "GOV-01")
+    assert caught.value.code == E_UNKNOWN_CONTROL
+
+
+def _assert_binding_shape(binding: dict) -> None:
+    assert binding["scf_version"] == "2026.2"
+    assert binding["scf_id"]
+    assert binding["scf_family"]
+    assert isinstance(binding["erl_ids"], list)
+    assert isinstance(binding["framework_hops"], list)
+    assert set(binding["overlay_unmapped"]) == set(OVERLAY_UNMAPPED_IDS)
+    for overlay_id in OVERLAY_UNMAPPED_IDS:
+        assert binding["overlay_unmapped"][overlay_id] == []
+    for hop in binding["framework_hops"]:
+        assert hop["framework_id"] in PILLAR_FRAMEWORK_IDS
+        assert hop["framework_id"] not in FORBIDDEN_FRAMEWORK_IDS
+        assert hop["provenance"] == "scf-crosswalk"
+        assert hop["framework_control_ids"]
+    dumped = json.dumps(binding)
+    assert "usa-federal-gsa-fedramp-20x-ksi" not in dumped
+
+
+def test_iac_01_pillar_hops_from_catalog(beacon_home):
+    control = fetch_control(load_settings(), "IAC-01")
+    binding = binding_for_control(control)
+    _assert_binding_shape(binding)
+    assert binding["scf_id"] == "IAC-01"
+    assert binding["scf_family"] == "IAC"
+    assert binding["erl_ids"] == ["E-AST-01", "E-IAM-05", "E-IAM-12", "E-MON-11"]
+    hops = {item["framework_id"]: item["framework_control_ids"] for item in binding["framework_hops"]}
+    assert hops["usa-federal-gsa-fedramp-5-high"] == ["AC-01", "IA-01"]
+    assert hops["general-nist-800-53-r5-2"] == ["AC-01", "IA-01"]
+    assert hops["usa-federal-dow-cmmc-2-level-2"] == ["ACL2.-3.1.1"]
+    assert "CC6.1" in hops["general-aicpa-tsc-2017"]
+
+
+def test_qts_01_has_empty_pillar_hops_not_guessed(beacon_home):
+    control = fetch_control(load_settings(), "QTS-01")
+    binding = binding_for_control(control)
+    _assert_binding_shape(binding)
+    assert binding["scf_family"] == "QTS"
+    assert binding["framework_hops"] == []
+    assert "E-QTS-01" in binding["erl_ids"]
+
+
 def test_collect_target_iac_01_selects_overlapping_inspectors(initialized):
+    settings = load_settings()
     result = collect_target(
-        load_settings(),
+        settings,
         "IAC-01",
         CollectContext(target="IAC-01", live=False),
         checkpoint=True,
@@ -51,9 +135,15 @@ def test_collect_target_iac_01_selects_overlapping_inspectors(initialized):
     assert set(result["plugins"]) == {"aws.inspector", "azure.inspector", "gcp.inspector"}
     assert result["control"]["control_id"] == "IAC-01"
     assert len(result["runs"]) == 3
-    check_chain(load_settings())
-    modes = {row.mode for row in load_records(load_settings())}
+    _assert_binding_shape(result["scf_binding"])
+    assert result["scf_binding"]["scf_id"] == "IAC-01"
+    check_chain(settings)
+    modes = {row.mode for row in load_records(settings)}
     assert "fixture" in modes
+    evidence = next(settings.evidence_dir.glob("*.json"))
+    payload = json.loads(evidence.read_text(encoding="utf-8"))
+    _assert_binding_shape(payload["scf_binding"])
+    assert payload["scf_binding"]["scf_version"] == "2026.2"
 
 
 def test_collect_target_cry_05_seals_results(initialized):
@@ -65,7 +155,23 @@ def test_collect_target_cry_05_seals_results(initialized):
     )
     assert "aws.inspector" in result["plugins"]
     assert result["checkpoint"]["to_seq"] >= 3
+    assert result["scf_binding"]["scf_id"] == "CRY-05"
+    assert "E-CRY-01" in result["scf_binding"]["erl_ids"]
     check_chain(load_settings())
+
+
+def test_collect_target_qts_01_binds_without_guessed_hops(initialized):
+    result = collect_target(
+        load_settings(),
+        "QTS-01",
+        CollectContext(target="QTS-01", live=False),
+        checkpoint=True,
+    )
+    assert result["control"]["control_id"] == "QTS-01"
+    assert result["plugins"] == []
+    assert result["runs"] == []
+    _assert_binding_shape(result["scf_binding"])
+    assert result["scf_binding"]["framework_hops"] == []
 
 
 def test_seed_seals_fixtures(initialized):
@@ -75,3 +181,17 @@ def test_seed_seals_fixtures(initialized):
     assert len(records) >= 3
     assert all(row.mode == "fixture" for row in records)
     check_chain(load_settings())
+    for path in load_settings().evidence_dir.glob("*.json"):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        binding = payload["scf_binding"]
+        assert binding["scf_version"] == "2026.2"
+        if binding.get("scf_id") == "IAC-01":
+            assert "E-CRY-01" not in binding["erl_ids"]
+        if binding.get("scf_id") == "CRY-05":
+            assert "E-IAM-05" not in binding["erl_ids"]
+        if not binding.get("scf_id"):
+            for item in binding.get("controls") or []:
+                if item["scf_id"] == "IAC-01":
+                    assert "E-CRY-01" not in item["erl_ids"]
+                if item["scf_id"] == "CRY-05":
+                    assert "E-IAM-05" not in item["erl_ids"]

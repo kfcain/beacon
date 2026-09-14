@@ -1,4 +1,4 @@
-"""HackIDLE SCF API client with offline fallback."""
+"""SCF catalog client. Offline 2026.2 fixtures are the pin. Live APIs are fallback only."""
 
 from __future__ import annotations
 
@@ -38,6 +38,16 @@ def _offline_control(control_id: str) -> dict[str, Any] | None:
     return None
 
 
+def list_offline_control_ids() -> list[str]:
+    ids = []
+    for path in sorted(OFFLINE_DIR.glob("*.json")):
+        stem = path.stem
+        if stem in {"summary", "PIN"}:
+            continue
+        ids.append(stem)
+    return ids
+
+
 @lru_cache(maxsize=1)
 def offline_summary() -> dict[str, Any]:
     return json.loads((OFFLINE_DIR / "summary.json").read_text(encoding="utf-8"))
@@ -47,16 +57,28 @@ def control_url(base: str, control_id: str) -> str:
     return f"{base.rstrip('/')}/api/controls/{control_id}.json"
 
 
+def fetch_pinned_control(control_id: str) -> dict[str, Any]:
+    """Load one control from the SCF 2026.2 offline pin. Never use the live API."""
+    cid = normalize_control_id(control_id)
+    data = _offline_control(cid)
+    if data is None:
+        fail(
+            E_UNKNOWN_CONTROL,
+            f"{cid} is not in the SCF 2026.2 offline pin",
+        )
+    return data
+
+
 def fetch_control(settings: Settings, control_id: str) -> dict[str, Any]:
     cid = normalize_control_id(control_id)
+    bundled = _offline_control(cid)
+    if bundled is not None:
+        return bundled
     if settings.scf_offline:
-        data = _offline_control(cid)
-        if data is None:
-            fail(
-                E_UNKNOWN_CONTROL,
-                f"{cid} is not in the offline SCF bundle (BEACON_SCF_OFFLINE=1)",
-            )
-        return data
+        fail(
+            E_UNKNOWN_CONTROL,
+            f"{cid} is not in the offline SCF 2026.2 bundle (BEACON_SCF_OFFLINE=1)",
+        )
     cache_root = settings.cache_dir / "scf"
     cache_root.mkdir(parents=True, exist_ok=True)
     cache = _safe_json_path(cache_root, cid)
@@ -66,9 +88,6 @@ def fetch_control(settings: Settings, control_id: str) -> dict[str, Any]:
     try:
         response = httpx.get(url, timeout=20.0, follow_redirects=True)
     except Exception as exc:
-        bundled = _offline_control(cid)
-        if bundled is not None:
-            return bundled
         fail(E_SCF, f"SCF API request failed: {exc}")
     if response.status_code == 404:
         fail(E_UNKNOWN_CONTROL, f"SCF control {cid} not found at {url}")
@@ -82,17 +101,9 @@ def fetch_control(settings: Settings, control_id: str) -> dict[str, Any]:
     return data
 
 
-def summary(settings: Settings) -> dict[str, Any]:
-    if settings.scf_offline:
-        return offline_summary()
-    url = f"{settings.scf_api_base.rstrip('/')}/api/summary.json"
-    try:
-        response = httpx.get(url, timeout=20.0, follow_redirects=True)
-        response.raise_for_status()
-        data = response.json()
-    except Exception:
-        return offline_summary()
-    return data
+def summary(_settings: Settings) -> dict[str, Any]:
+    # The pin is the offline 2026.2 bundle. Live HackIDLE/club APIs are not the pin.
+    return offline_summary()
 
 
 def expected_version() -> str:

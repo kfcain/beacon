@@ -119,7 +119,8 @@
     "MT-23",
     "MT-24",
     "MT-25",
-    "MT-27"
+    "MT-27",
+    "MT-28"
   ],
   "family_name": "Identification & Authentication",
   "crosswalks": {
@@ -143,9 +144,9 @@
     ],
     "general-cis-csc-8-1": [
       "4.7",
-      "5.0",
+      "5",
       "5.6",
-      "6.0",
+      "6",
       "6.6"
     ],
     "general-cis-csc-8-1-ig1": [
@@ -297,6 +298,20 @@
       "03.05.05.a",
       "03.05.12.e"
     ],
+    "general-nist-800-171a-r3": [
+      "A.03.01.01.a[01]",
+      "A.03.01.01.a[02]",
+      "A.03.01.18.b",
+      "A.03.05.01.a[01]",
+      "A.03.05.05.a",
+      "A.03.05.12.e"
+    ],
+    "general-nist-800-172-r3": [
+      "03.05.07E"
+    ],
+    "general-nist-800-172a-r3": [
+      "A.03.05.07E.ODP[01]"
+    ],
     "general-nist-800-207": [
       "NIST Tenet 6"
     ],
@@ -355,9 +370,6 @@
       "8.3.8",
       "8.5.1",
       "8.6.1"
-    ],
-    "general-scf-dpmp-2025": [
-      "7.0"
     ],
     "general-swift-cscf-2025": [
       "4.1",
@@ -449,25 +461,28 @@
       "AC-01",
       "IA-01"
     ],
+    "usa-federal-law-33-cfr-part-101-subpart-f": [
+      "101.650(a)"
+    ],
     "usa-federal-law-glba-cfr-314-2023": [
       "314.4(c)(1)",
       "314.4(c)(1)(i)",
       "314.4(c)(1)(ii)"
     ],
     "usa-federal-law-hipaa-simplification-2013": [
-      "164.308(a)(3)(i)",
-      "164.308(a)(4)(i)",
-      "164.308(a)(4)(ii)(B)",
-      "164.310(a)(2)(iii)",
-      "164.312(a)(1)",
-      "164.530(c)(2)(ii)"
+      "§ 164.308(a)(3)(i)",
+      "§ 164.308(a)(4)(i)",
+      "§ 164.308(a)(4)(ii)(B)",
+      "§ 164.310(a)(2)(iii)",
+      "§ 164.312(a)(1)",
+      "§ 164.530(c)(2)(ii)"
     ],
     "usa-federal-law-hipaa-security-rule-2013": [
-      "164.308(a)(3)(i)",
-      "164.308(a)(4)(i)",
-      "164.308(a)(4)(ii)(B)",
-      "164.310(a)(2)(iii)",
-      "164.312(a)(1)"
+      "§ 164.308(a)(3)(i)",
+      "§ 164.308(a)(4)(i)",
+      "§ 164.308(a)(4)(ii)(B)",
+      "§ 164.310(a)(2)(iii)",
+      "§ 164.312(a)(1)"
     ],
     "usa-federal-irs-1075-2021": [
       "AC-1",
@@ -522,6 +537,9 @@
     "usa-state-vt-act-171-2018": [
       "2447(c)(1)"
     ],
+    "emea-eu-eba-ict-srm-2025": [
+      "3.4.2.31(g)"
+    ],
     "emea-eu-dora-2023": [
       "Article 9.4(d)"
     ],
@@ -540,73 +558,49 @@
       "11.5.2(c)",
       "11.6.4"
     ],
-    "emea-us-psd2-2015": [
-      "4"
-    ],
-    "emea-aut-fappd-2000": [
-      "Sec 14",
-      "Sec 15"
-    ],
-    "emea-bel-act-8-1992": [
-      "16"
-    ],
     "emea-deu-bsrit-2017": [
       "6.1",
       "6.2"
     ],
     "emea-deu-c5-2020": [
       "IDM-01",
-      "PSS-05",
-      "PSS-09"
+      "IDM-03"
     ],
-    "emea-isr-cmo-1-0": [
-      "4.1",
-      "4.8",
-      "4.34",
-      "4.37",
-      "12.15",
-      "12.28",
-      "12.29"
+    "emea-isr-cmo-2-0": [
+      "Appendix A, 8.2"
     ],
     "emea-sau-cscc-1-2019": [
-      "2-2",
-      "2-2-1-5"
+      "2-2-1"
     ],
     "emea-sau-ecc-1-2018": [
       "2-2-1",
-      "2-2-2",
-      "2-2-4"
+      "2-2-3"
     ],
     "emea-sau-otcc-1-2022": [
-      "2-2",
-      "2-2-1"
-    ],
-    "emea-sau-sacs-002-2022": [
-      "TPC-10"
+      "2-2-1",
+      "2-2-2"
     ],
     "emea-sau-sama-csf-1-2017": [
-      "3.3.5"
-    ],
-    "emea-zaf-popia-2013": [
-      "19",
-      "20"
-    ],
-    "emea-esp-boe-a-2022-7191": [
-      "Article 18"
+      "3.3.5.1"
     ],
     "emea-esp-decree-311-2022": [
-      "18"
+      "Article 12(6)(e)",
+      "Article 24(3)"
     ],
-    "emea-esp-ccn-stic-825-2023": [
-      "7.2.2 [OP.ACC.2]",
-      "7.2.4 [OP.ACC.4]"
+    "emea-esp-ccn-stic-825-2026": [
+      "op.acc.2",
+      "op.acc.4",
+      "op.acc.5"
     ],
     "emea-gbr-caf-4-0": [
       "B2",
       "B2.d"
     ],
+    "emea-gbr-cap-1850-2020": [
+      "B2"
+    ],
     "emea-gbr-cyber-essentials-requirements-3-3": [
-      "2"
+      "4"
     ],
     "emea-gbr-def-stan-05-138-2024": [
       "2200",
@@ -627,9 +621,11 @@
       "2208",
       "2210"
     ],
-    "apac-aus-ism-2024-june": [
+    "apac-aus-ism-2026-march": [
       "ISM-1146",
-      "ISM-1546"
+      "ISM-1546",
+      "ISM-2076",
+      "ISM-2077"
     ],
     "apac-chn-cybersecurity-law-2017": [
       "Article 40"
@@ -661,25 +657,35 @@
       "9.1.1.15",
       "9.4.1.8.PB"
     ],
+    "apac-mys-bnm-rmit-2025": [
+      "10.53",
+      "10.54",
+      "10.56",
+      "10.57"
+    ],
     "apac-nzl-ism-3-9": [
-      "16.1.31.C.01"
+      "16.1.31.C.01",
+      "16.4.39.C.01",
+      "20.2.16.C.02"
     ],
     "apac-sgp-cyber-hygiene-practice-2019": [
       "4.1"
     ],
     "apac-sgp-mas-trm-2021": [
-      "9.1.2",
-      "9.1.3",
-      "9.1.8"
+      "9.1.8",
+      "9.2.2"
+    ],
+    "americas-arg-ppd-2018": [
+      "B",
+      "D.1.2-1"
     ],
     "americas-bmu-mba-coc-2020": [
       "6.6"
     ],
-    "amaericas-can-osfi-self-assessment": [
-      "4.22",
-      "4.24"
-    ],
     "americas-can-osfi-b13-2022": [
+      "3.2.7"
+    ],
+    "americas-can-osfi-self-assessment-2": [
       "3.2.7"
     ],
     "americas-can-itsp-10-171-2025": [
@@ -688,6 +694,9 @@
       "03.05.01.A",
       "03.05.05.A",
       "03.05.12.E"
+    ],
+    "americas-can-pipeda-2000": [
+      "P7-4.7.3(b)"
     ]
   }
 }

@@ -8,6 +8,7 @@ from beacon.config import Settings
 from beacon.crypto.witness import create_checkpoint, seal_payload
 from beacon.plugins.loader import get_plugin, load_plugins, plugins_for_target
 from beacon.plugins.spec import CollectContext, CollectResult, Plugin
+from beacon.scf.binding import attach_binding, binding_for_control, binding_for_targets
 from beacon.scf.client import fetch_control
 from beacon.storage import publish_collect_run
 
@@ -28,14 +29,17 @@ def seal_result(
     settings: Settings,
     plugin: Plugin,
     result: CollectResult,
+    *,
+    primary: str | None = None,
 ) -> dict[str, Any]:
     targets = list(result.scf_targets or plugin.spec.scf_targets)
+    binding = binding_for_targets(settings, targets, primary=primary)
     record = seal_payload(
         settings,
         plugin=plugin.spec.name,
         mode=result.mode,
         scf_targets=targets,
-        payload=result.payload,
+        payload=attach_binding(dict(result.payload), binding),
     )
     return {
         "plugin": plugin.spec.name,
@@ -45,6 +49,7 @@ def seal_result(
         "evidence_id": record.evidence_id,
         "seq": record.seq,
         "scf_targets": targets,
+        "scf_binding": binding,
     }
 
 
@@ -57,7 +62,7 @@ def collect_named(
 ) -> dict[str, Any]:
     plugin = get_plugin(settings, name)
     result = collect_plugin(settings, plugin, ctx)
-    sealed = seal_result(settings, plugin, result)
+    sealed = seal_result(settings, plugin, result, primary=ctx.target)
     cp = None
     if checkpoint:
         cp = create_checkpoint(settings)
@@ -81,7 +86,8 @@ def collect_target(
     runs = []
     for plugin in selected:
         result = collect_plugin(settings, plugin, bound)
-        runs.append(seal_result(settings, plugin, result))
+        runs.append(seal_result(settings, plugin, result, primary=target))
+    binding = binding_for_control(control)
     out: dict[str, Any] = {
         "target": target.upper(),
         "ok": all(item["ok"] for item in runs) if runs else True,
@@ -91,6 +97,7 @@ def collect_target(
             "family": control.get("family"),
             "description": control.get("description"),
         },
+        "scf_binding": binding,
         "plugins": [plugin.spec.name for plugin in selected],
         "runs": runs,
     }

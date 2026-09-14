@@ -1,0 +1,11 @@
+{
+  "erl_id": "E-QTS-08",
+  "area": "Quantum Security",
+  "artifact_name": "Approved / Deprecated Algorithm List",
+  "artifact_description": "Documented evidence of an approved / deprecated algorithm list.",
+  "scf_controls": [
+    "QTS-06.3",
+    "QTS-06.5"
+  ],
+  "cmmc_mapping": ""
+}

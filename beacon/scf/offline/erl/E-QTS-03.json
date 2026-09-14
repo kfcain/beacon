@@ -1,0 +1,10 @@
+{
+  "erl_id": "E-QTS-03",
+  "area": "Quantum Security",
+  "artifact_name": "Long-Lived Data Identification",
+  "artifact_description": "Documented evidence of a data classifications by the usable lifespan of the data that can be used to prioritize Post-Quantum Cryptography (PQC) remediation efforts.",
+  "scf_controls": [
+    "QTS-01.3"
+  ],
+  "cmmc_mapping": ""
+}

@@ -30,7 +30,7 @@ Catalog counts from the parse (match the pin): 1534 controls, 34 families, 316 E
 
 ## 2026-09-16 — Cycle 2
 
-PR: (this pull request; URL filled after open)
+PR: https://github.com/kfcain/beacon/pull/6
 
 ### Why
 

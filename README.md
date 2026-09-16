@@ -61,7 +61,16 @@ terraform init
 terraform apply
 ```
 
-Prefer STS assume-role for `BeaconWriter` (Put/Get/List, no DeleteObject) and `BeaconAuditor` (read-only). See [docs/STORAGE.md](docs/STORAGE.md) and [deploy/aws/README.md](deploy/aws/README.md).
+Prefer STS assume-role for `BeaconWriter` (Put/Get/List, no DeleteObject) and `BeaconAuditor` (read-only). See [docs/STORAGE.md](docs/STORAGE.md), [deploy/aws/README.md](deploy/aws/README.md), and [docs/architecture/beacon-evidence-lake.md](docs/architecture/beacon-evidence-lake.md).
+
+OPA/Conftest checks for the Terraform controls:
+
+```bash
+make policy
+# or:
+conftest verify -p policy/terraform
+conftest test --combine --parser hcl2 -p policy/terraform deploy/aws/*.tf
+```
 
 ## Witness chain
 

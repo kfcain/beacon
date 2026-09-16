@@ -49,4 +49,8 @@ Optional:
 - `BEACON_PACK_TYPE` (`bundle`, `ongoing-certification-report`, `secure-configuration-guide`, `security-decision-record`)
 - `BEACON_TRUST_CENTER_EXPORT=1` (pack/report copies only; never raw observations)
 
-See [docs/STORAGE.md](../../docs/STORAGE.md).
+See [docs/STORAGE.md](../../docs/STORAGE.md). Architecture: [docs/architecture/beacon-evidence-lake.md](../../docs/architecture/beacon-evidence-lake.md). Control map: [docs/architecture/terraform-compliance.md](../../docs/architecture/terraform-compliance.md).
+
+OPA/Conftest (`make policy`) checks the controls in this module. See `policy/terraform`.
+
+S3 server access logs and CloudTrail object-level data events default to **on**. They write to a dedicated logging bucket (`beacon-evidence-logs-<account>-<region>` by default) with the same SSE-KMS, Block Public Access, and BucketOwnerEnforced posture. Object Lock is off on that bucket because S3 cannot deliver access logs to an Object Lock destination. Set `enable_s3_access_logging = false` or `enable_cloudtrail_data_events = false` only when you already cover those events. This module does not create an account-level management-event trail.

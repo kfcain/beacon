@@ -143,6 +143,52 @@ Set Terraform `tenant_id` and `workspace_id` to the bound namespace. Those value
 
 Prefer `aws sts assume-role`. See [deploy/aws](../deploy/aws/README.md).
 
+Architecture (collectors → seal/witness → S3 + DynamoDB + KMS + IAM): [docs/architecture/beacon-evidence-lake.md](architecture/beacon-evidence-lake.md). Draw.io: [docs/architecture/beacon-evidence-lake.drawio](architecture/beacon-evidence-lake.drawio). Terraform control map: [docs/architecture/terraform-compliance.md](architecture/terraform-compliance.md).
+
+## OPA / Conftest
+
+Policies under `policy/terraform` check the controls that `deploy/aws` encodes (SSE-KMS, Block Public Access, BucketOwnerEnforced, Object Lock, versioning, lifecycle, writer no delete / no BypassGovernanceRetention, auditor read-only, IAM Allow wildcards, evidence bucket-policy attachment, KMS rotation, DynamoDB CMK + freshness GSI, trust-center prefix deny, S3 access logging, CloudTrail data events). They do not invent missing Terraform.
+
+```bash
+make policy
+conftest verify -p policy/terraform
+conftest test --combine --parser hcl2 -p policy/terraform deploy/aws/*.tf
+```
+
+Install Conftest from https://github.com/open-policy-agent/conftest/releases. Warn results list known gaps. They do not fail the default run.
+
+## Access logs and CloudTrail data events
+
+Terraform creates a **dedicated logging bucket** next to the evidence lake. That bucket uses the same customer CMK, Block Public Access, BucketOwnerEnforced, versioning, and TLS deny. It does **not** use Object Lock.
+
+| AWS log | Prefix on logging bucket | Beacon class after seal |
+| --- | --- | --- |
+| S3 server access logs | `s3-access-logs/` | Raw **observation**. Seal to a **finding** (`beacon-class=finding`) before it is lake evidence. |
+| CloudTrail S3 object-level data events (read and write) | `cloudtrail/` | Raw **observation**. Seal to a **finding** the same way. |
+
+AWS writes those files. They are not sealed Beacon records.
+
+Do **not**:
+
+- Write those logs into the evidence bucket `observations/` or `evidence/` prefixes from Terraform.
+- Mix raw logs with sealed findings.
+- Copy raw logs to `public/trust-center/`.
+
+To seal them as lake evidence:
+
+1. Ingest a log object as an **observation** (local `evidence/{uuid}.json` / remote `.../observations/{uuid}.json`, `beacon-class=observation`).
+2. After `seal_payload`, dual-write the derived record as a **finding** (`.../evidence/{uuid}.json`, `beacon-class=finding`).
+3. Keep the witness chain fail-closed (`E_NO_CHECKPOINT`).
+
+FedRAMP 20x asks for machine-readable and human-readable reconciled evidence from CloudTrail (and Config, Security Hub, Inspector) in a tamper-resistant lake. This logging path supplies the CloudTrail and S3 access raw material. Seal and pack remain Beacon jobs.
+
+Variables (default **true**):
+
+- `enable_s3_access_logging`
+- `enable_cloudtrail_data_events`
+
+The CloudTrail is module-scoped. `include_management_events` is false. It does not create an account-level management trail.
+
 ## Commands
 
 After local seal:

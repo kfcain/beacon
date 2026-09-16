@@ -14,3 +14,7 @@ build/
 .python-version
 *.log
 .DS_Store
+.terraform/
+*.tfstate
+*.tfstate.backup
+crash.log

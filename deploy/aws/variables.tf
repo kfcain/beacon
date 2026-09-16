@@ -98,3 +98,27 @@ variable "s3_key_prefix" {
     error_message = "s3_key_prefix must not contain .."
   }
 }
+
+variable "enable_s3_access_logging" {
+  description = "Write S3 server access logs for the evidence bucket to a dedicated logging bucket. Default true (fail closed)."
+  type        = bool
+  default     = true
+}
+
+variable "enable_cloudtrail_data_events" {
+  description = "Create a module-scoped CloudTrail that records S3 object-level data events (read and write) on the evidence bucket. Default true. Set false if an account trail already covers this bucket. This module does not create an account-level management-event trail."
+  type        = bool
+  default     = true
+}
+
+variable "logging_bucket_name" {
+  description = "Dedicated logging bucket for S3 access logs and CloudTrail data events. Empty generates beacon-evidence-logs-<account>-<region>."
+  type        = string
+  default     = ""
+}
+
+variable "cloudtrail_name" {
+  description = "Name of the module-scoped CloudTrail for evidence-bucket data events. Must be unique in the account."
+  type        = string
+  default     = "beacon-evidence-data-events"
+}

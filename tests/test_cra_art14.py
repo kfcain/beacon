@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 from types import ModuleType
 
@@ -148,6 +149,81 @@ def test_live_rejects_file_loopback_and_credentialed_urls(cra, initialized, monk
         assert "/etc/passwd" not in blob
         assert result.payload["observations"]["kev"]["source_url"] == cra.INVALID_KEV_URL
         assert result.payload["findings"] == []
+
+
+def test_live_rejects_alternate_loopback_host_spellings(cra, initialized, monkeypatch: pytest.MonkeyPatch):
+    def boom(_url: str, timeout: int = 20) -> dict:
+        raise AssertionError("live fetch must not run for blocked KEV URLs")
+
+    monkeypatch.setattr(cra, "_http_get_json", boom)
+    blocked = (
+        "https://127.1/feed.json",
+        "https://2130706433/feed.json",
+        "https://0177.0.0.1/feed.json",
+        "https://0x7f.0.0.1/feed.json",
+        "https://127.0.1/feed.json",
+    )
+    for url in blocked:
+        result = cra.PLUGIN.collect(CollectContext(live=True, extra={"kev_url": url}))
+        assert result.ok is False, url
+        assert result.mode == "live_failed", url
+        assert result.payload["observations"]["kev"]["source_url"] == cra.INVALID_KEV_URL
+        assert result.payload["findings"] == []
+        assert result.payload.get("fixture_reason") is None
+
+
+def test_live_rejects_non_catalog_json_object(cra, initialized, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(cra, "_http_get_json", lambda _url, timeout=20: {"error": "unavailable"})
+    result = cra.PLUGIN.collect(
+        CollectContext(live=True, extra={"kev_url": "https://kev.example.test/feed.json"})
+    )
+    assert result.ok is False
+    assert result.mode == "live_failed"
+    assert result.payload["mode"] == "live_failed"
+    assert result.payload["ok"] is False
+    assert result.payload["matched_signals"] == []
+    assert result.payload["findings"] == []
+    assert result.payload.get("fixture_reason") is None
+    observations = result.payload["observations"]["kev"]
+    assert observations["fetched"] is False
+    assert observations["vulnerabilities"] == []
+    error = (result.error or result.payload.get("error") or "").lower()
+    assert "catalog" in error or "vulnerabilities" in error
+
+
+def test_live_accepts_empty_kev_catalog_with_metadata(cra, initialized, monkeypatch: pytest.MonkeyPatch):
+    empty = {"catalogVersion": "fixture-empty", "vulnerabilities": []}
+    monkeypatch.setattr(cra, "_http_get_json", lambda _url, timeout=20: empty)
+    result = cra.PLUGIN.collect(
+        CollectContext(
+            live=True,
+            extra={"kev_url": "https://kev.example.test/feed.json", "product_scope": {"product_name": "fixture-widget"}},
+        )
+    )
+    assert result.ok is True
+    assert result.mode == "live"
+    assert result.payload["matched_signals"] == []
+    assert result.payload["observations"]["kev"]["fetched"] is True
+    assert result.payload["exploitation_status"] == "undetermined"
+
+
+def test_relative_fixture_path_collects_without_crash(cra, initialized):
+    rel = os.path.relpath(FIXTURE)
+    assert not Path(rel).is_absolute()
+    with pytest.raises(ValueError, match="relative"):
+        Path(rel).as_uri()
+    result = cra.PLUGIN.collect(CollectContext(live=False, extra={"fixture_path": rel}))
+    assert result.ok is True
+    assert result.mode == "fixture"
+    source_url = result.payload["observations"]["kev"]["source_url"]
+    assert source_url.startswith("file:")
+    assert "cra.art14.early_warning.json" in source_url
+    missing = cra.PLUGIN.collect(
+        CollectContext(live=False, extra={"fixture_path": "missing-cra-art14-fixture.json"})
+    )
+    assert missing.ok is False
+    assert missing.mode == "fixture"
+    assert missing.payload["observations"]["kev"]["source_url"].startswith("file:")
 
 
 def test_live_success_still_leaves_exploitation_undetermined(cra, initialized, monkeypatch: pytest.MonkeyPatch):

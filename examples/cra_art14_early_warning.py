@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import ipaddress
 import json
+import re
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -26,6 +27,10 @@ DEFAULT_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "cra.art14.earl
 LIVE_TIMEOUT_SEC = 20
 BLOCKED_KEV_HOSTS = frozenset({"localhost", "localhost.localdomain", "metadata.google.internal"})
 INVALID_KEV_URL = "invalid-kev-url"
+# Alternate numeric hosts (127.1, 2130706433, 0177.0.0.1, 0x7f.0.0.1) must not
+# fall through to the system resolver after ipaddress.ip_address() fails.
+_NUMERIC_HOST_SEGMENT = re.compile(r"^(?:0x[0-9a-f]+|\d+)$")
+_DNS_LABEL = re.compile(r"(?!-)[a-z0-9-]{1,63}(?<!-)$")
 
 ExploitationStatus = Literal["undetermined", "confirmed", "not_applicable"]
 NotificationStatus = Literal["not_evaluated", "notified", "not_required", "deferred"]
@@ -97,7 +102,37 @@ def _http_get_json(url: str, timeout: int = LIVE_TIMEOUT_SEC) -> dict[str, Any]:
     data = json.loads(raw.decode("utf-8"))
     if not isinstance(data, dict):
         raise ValueError("KEV response is not a JSON object")
+    _require_kev_catalog(data)
     return data
+
+
+def _ip_blocked(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    mapped = ip.ipv4_mapped if isinstance(ip, ipaddress.IPv6Address) else None
+    if mapped is not None:
+        ip = mapped
+    return bool(
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+def _looks_like_numeric_host_alias(hostname: str) -> bool:
+    if ":" in hostname:
+        return True
+    parts = hostname.split(".")
+    return bool(parts) and all(_NUMERIC_HOST_SEGMENT.fullmatch(part) for part in parts)
+
+
+def _is_dns_hostname(hostname: str) -> bool:
+    if not hostname or len(hostname) > 253:
+        return False
+    if not any("a" <= char <= "z" for char in hostname):
+        return False
+    return all(_DNS_LABEL.fullmatch(label) for label in hostname.split("."))
 
 
 def _host_blocked(host: str | None) -> bool:
@@ -109,15 +144,39 @@ def _host_blocked(host: str | None) -> bool:
     try:
         ip = ipaddress.ip_address(hostname)
     except ValueError:
+        pass
+    else:
+        return _ip_blocked(ip)
+    if _looks_like_numeric_host_alias(hostname):
+        return True
+    return not _is_dns_hostname(hostname)
+
+
+def _meta_present(value: object) -> bool:
+    if value is None:
         return False
-    return bool(
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
+    if isinstance(value, str):
+        return bool(value.strip())
+    return not isinstance(value, bool)
+
+
+def _count_matches_rows(count: object, row_len: int) -> bool:
+    if isinstance(count, bool) or not isinstance(count, int):
+        return False
+    return count == row_len
+
+
+def _require_kev_catalog(data: dict[str, Any]) -> dict[str, Any]:
+    """Reject JSON objects that are not a KEV catalog envelope."""
+    vulns = data.get("vulnerabilities")
+    if not isinstance(vulns, list):
+        raise ValueError("KEV catalog must include a vulnerabilities list")
+    has_version = _meta_present(data.get("catalogVersion")) or _meta_present(data.get("catalog_version"))
+    has_date = _meta_present(data.get("dateReleased")) or _meta_present(data.get("date_released"))
+    has_count = _count_matches_rows(data.get("count"), len(vulns))
+    if not (has_version or has_date or has_count):
+        raise ValueError("KEV catalog is missing catalogVersion, dateReleased, or matching count")
+    return data
 
 
 def _https_url(url: str) -> str:
@@ -138,13 +197,17 @@ def _safe_source_url(url: str) -> str:
         return INVALID_KEV_URL
 
 
+def _path_uri(path: Path) -> str:
+    return path.expanduser().resolve().as_uri()
+
+
 def _fixture_path(ctx: CollectContext) -> Path:
     extra = str(ctx.extra.get("fixture_path") or "").strip()
     if extra:
-        return Path(extra).expanduser()
+        return Path(extra).expanduser().resolve()
     configured = (env("CRA_FIXTURE_PATH") or "").strip()
     if configured:
-        return Path(configured).expanduser()
+        return Path(configured).expanduser().resolve()
     return DEFAULT_FIXTURE
 
 
@@ -455,7 +518,7 @@ class CraArt14EarlyWarningPlugin:
                 matched_signals=[],
                 exploitation_status="undetermined",
                 notification_status="not_evaluated",
-                source_url=path.as_uri(),
+                source_url=_path_uri(path),
                 fixture_reason="fixture_unreadable",
                 error=str(exc),
             )
@@ -482,7 +545,7 @@ class CraArt14EarlyWarningPlugin:
                 matched_signals=[],
                 exploitation_status="undetermined",
                 notification_status="not_evaluated",
-                source_url=path.as_uri(),
+                source_url=_path_uri(path),
                 fixture_reason="invalid_status",
                 error=str(exc),
             )
@@ -504,7 +567,7 @@ class CraArt14EarlyWarningPlugin:
             matched_signals=matched_signals,
             exploitation_status=exploitation_status,
             notification_status=notification_status,
-            source_url=path.as_uri(),
+            source_url=_path_uri(path),
             fixture_reason=reason,
             error=None,
         )
@@ -559,6 +622,7 @@ class CraArt14EarlyWarningPlugin:
             return self._live_failed(ctx, str(exc), _safe_source_url(raw_url))
         try:
             catalog = _http_get_json(url)
+            _require_kev_catalog(catalog)
         except Exception as exc:
             return self._live_failed(ctx, str(exc), _safe_source_url(url))
         product_scope = _product_scope(ctx, None)

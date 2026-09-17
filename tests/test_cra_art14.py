@@ -173,38 +173,55 @@ def test_live_rejects_alternate_loopback_host_spellings(cra, initialized, monkey
 
 
 def test_live_rejects_non_catalog_json_object(cra, initialized, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(cra, "_http_get_json", lambda _url, timeout=20: {"error": "unavailable"})
-    result = cra.PLUGIN.collect(
-        CollectContext(live=True, extra={"kev_url": "https://kev.example.test/feed.json"})
+    invalid_catalogs = (
+        {"error": "unavailable"},
+        {"vulnerabilities": []},
+        {"vulnerabilities": [], "catalogVersion": ""},
+        {"vulnerabilities": [], "catalogVersion": 0},
+        {"vulnerabilities": [{"cveID": "CVE-2099-0001"}], "count": 0},
     )
-    assert result.ok is False
-    assert result.mode == "live_failed"
-    assert result.payload["mode"] == "live_failed"
-    assert result.payload["ok"] is False
-    assert result.payload["matched_signals"] == []
-    assert result.payload["findings"] == []
-    assert result.payload.get("fixture_reason") is None
-    observations = result.payload["observations"]["kev"]
-    assert observations["fetched"] is False
-    assert observations["vulnerabilities"] == []
-    error = (result.error or result.payload.get("error") or "").lower()
-    assert "catalog" in error or "vulnerabilities" in error
+    for catalog in invalid_catalogs:
+        monkeypatch.setattr(cra, "_http_get_json", lambda _url, timeout=20, payload=catalog: payload)
+        result = cra.PLUGIN.collect(
+            CollectContext(live=True, extra={"kev_url": "https://kev.example.test/feed.json"})
+        )
+        assert result.ok is False, catalog
+        assert result.mode == "live_failed", catalog
+        assert result.payload["mode"] == "live_failed"
+        assert result.payload["ok"] is False
+        assert result.payload["matched_signals"] == []
+        assert result.payload["findings"] == []
+        assert result.payload.get("fixture_reason") is None
+        observations = result.payload["observations"]["kev"]
+        assert observations["fetched"] is False
+        assert observations["vulnerabilities"] == []
+        error = (result.error or result.payload.get("error") or "").lower()
+        assert "catalog" in error or "vulnerabilities" in error
 
 
 def test_live_accepts_empty_kev_catalog_with_metadata(cra, initialized, monkeypatch: pytest.MonkeyPatch):
-    empty = {"catalogVersion": "fixture-empty", "vulnerabilities": []}
-    monkeypatch.setattr(cra, "_http_get_json", lambda _url, timeout=20: empty)
-    result = cra.PLUGIN.collect(
-        CollectContext(
-            live=True,
-            extra={"kev_url": "https://kev.example.test/feed.json", "product_scope": {"product_name": "fixture-widget"}},
-        )
+    catalogs = (
+        {"catalogVersion": "fixture-empty", "vulnerabilities": []},
+        {"catalog_version": "fixture-empty", "vulnerabilities": []},
+        {"date_released": "2026-09-17T00:00:00Z", "vulnerabilities": []},
+        {"count": 0, "vulnerabilities": []},
     )
-    assert result.ok is True
-    assert result.mode == "live"
-    assert result.payload["matched_signals"] == []
-    assert result.payload["observations"]["kev"]["fetched"] is True
-    assert result.payload["exploitation_status"] == "undetermined"
+    for empty in catalogs:
+        monkeypatch.setattr(cra, "_http_get_json", lambda _url, timeout=20, payload=empty: payload)
+        result = cra.PLUGIN.collect(
+            CollectContext(
+                live=True,
+                extra={
+                    "kev_url": "https://kev.example.test/feed.json",
+                    "product_scope": {"product_name": "fixture-widget"},
+                },
+            )
+        )
+        assert result.ok is True, empty
+        assert result.mode == "live"
+        assert result.payload["matched_signals"] == []
+        assert result.payload["observations"]["kev"]["fetched"] is True
+        assert result.payload["exploitation_status"] == "undetermined"
 
 
 def test_relative_fixture_path_collects_without_crash(cra, initialized):

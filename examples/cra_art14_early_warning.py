@@ -153,11 +153,7 @@ def _host_blocked(host: str | None) -> bool:
 
 
 def _meta_present(value: object) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return bool(value.strip())
-    return not isinstance(value, bool)
+    return isinstance(value, str) and bool(value.strip())
 
 
 def _count_matches_rows(count: object, row_len: int) -> bool:

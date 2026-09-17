@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.0",
+  "article": "CRA-Art-14",
+  "product_scope": {
+    "manufacturer": "Beacon Fixture Labs",
+    "product_name": "fixture-widget",
+    "version": "1.0.0",
+    "vendor": "FixtureSoft",
+    "components": [
+      {
+        "vendor": "FixtureSoft",
+        "name": "fixture-httpd"
+      }
+    ],
+    "watch_cves": ["CVE-2099-0001"]
+  },
+  "exploitation_status": "undetermined",
+  "notification_status": "not_evaluated",
+  "kev": {
+    "title": "Beacon synthetic KEV slice (not CISA)",
+    "catalogVersion": "fixture-1",
+    "dateReleased": "2026-09-11T00:00:00.000Z",
+    "count": 3,
+    "vulnerabilities": [
+      {
+        "cveID": "CVE-2099-0001",
+        "vendorProject": "FixtureSoft",
+        "product": "fixture-httpd",
+        "vulnerabilityName": "Synthetic fixture-httpd overflow",
+        "dateAdded": "2026-09-11",
+        "shortDescription": "Synthetic row for Beacon tests. Not a real CVE.",
+        "requiredAction": "Apply updates per vendor.",
+        "dueDate": "2026-10-01",
+        "knownRansomwareCampaignUse": "Known",
+        "cvss": {"baseScore": 9.8, "severity": "CRITICAL"},
+        "notes": "FIXTURE ONLY"
+      },
+      {
+        "cveID": "CVE-2099-0002",
+        "vendorProject": "UnrelatedCorp",
+        "product": "other-db",
+        "vulnerabilityName": "Synthetic unrelated database flaw",
+        "dateAdded": "2026-09-12",
+        "shortDescription": "Synthetic row that must not match fixture-widget.",
+        "requiredAction": "Apply updates per vendor.",
+        "dueDate": "2026-10-02",
+        "knownRansomwareCampaignUse": "Unknown",
+        "cvss": {"baseScore": 9.1, "severity": "CRITICAL"},
+        "notes": "FIXTURE ONLY"
+      },
+      {
+        "cveID": "CVE-2099-0003",
+        "vendorProject": "FixtureSoft",
+        "product": "fixture-httpd",
+        "vulnerabilityName": "Synthetic fixture-httpd path confusion",
+        "dateAdded": "2026-09-13",
+        "shortDescription": "Synthetic component match without a watch-list CVE.",
+        "requiredAction": "Apply updates per vendor.",
+        "dueDate": "2026-10-03",
+        "knownRansomwareCampaignUse": "Unknown",
+        "cvss": {"baseScore": 7.5, "severity": "HIGH"},
+        "notes": "FIXTURE ONLY"
+      }
+    ]
+  }
+}

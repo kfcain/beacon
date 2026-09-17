@@ -19,6 +19,12 @@ Beacon's `CloudInspectorPlugin` follows that connector outline (probe identity, 
 
 Beacon's `FetcherSpec`, drop-in `PLUGIN` loader, TUI tabs (Dashboard, Freshness, Validation, Push, System, Collect), and GUI pages follow that operator flow. Fetcher catalogs are not vendored.
 
+## CISA KEV (signal shape)
+
+- Feed: [CISA Known Exploited Vulnerabilities catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)
+- JSON: `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json`
+- Beacon uses the catalog **shape** (`cveID`, `vendorProject`, `product`, `dateAdded`) as an optional CRA Article 14 signal. The repo vendors a three-row synthetic slice only (`CVE-2099-*`). It does not vendor a live CISA dump. KEV listing is not treated as product exploitation. See [CRA_ART14.md](CRA_ART14.md).
+
 ## SCF hub
 
 - API: [https://hackidle.github.io/scf-api/](https://hackidle.github.io/scf-api/)

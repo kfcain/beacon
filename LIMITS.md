@@ -13,6 +13,7 @@ Beacon is an evidence engine. It is not a substitute for an audit opinion, a QSA
 - `beacon push` writes a local sealed pack (records, checkpoints, public keys) plus Markdown. When `BEACON_S3_BUCKET` is set, it also writes the pack to `exports/packs/` on the AWS evidence lake. It does not upload to Paramify or any other GRC SaaS.
 - GUI and TUI drive the same collect/check/push functions. They do not add extra assurance.
 - Beacon does not generate OSCAL, SSPs, or POA&M documents.
+- The CRA Article 14 drop-in (`cra.art14.early_warning`) packs early-warning **signals**. A CISA KEV hit or a high severity score is not product exploitation and is not a notification decision. Beacon does not file ENISA or CSIRT reports, send external mail, or give legal advice.
 - Remote S3/DynamoDB storage does not prove that evidence content is true. It stores sealed bytes, hashes (`sha256`, `input_sha256`, `audit_sha256`), and an index. Hash mismatch checks detect altered artifacts. They are not an audit opinion. A 24-hour freshness window does not prove the observation is true.
 
 ## Fail closed

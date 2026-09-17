@@ -104,6 +104,15 @@ beacon plugins
 beacon collect --plugin echo
 ```
 
+CRA Article 14 early-warning evidence (KEV as a signal, not product exploitation):
+
+```bash
+export BEACON_PLUGIN_PATH=./examples/cra_art14_early_warning.py
+beacon collect --plugin cra.art14.early_warning --fixture
+```
+
+See [docs/CRA_ART14.md](docs/CRA_ART14.md).
+
 ## MCP
 
 ```bash
@@ -117,3 +126,5 @@ Tools: `beacon_status`, `beacon_init`, `beacon_seed`, `beacon_check`, `beacon_co
 - [LIMITS.md](LIMITS.md) — what Beacon does not claim
 - [docs/SOURCES.md](docs/SOURCES.md) — GRCEngClub inspectors and Paramify fetchers as shape references
 - [docs/STORAGE.md](docs/STORAGE.md) — S3 evidence lake, DynamoDB index, IAM
+- [docs/CRA_ART14.md](docs/CRA_ART14.md) — CRA Article 14 early-warning packer (signal vs exploitation)
+- [docs/IMPROVEMENT_LOG.md](docs/IMPROVEMENT_LOG.md) — cycle log

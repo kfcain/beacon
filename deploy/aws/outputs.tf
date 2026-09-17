@@ -7,6 +7,16 @@ output "s3_bucket_arn" {
   value = aws_s3_bucket.evidence.arn
 }
 
+output "logging_bucket" {
+  value       = try(aws_s3_bucket.logs[0].bucket, "")
+  description = "Dedicated bucket for S3 access logs and CloudTrail data events. Empty when logging is disabled."
+}
+
+output "cloudtrail_arn" {
+  value       = try(aws_cloudtrail.evidence[0].arn, "")
+  description = "Module-scoped CloudTrail for evidence-bucket object-level data events. Empty when data events are disabled."
+}
+
 output "kms_key_arn" {
   value       = aws_kms_key.evidence.arn
   description = "BEACON_KMS_KEY_ARN"

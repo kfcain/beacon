@@ -14,3 +14,8 @@ enable_instance_profile = false
 tenant_id              = "acme"
 workspace_id           = "prod"
 s3_key_prefix          = ""
+# Access logs + object-level CloudTrail data events (read/write). Default true.
+enable_s3_access_logging       = true
+enable_cloudtrail_data_events  = true
+logging_bucket_name            = ""
+cloudtrail_name                = "beacon-evidence-data-events"

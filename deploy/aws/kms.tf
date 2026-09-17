@@ -32,6 +32,46 @@ data "aws_iam_policy_document" "kms" {
       values   = [data.aws_caller_identity.current.account_id]
     }
   }
+
+  statement {
+    sid    = "AllowS3AccessLogsEncrypt"
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:GenerateDataKey*",
+    ]
+    principals {
+      type        = "Service"
+      identifiers = ["logging.s3.amazonaws.com"]
+    }
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  statement {
+    sid    = "AllowCloudTrailEncryptLogs"
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:GenerateDataKey*",
+    ]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudtrail.amazonaws.com"]
+    }
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceArn"
+      values   = [local.cloudtrail_arn]
+    }
+  }
 }
 
 resource "aws_kms_key" "evidence" {

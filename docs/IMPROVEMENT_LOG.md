@@ -53,7 +53,7 @@ PR #4 added Conftest for the AWS evidence lake but left Greptile P1 gaps: the su
 
 ## 2026-09-18 — Cycle 5
 
-PR: (pending)
+PR: https://github.com/kfcain/beacon/pull/8
 
 ### Why
 

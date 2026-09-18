@@ -6,7 +6,7 @@ Those APIs are **not** the pin.
 
 ## What is vendored
 
-Path: `beacon/scf/catalog/`
+Path: `beacon/scf/catalog/` (verifier: `beacon/scf/catalog_pin.py`)
 
 | File | Role |
 | --- | --- |

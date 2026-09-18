@@ -28,6 +28,7 @@ CATALOG_PROVENANCE = "scf-catalog"
 CATALOG_SCF_TARGET = "GOV-01"
 CATALOG_SCF_FAMILY = "GOV"
 REQUIRED_PIN_FILES: tuple[str, ...] = ("PIN.json", "summary.json", "families.json", "index-meta.json")
+HASHED_JSON_FILES: tuple[str, ...] = ("summary.json", "families.json", "index-meta.json")
 VENDORED_CATALOG_DIR = Path(__file__).resolve().parent / "catalog"
 
 CatalogRootKind = Literal["vendored", "env"]
@@ -102,6 +103,12 @@ def _as_str(value: object) -> str:
     return str(value).strip() if value is not None else ""
 
 
+def _is_sha256_hex(value: str) -> bool:
+    if len(value) != 64:
+        return False
+    return all(char in "0123456789abcdef" for char in value.lower())
+
+
 def _family_rows(value: object) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
@@ -163,11 +170,7 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
     summary_path = _summary_path(root)
     pin_dir = summary_path.parent if summary_path is not None else root
     families_path = _find_file(pin_dir, "families.json", extra=(root / "families.json",))
-    meta_path = _find_file(
-        pin_dir,
-        "index-meta.json",
-        extra=(root / "index-meta.json", root.parent / "index-meta.json"),
-    )
+    meta_path = _find_file(pin_dir, "index-meta.json", extra=(root / "index-meta.json",))
 
     for required in REQUIRED_PIN_FILES:
         present = {
@@ -205,34 +208,45 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
     if pin and pin_version != PINNED_SCF_VERSION:
         errors.append(f"PIN.json scf_version {pin_version!r} is not pinned {PINNED_SCF_VERSION}")
 
-    workbook_sha = _as_str(pin.get("xlsx_sha256"))
+    workbook_sha = _as_str(pin.get("xlsx_sha256")).lower()
     meta_workbook = meta.get("workbook") if isinstance(meta.get("workbook"), dict) else {}
-    meta_sha = _as_str(meta_workbook.get("sha256"))
-    if workbook_sha and workbook_sha != PINNED_WORKBOOK_SHA256:
+    meta_sha = _as_str(meta_workbook.get("sha256")).lower()
+    if not _is_sha256_hex(workbook_sha):
+        errors.append("PIN.json xlsx_sha256 is missing")
+        declared_sha = workbook_sha
+    elif workbook_sha != PINNED_WORKBOOK_SHA256:
         errors.append("PIN.json workbook SHA-256 does not match the 2026.2 pin")
-    if meta_sha and meta_sha != PINNED_WORKBOOK_SHA256:
-        errors.append("index-meta.json workbook SHA-256 does not match the 2026.2 pin")
-    declared_sha = workbook_sha or meta_sha or PINNED_WORKBOOK_SHA256
-    if declared_sha != PINNED_WORKBOOK_SHA256:
-        errors.append("declared workbook SHA-256 does not match the 2026.2 pin")
+        declared_sha = workbook_sha
+    else:
+        declared_sha = workbook_sha
+    if meta_sha:
+        if meta_sha != PINNED_WORKBOOK_SHA256:
+            errors.append("index-meta.json workbook SHA-256 does not match the 2026.2 pin")
 
-    family_rows = _family_rows(families_doc.get("families")) or _family_rows(summary.get("families"))
+    if families_path is not None:
+        family_rows = _family_rows(families_doc.get("families"))
+        if not family_rows:
+            errors.append("families.json families list is missing")
+    else:
+        family_rows = []
     family_codes = [_as_str(row.get("family_code")).upper() for row in family_rows if _as_str(row.get("family_code"))]
     meta_codes = meta.get("family_codes")
     if isinstance(meta_codes, list) and meta_codes:
-        family_codes = [_as_str(item).upper() for item in meta_codes if _as_str(item)]
+        meta_set = {_as_str(item).upper() for item in meta_codes if _as_str(item)}
+        if family_codes and meta_set != set(family_codes):
+            errors.append("index-meta.json family_codes does not match families.json")
 
-    qts_count = 0
+    qts_count: int | None = None
     for row in family_rows:
         if _as_str(row.get("family_code")).upper() == PINNED_QTS_FAMILY:
-            qts_count = _as_int(row.get("control_count")) or 0
+            qts_count = _as_int(row.get("control_count"))
             break
-    meta_qts = meta.get("qts") if isinstance(meta.get("qts"), dict) else {}
-    if not qts_count:
-        qts_count = _as_int(meta_qts.get("control_count")) or 0
     if PINNED_QTS_FAMILY not in family_codes:
         errors.append("family QTS is missing from the catalog pin")
-    if qts_count != PINNED_QTS_CONTROL_COUNT:
+    if qts_count is None:
+        errors.append("QTS control_count is missing from families.json")
+        qts_count = 0
+    elif qts_count != PINNED_QTS_CONTROL_COUNT:
         errors.append(f"QTS control_count {qts_count} is not {PINNED_QTS_CONTROL_COUNT}")
     if len(set(family_codes)) != PINNED_COUNTS["total_families"]:
         errors.append(
@@ -266,18 +280,30 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
             errors.append(f"PIN.json {key}={pin_count} is not pinned {expected}")
 
     if family_rows:
-        family_sum = sum(_as_int(row.get("control_count")) or 0 for row in family_rows)
-        if family_sum and family_sum != PINNED_COUNTS["total_controls"]:
+        family_sum = 0
+        for row in family_rows:
+            count = _as_int(row.get("control_count"))
+            if count is None:
+                code = _as_str(row.get("family_code")) or "?"
+                errors.append(f"family {code} control_count is missing")
+                continue
+            family_sum += count
+        if family_sum != PINNED_COUNTS["total_controls"]:
             errors.append(
                 f"sum of family control_count {family_sum} is not {PINNED_COUNTS['total_controls']}"
             )
 
     expected_hashes: dict[str, str] = {}
     raw_hashes = pin.get("file_sha256")
-    if isinstance(raw_hashes, dict):
-        expected_hashes = {str(name): str(digest).lower() for name, digest in raw_hashes.items()}
-    elif pin_path is not None:
+    if not isinstance(raw_hashes, dict) or not raw_hashes:
         errors.append("PIN.json file_sha256 is missing")
+    else:
+        for name in HASHED_JSON_FILES:
+            digest = _as_str(raw_hashes.get(name)).lower()
+            if not _is_sha256_hex(digest):
+                errors.append(f"PIN.json file_sha256 is missing {name}")
+                continue
+            expected_hashes[name] = digest
 
     measured: dict[str, str] = {}
     named_files: dict[str, Path | None] = {
@@ -285,20 +311,19 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
         "families.json": families_path,
         "index-meta.json": meta_path,
     }
-    for name, path in named_files.items():
+    for name in HASHED_JSON_FILES:
+        path = named_files[name]
         if path is None or not path.is_file():
+            if name in expected_hashes:
+                errors.append(f"PIN.json hashes {name} but the file is missing")
             continue
         digest = sha256_bytes(path.read_bytes())
         measured[name] = digest
-        expected = expected_hashes.get(name, "").lower()
-        if expected and expected != digest:
-            errors.append(f"SHA-256 mismatch for {name}")
-    for name, expected in expected_hashes.items():
-        if name not in measured:
-            errors.append(f"PIN.json hashes {name} but the file is missing")
-        elif expected.lower() != measured[name]:
-            # already recorded when measured
+        expected = expected_hashes.get(name, "")
+        if not expected:
             continue
+        if expected != digest:
+            errors.append(f"SHA-256 mismatch for {name}")
 
     workbook_path = _find_file(
         pin_dir,
@@ -319,7 +344,7 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
         ok=not errors,
         catalog_root=root,
         catalog_root_kind=kind,
-        scf_version=scf_version or PINNED_SCF_VERSION,
+        scf_version=scf_version,
         workbook_sha256=declared_sha,
         workbook_present=workbook_present,
         file_sha256=measured,

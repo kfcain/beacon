@@ -17,7 +17,7 @@ from beacon.errors import E_NO_CHECKPOINT, E_SCF, BeaconError
 from beacon.plugins.loader import load_plugins
 from beacon.plugins.scf_catalog import PLUGIN, PLUGIN_NAME
 from beacon.plugins.spec import CollectContext, FetcherSpec
-from beacon.scf.catalog import (
+from beacon.scf.catalog_pin import (
     CATALOG_PROVENANCE,
     CATALOG_SCF_TARGET,
     PINNED_COUNTS,
@@ -154,6 +154,7 @@ def test_wrong_version_fails_closed(catalog_copy: Path):
     collected = PLUGIN.collect(CollectContext(live=False, extra={"catalog_path": str(catalog_copy)}))
     assert collected.ok is False
     assert collected.payload["scf_binding"]["pinned"] is False
+    assert collected.payload["pin"]["scf_version"] == "2026.1.1"
 
 
 def test_wrong_count_fails_closed(catalog_copy: Path):
@@ -179,6 +180,60 @@ def test_wrong_hash_fails_closed(catalog_copy: Path):
     result = inspect_catalog_pin(catalog_copy)
     assert result.ok is False
     assert any("SHA-256 mismatch" in item for item in result.errors)
+
+
+def test_empty_file_sha256_fails_closed(catalog_copy: Path):
+    pin_path = catalog_copy / "PIN.json"
+    pin = json.loads(pin_path.read_text(encoding="utf-8"))
+    pin["file_sha256"] = {}
+    _dump(pin_path, pin)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("file_sha256 is missing" in item for item in result.errors)
+
+
+def test_incomplete_file_sha256_fails_closed(catalog_copy: Path):
+    pin_path = catalog_copy / "PIN.json"
+    pin = json.loads(pin_path.read_text(encoding="utf-8"))
+    pin["file_sha256"].pop("families.json")
+    _dump(pin_path, pin)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("families.json" in item and "file_sha256" in item for item in result.errors)
+
+
+def test_empty_families_list_fails_closed(catalog_copy: Path):
+    families_path = catalog_copy / "families.json"
+    families = json.loads(families_path.read_text(encoding="utf-8"))
+    families["families"] = []
+    _dump(families_path, families)
+    _rehash_pin(catalog_copy)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("families list is missing" in item for item in result.errors)
+
+
+def test_zero_family_counts_fails_closed(catalog_copy: Path):
+    families_path = catalog_copy / "families.json"
+    families = json.loads(families_path.read_text(encoding="utf-8"))
+    for row in families["families"]:
+        row["control_count"] = 0
+    _dump(families_path, families)
+    _rehash_pin(catalog_copy)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("control_count" in item for item in result.errors)
+
+
+def test_missing_workbook_sha_fails_closed(catalog_copy: Path):
+    pin_path = catalog_copy / "PIN.json"
+    pin = json.loads(pin_path.read_text(encoding="utf-8"))
+    pin.pop("xlsx_sha256")
+    _dump(pin_path, pin)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("xlsx_sha256 is missing" in item for item in result.errors)
+    assert result.workbook_sha256 != PINNED_WORKBOOK_SHA256 or result.ok is False
 
 
 def test_env_catalog_path(catalog_copy: Path, monkeypatch: pytest.MonkeyPatch, initialized):

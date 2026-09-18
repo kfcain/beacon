@@ -8,7 +8,7 @@ from typing import Any, Literal, NoReturn
 from beacon.config import format_iso8601
 from beacon.errors import BeaconError
 from beacon.plugins.spec import CollectContext, CollectResult, FetcherSpec
-from beacon.scf.catalog import (
+from beacon.scf.catalog_pin import (
     CATALOG_PROVENANCE,
     CATALOG_SCF_TARGET,
     PINNED_SCF_VERSION,

@@ -282,6 +282,25 @@ def test_seal_without_checkpoint_is_e_no_checkpoint(initialized):
     assert caught.value.code == E_NO_CHECKPOINT
 
 
+def test_foreign_target_is_rejected(initialized):
+    result = PLUGIN.collect(CollectContext(target="IAC-01", live=False))
+    assert result.ok is False
+    assert result.mode == "failed"
+    assert result.scf_targets == (KNOWN_IN_REPO_TARGET,)
+    assert result.payload["findings"] == []
+    assert result.payload["scf_binding"]["scf_id"] == ""
+    assert "IAC-01" in (result.error or "")
+    sealed = collect_named(
+        load_settings(),
+        PLUGIN_NAME,
+        CollectContext(target="IAC-01", live=False),
+        checkpoint=True,
+    )
+    assert sealed["ok"] is False
+    assert sealed["scf_targets"] == [KNOWN_IN_REPO_TARGET]
+    assert "IAC-01" not in sealed["scf_targets"]
+
+
 def test_cli_collect_plugin(initialized):
     runner = CliRunner()
     result = runner.invoke(main, ["collect", "--plugin", PLUGIN_NAME, "--fixture"])

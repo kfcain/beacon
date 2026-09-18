@@ -7,7 +7,7 @@ from typing import Any, Literal, NoReturn
 
 from beacon.config import format_iso8601
 from beacon.errors import BeaconError
-from beacon.plugins.spec import CollectContext, CollectResult, FetcherSpec
+from beacon.plugins.spec import CollectContext, CollectResult, FetcherSpec, covers_target
 from beacon.scf.catalog_pin import (
     CATALOG_PROVENANCE,
     CATALOG_SCF_TARGET,
@@ -35,9 +35,8 @@ def _now() -> str:
     return format_iso8601(dt.datetime.now(dt.timezone.utc))
 
 
-def _targets_for(ctx: CollectContext, spec: FetcherSpec) -> tuple[str, ...]:
-    if ctx.target:
-        return (ctx.target.upper(),)
+def _bound_targets(spec: FetcherSpec) -> tuple[str, ...]:
+    """Catalog evidence is always the plugin pin target. Do not inherit --target."""
     return spec.scf_targets
 
 
@@ -116,7 +115,41 @@ class CatalogPlugin:
 
     def collect(self, ctx: CollectContext) -> CollectResult:
         observed_at = _now()
-        targets = _targets_for(ctx, self.spec)
+        targets = _bound_targets(self.spec)
+        if ctx.target and not covers_target(self.spec, ctx.target):
+            error = (
+                f"{PLUGIN_NAME} binds only {CATALOG_SCF_TARGET}; "
+                f"refusing target {ctx.target.strip().upper()}"
+            )
+            payload = {
+                "source": PLUGIN_NAME,
+                "schema_version": SCHEMA_VERSION,
+                "mode": "failed",
+                "ok": False,
+                "observed_at": observed_at,
+                "disclaimer": DISCLAIMER,
+                "error": error,
+                "errors": [error],
+                "findings": [],
+                "observations": {"catalog": {}},
+                "scf_binding": {
+                    "scf_version": "unpinned",
+                    "scf_id": "",
+                    "scf_ids": [],
+                    "scf_family": "",
+                    "erl_ids": [],
+                    "framework_hops": [],
+                    "pinned": False,
+                    "provenance": CATALOG_PROVENANCE,
+                },
+            }
+            return CollectResult(
+                ok=False,
+                mode="failed",
+                payload=payload,
+                error=error,
+                scf_targets=targets,
+            )
         if ctx.live is True:
             error = (
                 "live HackIDLE/GRCEngClub APIs are not the SCF 2026.2 pin; "

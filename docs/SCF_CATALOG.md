@@ -53,6 +53,7 @@ The collector fails closed when:
 The plugin declares drop-in target `GOV-01` (already used by `examples/echo_platform.py`).
 Do not invent SCF control IDs.
 `beacon collect --target GOV-01` still needs that control in the offline control slice. Use `--plugin scf.catalog.offline` for this pack.
+Do not combine `--plugin scf.catalog.offline` with a different `--target` (for example `IAC-01`). The collector refuses that mix so the seal does not bind the catalog pin to the wrong control.
 
 ## Sealed evidence
 

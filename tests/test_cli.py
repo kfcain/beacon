@@ -23,6 +23,7 @@ def test_cli_init_seed_check(beacon_home):
     assert "aws.inspector" in plugins.output
     assert "azure.inspector" in plugins.output
     assert "gcp.inspector" in plugins.output
+    assert "scf.catalog.offline" in plugins.output
 
 
 def test_cli_check_prints_e_no_checkpoint(initialized):

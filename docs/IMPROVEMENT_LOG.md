@@ -50,3 +50,27 @@ PR #4 added Conftest for the AWS evidence lake but left Greptile P1 gaps: the su
 - Open PR #5 (SCF 2026.2 pin) is still draft. This cycle does not widen it.
 - `/workspace/scf-catalog` is not mounted.
 - Repo stays private. No secrets.
+
+## 2026-09-18 — Cycle 5
+
+PR: (pending)
+
+### Why
+
+PR #5 vendors the 2026.2 control slice and seal-time `scf_binding`. It does not ship a standing catalog freshness collector.
+PR #6 already added lake access logging / CloudTrail for the evidence bucket.
+This cycle adds builtin plugin `scf.catalog.offline`. The plugin verifies a slim offline SCF **2026.2** pin (summary, families, index-meta, workbook SHA-256 `9e0a4df4993726c95e636f04b3028d8b5edeba2bda45d16ed6722b13540e6835`). It fails closed on version, missing files, SHA-256, or count mismatch. It does not vendor `controls.json`. It does not treat live HackIDLE as the pin. Sealed evidence stores `catalog_pin` plus `scf_binding` with `provenance: scf-catalog` and documented drop-in id `GOV-01`. The witness chain still fails closed (`E_NO_CHECKPOINT`).
+
+### Next 3 items
+
+1. Merge open PR #7 (CRA Article 14 early-warning packer). Manufacturer reporting obligations are in force. Lake CloudTrail / access-log raw material already landed in #6.
+2. Merge draft PR #5 (SCF 2026.2 control slice + seal-time `scf_binding`) after this catalog collector. Do not invent overlay maps.
+3. When `/workspace/scf-catalog` is mounted, point `BEACON_SCF_CATALOG_PATH` at that tree and refresh file hashes. Do not vendor the full 15 MB `controls.json`. Do not invent SCF IDs.
+
+### Blockers
+
+- `/workspace/scf-catalog` is not mounted on this host.
+- Draft PR #5 is still open. Engine `SCF_VERSION` on `main` stays 2026.1.1 until that PR merges. This collector independently proves the 2026.2 catalog pin.
+- Open PR #7 should merge next. This cycle does not rebase it.
+- Greptile review credits were exhausted earlier. Human review still required.
+- Repo stays private. No secrets. No production AWS apply.

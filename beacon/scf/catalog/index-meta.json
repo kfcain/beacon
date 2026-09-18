@@ -1,0 +1,94 @@
+{
+  "chosen_host": "vendored:beacon/scf/catalog",
+  "chosen_reason": "Slim SCF 2026.2 pin (summary + families + index-meta + workbook SHA). Live HackIDLE/GRCEngClub hosts stay at 2026.1.1 / 2026.1 and are not the pin.",
+  "fetched_at": "2026-09-14",
+  "scf_version": "2026.2",
+  "scf_version_source": "official workbook main sheet name SCF 2026.2 + parser --tag 2026.2",
+  "scf_release_date": "2026-07-08",
+  "workbook": {
+    "url": "https://github.com/securecontrolsframework/securecontrolsframework/releases/download/2026.2/secure-controls-framework-scf-2026-2.xlsx",
+    "xlsx_name": "secure-controls-framework-scf-2026-2.xlsx",
+    "sha256": "9e0a4df4993726c95e636f04b3028d8b5edeba2bda45d16ed6722b13540e6835",
+    "bytes": 4522269
+  },
+  "counts": {
+    "total_controls": 1534,
+    "total_families": 34,
+    "total_crosswalk_frameworks": 249,
+    "total_evidence_requests": 316,
+    "total_assessment_objectives": 5956,
+    "total_threats": 42,
+    "total_risks": 39,
+    "total_compensating_controls": 1534,
+    "total_privacy_principles": 258
+  },
+  "qts": {
+    "family_code": "QTS",
+    "family_name": "Quantum Security",
+    "control_count": 34
+  },
+  "family_codes": [
+    "AAT",
+    "AST",
+    "BCD",
+    "CAP",
+    "CFG",
+    "CHG",
+    "CLD",
+    "CPL",
+    "CRY",
+    "DCH",
+    "EMB",
+    "END",
+    "GOV",
+    "HRS",
+    "IAC",
+    "IAO",
+    "IRO",
+    "MDM",
+    "MNT",
+    "MON",
+    "NET",
+    "OPS",
+    "PES",
+    "PRI",
+    "PRM",
+    "QTS",
+    "RSK",
+    "SAT",
+    "SEA",
+    "TDA",
+    "THR",
+    "TPM",
+    "VPM",
+    "WEB"
+  ],
+  "pillar_framework_ids": [
+    "usa-federal-gsa-fedramp-5-high",
+    "general-nist-800-53-r5-2",
+    "usa-federal-dow-cmmc-2-level-2",
+    "general-aicpa-tsc-2017"
+  ],
+  "not_a_framework_id": [
+    "usa-federal-gsa-fedramp-20x-ksi"
+  ],
+  "overlay_unmapped": [
+    "KSI-CNA-OFA",
+    "KSI-PIY-RES",
+    "SA-09(07)",
+    "SC-12(06)"
+  ],
+  "alternate_hosts": {
+    "hackIDLE": {
+      "base": "https://hackidle.github.io/scf-api",
+      "scf_version_max_known": "2026.1.1",
+      "authoritative": false
+    },
+    "GRCEngClub": {
+      "base": "https://grcengclub.github.io/scf-api",
+      "scf_version_max_known": "2026.1",
+      "authoritative": false
+    }
+  },
+  "license": "CC BY-ND — use IDs/maps freely; do not invent SCF IDs or rewrite licensed prose as derivative framework content."
+}

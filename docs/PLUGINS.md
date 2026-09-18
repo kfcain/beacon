@@ -54,4 +54,10 @@ beacon collect --plugin echo
 
 Builtin inspectors (`aws.inspector`, `azure.inspector`, `gcp.inspector`) are the same `CloudInspectorPlugin` class with a per-cloud profile.
 
+Builtin `scf.catalog.offline` verifies the slim SCF 2026.2 catalog pin. It does not fetch live HackIDLE. See [SCF_CATALOG.md](SCF_CATALOG.md).
+
+```bash
+beacon collect --plugin scf.catalog.offline --fixture
+```
+
 See [examples/echo_platform.py](../examples/echo_platform.py).

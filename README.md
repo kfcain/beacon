@@ -81,14 +81,18 @@ conftest test --combine --parser hcl2 -p policy/terraform deploy/aws/*.tf
 
 ## SCF hub
 
-Default API: `https://hackidle.github.io/scf-api/` (SCF 2026.1.1).
+Default API: `https://hackidle.github.io/scf-api/` (live host max 2026.1.1). That host is **not** the 2026.2 pin.
 
 - Override base URL: `BEACON_SCF_API_BASE`
 - Offline tests and air-gap: `BEACON_SCF_OFFLINE=1`
+- Catalog pin directory: `BEACON_SCF_CATALOG_PATH` (default: `beacon/scf/catalog/`)
 
 ```bash
 BEACON_SCF_OFFLINE=1 pytest
+BEACON_SCF_OFFLINE=1 beacon collect --plugin scf.catalog.offline --fixture
 ```
+
+See [docs/SCF_CATALOG.md](docs/SCF_CATALOG.md).
 
 ## Drop-in platforms
 

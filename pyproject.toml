@@ -43,6 +43,7 @@ include = ["beacon*"]
 beacon = [
   "fixtures/*.json",
   "scf/offline/*.json",
+  "scf/catalog/*.json",
   "gui/static/*",
 ]
 

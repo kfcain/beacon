@@ -119,6 +119,22 @@ def _family_rows(value: object) -> list[dict[str, Any]]:
     return rows
 
 
+def _framework_ids(value: object) -> list[str] | None:
+    """Return catalog framework ids, or None when the list is absent."""
+    if not isinstance(value, list):
+        return None
+    ids: list[str] = []
+    for item in value:
+        if isinstance(item, str):
+            ids.append(item.strip())
+            continue
+        if isinstance(item, dict):
+            ids.append(_as_str(item.get("framework_id")))
+            continue
+        ids.append("")
+    return ids
+
+
 def _count_from(data: dict[str, Any], key: str, *, list_key: str | None = None) -> int | None:
     listed = data.get(list_key) if list_key else None
     if isinstance(listed, list):
@@ -262,6 +278,10 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
         ("total_assessment_objectives", summary, None),
     )
     for key, source, list_key in count_sources:
+        listed = source.get(list_key) if list_key else None
+        declared = _as_int(source.get(key))
+        if isinstance(listed, list) and declared is not None and declared != len(listed):
+            errors.append(f"{key} {declared} does not match list length {len(listed)}")
         got = _count_from(source, key, list_key=list_key)
         if got is None:
             got = _as_int(pin.get(key))
@@ -278,6 +298,26 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
         pin_count = _as_int(pin.get(key))
         if pin_count is not None and pin_count != expected:
             errors.append(f"PIN.json {key}={pin_count} is not pinned {expected}")
+
+    framework_ids = _framework_ids(summary.get("crosswalk_frameworks"))
+    if framework_ids is None:
+        errors.append("summary.json crosswalk_frameworks list is missing")
+        framework_ids = []
+    elif not framework_ids:
+        errors.append("summary.json crosswalk_frameworks list is missing")
+    else:
+        if any(not item for item in framework_ids):
+            errors.append("summary.json crosswalk_frameworks has an empty framework_id")
+        if len(framework_ids) != len(set(framework_ids)):
+            errors.append("summary.json crosswalk_frameworks has duplicate framework_id values")
+        forbidden = pin.get("not_a_framework_id")
+        if isinstance(forbidden, list):
+            blocked = {_as_str(item) for item in forbidden if _as_str(item)}
+            present = blocked.intersection(framework_ids)
+            if present:
+                errors.append(
+                    "summary.json crosswalk_frameworks includes a documented non-framework id"
+                )
 
     if family_rows:
         family_sum = 0

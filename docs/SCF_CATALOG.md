@@ -11,12 +11,15 @@ Path: `beacon/scf/catalog/` (verifier: `beacon/scf/catalog_pin.py`)
 | File | Role |
 | --- | --- |
 | `PIN.json` | Version, workbook SHA-256, counts, SHA-256 of the JSON files |
-| `summary.json` | `scf_version`, counts, 34 families (includes `QTS`) |
+| `summary.json` | `scf_version`, counts, 34 families (includes `QTS`), 249 mapped crosswalk framework ids |
 | `families.json` | Family codes, names, control counts |
 | `index-meta.json` | Workbook metadata, family codes, stale live-host note |
 
 This pin does **not** vendor `controls.json` (about 15 MB).
 It does not copy licensed control prose.
+It does not vendor the official `.xlsx` workbook. Air-gap collect uses the JSON pin only.
+If the workbook file is present next to the pin, the collector hashes it and fails closed on mismatch.
+Crosswalk entries in `summary.json` are `framework_id` values from catalog truth. They are not control ids and not hop maps.
 
 Workbook SHA-256 (official SCF 2026.2 xlsx):
 
@@ -47,6 +50,7 @@ The collector fails closed when:
 - a required file is missing
 - a declared SHA-256 does not match
 - a pinned count does not match
+- `summary.json` `crosswalk_frameworks` is missing, empty, duplicated, or includes a documented non-framework id (`usa-federal-gsa-fedramp-20x-ksi`)
 
 `--live` does **not** fetch HackIDLE. It seals `live_failed`.
 

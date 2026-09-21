@@ -27,9 +27,9 @@
     "SC-12(06)"
   ],
   "file_sha256": {
-    "summary.json": "9fd984302f539595c499c6644dffd15bf11b3c41083eb6efdeaca4f91e9ead06",
-    "families.json": "f1a371394c02277a946acb9783be42496f16e665831179880b74c4ff31e52022",
-    "index-meta.json": "e1b094ca6e887d94c0f4e6c2ca30be196a66ab84a0e09f945812ad171c0fabd5"
+    "summary.json": "8edff57f97690c4b8fc6e3dc7acc5536aa756550043ff342f2d8a43016737167",
+    "families.json": "ad00f1f3ce91c405539935fcd2c61b1fb32a84cdd9f412b8f8279128f8270650",
+    "index-meta.json": "b2e0dcf466ea0666494662b26f984fa34e482b7b057dab1b90ad9324af952dd6"
   },
   "live_hosts_not_authoritative": [
     "https://hackidle.github.io/scf-api",

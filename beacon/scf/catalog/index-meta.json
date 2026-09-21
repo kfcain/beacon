@@ -2,6 +2,7 @@
   "chosen_host": "vendored:beacon/scf/catalog",
   "chosen_reason": "Slim SCF 2026.2 pin (summary + families + index-meta + workbook SHA). Live HackIDLE/GRCEngClub hosts stay at 2026.1.1 / 2026.1 and are not the pin.",
   "fetched_at": "2026-09-14",
+  "reverified_at": "2026-09-21",
   "scf_version": "2026.2",
   "scf_version_source": "official workbook main sheet name SCF 2026.2 + parser --tag 2026.2",
   "scf_release_date": "2026-07-08",

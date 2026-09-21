@@ -74,3 +74,25 @@ This cycle adds builtin plugin `scf.catalog.offline`. The plugin verifies a slim
 - Open PR #7 should merge next. This cycle does not rebase it.
 - Greptile review credits were exhausted earlier. Human review still required.
 - Repo stays private. No secrets. No production AWS apply.
+
+## 2026-09-21 — Cycle 6
+
+PR: https://github.com/kfcain/beacon/pull/8
+
+### Why
+
+PR #8 was mergeable. Codex P1 (workbook SHA + complete `file_sha256`) and P2 (GOV-01 target bind) were already on HEAD. GitHub had no pytest workflow; CodeRabbit was the only check and it passed (rate-limited). This cycle stays on the same branch. It re-verifies the slim SCF **2026.2** pin against attached catalog truth (`summary`, `families`, 249 crosswalk framework ids). Counts still match: 1534 controls, 34 families, 249 mapped frameworks, 316 ERLs, 5956 AOs. `summary.json` now hashes the 249 `framework_id` values from that truth. It does not vendor `controls.json`, display names, hop maps, or the `.xlsx` workbook. The verifier fails closed when the crosswalk list is missing, duplicated, or includes `usa-federal-gsa-fedramp-20x-ksi`. LIMITS.md now states the air-gap path: JSON pin only; workbook optional; engine offline slice remains IAC-01 and CRY-05. The witness chain still fails closed (`E_NO_CHECKPOINT`). Drop-in target remains `GOV-01`. No new SCF control ids.
+
+### Next 3 items
+
+1. Merge open PR #7 (CRA Article 14 early-warning packer). Manufacturer 24h reporting is already in force.
+2. After #8 merges: add a collector that seals S3 access logs and CloudTrail data-event files as lake evidence. Keep observation vs finding separation.
+3. Merge draft PR #5 (SCF 2026.2 control slice + seal-time `scf_binding`) after this catalog collector. Do not invent overlay maps. Optional later: add GitHub Actions pytest so PR checks are more than CodeRabbit.
+
+### Blockers
+
+- `/workspace/scf-catalog` is not mounted. Cycle 6 used attached catalog JSON (summary/families/crosswalks), not the official `.xlsx` bytes, to refresh hashes.
+- Draft PR #5 is still open. Engine `SCF_VERSION` on `main` stays 2026.1.1 until that PR merges.
+- Open PR #7 should merge next. This cycle does not rebase it.
+- This repository has no GitHub Actions pytest workflow. Human review still required.
+- Repo stays private. No secrets. No production AWS apply.

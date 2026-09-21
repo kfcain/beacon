@@ -1,6 +1,7 @@
 {
   "scf_version": "2026.2",
   "total_families": 34,
+  "total_controls": 1534,
   "families": [
     {
       "family_code": "AAT",

@@ -83,6 +83,20 @@ def test_vendored_pin_matches_catalog_truth():
     pin = json.loads((vendored_catalog_dir() / "PIN.json").read_text(encoding="utf-8"))
     assert pin["xlsx_sha256"] == PINNED_WORKBOOK_SHA256
     assert pin["file_sha256"]["summary.json"] == result.file_sha256["summary.json"]
+    assert pin["file_sha256"]["families.json"] == result.file_sha256["families.json"]
+    assert pin["file_sha256"]["index-meta.json"] == result.file_sha256["index-meta.json"]
+    summary = json.loads((vendored_catalog_dir() / "summary.json").read_text(encoding="utf-8"))
+    framework_ids = [row["framework_id"] for row in summary["crosswalk_frameworks"]]
+    assert len(framework_ids) == 249
+    assert len(set(framework_ids)) == 249
+    assert "usa-federal-gsa-fedramp-5-high" in framework_ids
+    assert "general-nist-800-53-r5-2" in framework_ids
+    assert "usa-federal-dow-cmmc-2-level-2" in framework_ids
+    assert "general-aicpa-tsc-2017" in framework_ids
+    assert "usa-federal-gsa-fedramp-20x-ksi" not in framework_ids
+    families = json.loads((vendored_catalog_dir() / "families.json").read_text(encoding="utf-8"))
+    assert families["total_controls"] == 1534
+    assert families["scf_version"] == "2026.2"
 
 
 def test_fixture_collect_ok(initialized):
@@ -200,6 +214,50 @@ def test_incomplete_file_sha256_fails_closed(catalog_copy: Path):
     result = inspect_catalog_pin(catalog_copy)
     assert result.ok is False
     assert any("families.json" in item and "file_sha256" in item for item in result.errors)
+
+
+def test_missing_crosswalk_list_fails_closed(catalog_copy: Path):
+    summary_path = catalog_copy / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary.pop("crosswalk_frameworks")
+    _dump(summary_path, summary)
+    _rehash_pin(catalog_copy)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("crosswalk_frameworks" in item for item in result.errors)
+
+
+def test_duplicate_crosswalk_id_fails_closed(catalog_copy: Path):
+    summary_path = catalog_copy / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["crosswalk_frameworks"][1]["framework_id"] = summary["crosswalk_frameworks"][0]["framework_id"]
+    _dump(summary_path, summary)
+    _rehash_pin(catalog_copy)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("duplicate" in item for item in result.errors)
+
+
+def test_not_a_framework_id_fails_closed(catalog_copy: Path):
+    summary_path = catalog_copy / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["crosswalk_frameworks"][0]["framework_id"] = "usa-federal-gsa-fedramp-20x-ksi"
+    _dump(summary_path, summary)
+    _rehash_pin(catalog_copy)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("non-framework id" in item for item in result.errors)
+
+
+def test_crosswalk_count_disagrees_with_list_fails_closed(catalog_copy: Path):
+    summary_path = catalog_copy / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["total_crosswalk_frameworks"] = 248
+    _dump(summary_path, summary)
+    _rehash_pin(catalog_copy)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("list length" in item for item in result.errors)
 
 
 def test_empty_families_list_fails_closed(catalog_copy: Path):

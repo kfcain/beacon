@@ -50,3 +50,37 @@ PR #4 added Conftest for the AWS evidence lake but left Greptile P1 gaps: the su
 - Open PR #5 (SCF 2026.2 pin) is still draft. This cycle does not widen it.
 - `/workspace/scf-catalog` is not mounted.
 - Repo stays private. No secrets.
+
+## 2026-09-21 — Cycle 7
+
+PR: pending
+
+### Why
+
+PR #8 (offline SCF 2026.2 catalog) is mergeable. CodeRabbit is green. It waits on a human merge.
+PR #7 (CRA Article 14 early-warning packer) is mergeable. CodeRabbit is green. Host, catalog, and fixture checks are already on that branch. It waits on a human merge.
+PR #5 stays a conflicting draft. This cycle does not rebase it.
+The next gap on main is the logging bucket. Terraform already writes S3 access logs and CloudTrail data events there. Those files were raw observations. No collector sealed them.
+
+`aws.lake.logs` reads `s3-access-logs/` and `cloudtrail/` from `BEACON_LOGS_BUCKET`.
+It seals a bounded extract and the object SHA-256 as an observation, then the witness record as a finding.
+Raw AWS objects stay in the logging bucket.
+A live read with no bucket, no objects, a bad log, or an S3 error stays `live_failed`.
+The witness chain still fails closed (`E_NO_CHECKPOINT`).
+The seal target is IAC-01 only. That is the offline control this repo already uses for AWS CloudTrail evidence.
+A different target is refused and is not sealed as IAC-01.
+The finding does not assert that IAC-01, FedRAMP High, NIST 800-53, CMMC L2, or SOC 2 TSC is met.
+`BeaconWriter` may list and get only those two prefixes. It must not put or delete log objects.
+The auditor still has no access to the logging bucket.
+
+### Next 3 items
+
+1. Human merge of PR #8, then PR #7. Do not redo those branches while they stay green.
+2. Standing: keep SCF 2026.2 on the offline catalog pin. Do not use live HackIDLE as the pin. Do not invent control ids. PR #5 stays draft until that pin is the base.
+3. Optional lake follow-ups: MFA Delete, VPC endpoints, and an explicit bucket Deny for `s3:BypassGovernanceRetention`.
+
+### Blockers
+
+- No production AWS apply in this cycle.
+- `/workspace/scf-catalog` is not mounted. The MON family exists on the PR #8 pin. This cycle does not invent an MON control id.
+- Repo stays private. No secrets.

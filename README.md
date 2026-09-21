@@ -31,6 +31,8 @@ Without cloud credentials, inspectors seal **fixtures** through the witness chai
 beacon collect --target IAC-01
 beacon collect --target CRY-05
 beacon collect --plugin aws.inspector
+beacon collect --plugin aws.lake.logs
+beacon collect --plugin aws.lake.logs --live
 ```
 
 `--target IAC-01` and `--target CRY-05` select every loaded fetcher whose `FetcherSpec.scf_targets` overlap that control, then seal the results.
@@ -45,6 +47,7 @@ export BEACON_KMS_KEY_ARN=...
 export BEACON_DDB_TABLE=beacon-artifact-index
 export BEACON_TENANT_ID=...
 export BEACON_WORKSPACE_ID=...
+export BEACON_LOGS_BUCKET=...
 # optional: BEACON_S3_PREFIX, BEACON_OBJECT_LOCK_MODE, BEACON_OBJECT_LOCK_DAYS
 # optional: BEACON_REQUIRE_REMOTE=1, BEACON_PACK_TYPE, BEACON_TRUST_CENTER_EXPORT=1
 beacon collect --target IAC-01

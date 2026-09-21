@@ -202,6 +202,16 @@ policy_doc(name) := item.values if {
 
 statements(name) := ensure_array(policy_doc(name).statement)
 
+dynamic_statements(name) := [content |
+	some item in data_of("aws_iam_policy_document")
+	item.name == name
+	dyn := item.values.dynamic
+	some block in ensure_array(dyn.statement)
+	is_object(block)
+	some content in ensure_array(block.content)
+	is_object(content)
+]
+
 actions_of(name) := {action |
 	some stmt in statements(name)
 	is_object(stmt)
@@ -658,12 +668,176 @@ stmt_allows_ddb_item(stmt) if {
 }
 
 deny contains msg if {
-	some name in {"writer", "auditor"}
-	some stmt in statements(name)
+	has_writer_doc
+	some stmt in dynamic_statements("writer")
 	is_object(stmt)
+	stmt.effect == "Allow"
+	some pattern in as_list(stmt.actions)
+	some forbidden in writer_forbidden_actions
+	iam_action_grants(pattern, forbidden)
+	msg := sprintf("BeaconWriter must not allow %s", [pattern])
+}
+
+deny contains msg if {
+	has_writer_doc
+	some stmt in dynamic_statements("writer")
+	is_object(stmt)
+	stmt.effect == "Allow"
+	some pattern in as_list(stmt.actions)
+	lower(pattern) in broad_allow_wildcards
+	msg := sprintf("BeaconWriter must not allow wildcard %s", [pattern])
+}
+
+deny contains msg if {
+	some stmt in dynamic_statements("writer")
+	is_object(stmt)
+	stmt_allows_s3_object(stmt)
+	some res in as_list(stmt.resources)
+	not workspace_scoped_resource(res)
+	not lake_log_object_resource(res)
+	msg := "BeaconWriter dynamic S3 object Allow resources must stay under local.workspace_prefix or the logging prefixes"
+}
+
+deny contains msg if {
+	some name in {"writer", "auditor"}
+	some stmt in array.concat(statements(name), dynamic_statements(name))
+	is_object(stmt)
+	statement_mentions_logs(stmt)
+	not writer_log_read_ok(name, stmt)
+	msg := sprintf("Beacon %s logging-bucket access must be read-only on the s3-access-logs/ and cloudtrail/ prefixes", [name])
+}
+
+deny contains msg if {
+	has_logs_bucket
+	has_writer_doc
+	not writer_has_lake_log_sid("S3ListLakeLogs")
+	msg := "BeaconWriter must list only the s3-access-logs/ and cloudtrail/ prefixes on the logging bucket"
+}
+
+deny contains msg if {
+	has_logs_bucket
+	has_writer_doc
+	not writer_has_lake_log_sid("S3GetLakeLogs")
+	msg := "BeaconWriter must get objects only under the s3-access-logs/ and cloudtrail/ prefixes"
+}
+
+has_logs_bucket if {
+	some item in resources_of("aws_s3_bucket")
+	item.name == "logs"
+}
+
+statement_mentions_logs(stmt) if {
 	some res in as_list(stmt.resources)
 	contains(ref_str(res), "aws_s3_bucket.logs")
-	msg := sprintf("Beacon %s must not access the logging bucket", [name])
+}
+
+writer_log_read_ok(name, stmt) if {
+	name == "writer"
+	statement_is_lake_log_read(stmt)
+}
+
+writer_has_lake_log_sid(sid) if {
+	some stmt in array.concat(statements("writer"), dynamic_statements("writer"))
+	is_object(stmt)
+	stmt.sid == sid
+	statement_is_lake_log_read(stmt)
+}
+
+statement_is_lake_log_read(stmt) if statement_is_lake_log_list(stmt)
+
+statement_is_lake_log_read(stmt) if statement_is_lake_log_get(stmt)
+
+statement_is_lake_log_list(stmt) if {
+	stmt.effect == "Allow"
+	statement_actions_are_list(stmt)
+	count(as_list(stmt.resources)) > 0
+	not statement_has_non_bucket_arn(stmt)
+	statement_limits_log_prefixes(stmt)
+}
+
+statement_is_lake_log_get(stmt) if {
+	stmt.effect == "Allow"
+	statement_actions_are_get(stmt)
+	count(as_list(stmt.resources)) > 0
+	not statement_has_non_log_object(stmt)
+	some res in as_list(stmt.resources)
+	contains(ref_str(res), "s3_access_log_prefix")
+	some res2 in as_list(stmt.resources)
+	contains(ref_str(res2), "cloudtrail_s3_prefix")
+}
+
+statement_actions_are_list(stmt) if {
+	count(as_list(stmt.actions)) > 0
+	not statement_has_non_list_action(stmt)
+}
+
+statement_actions_are_get(stmt) if {
+	count(as_list(stmt.actions)) > 0
+	not statement_has_non_get_action(stmt)
+}
+
+statement_has_non_list_action(stmt) if {
+	some pattern in as_list(stmt.actions)
+	not is_list_action(pattern)
+}
+
+statement_has_non_get_action(stmt) if {
+	some pattern in as_list(stmt.actions)
+	not is_get_action(pattern)
+}
+
+is_list_action(pattern) if lower(pattern) in {"s3:listbucket", "s3:listbucketversions"}
+
+is_get_action(pattern) if lower(pattern) in {"s3:getobject", "s3:getobjectversion"}
+
+statement_has_non_bucket_arn(stmt) if {
+	some res in as_list(stmt.resources)
+	not lake_log_bucket_arn(res)
+}
+
+statement_has_non_log_object(stmt) if {
+	some res in as_list(stmt.resources)
+	not lake_log_object_resource(res)
+}
+
+lake_log_bucket_arn(res) if {
+	text := ref_str(res)
+	contains(text, "aws_s3_bucket.logs")
+	not contains(text, "s3_access_log_prefix")
+	not contains(text, "cloudtrail_s3_prefix")
+	not contains(text, "/*")
+}
+
+lake_log_object_resource(res) if {
+	text := ref_str(res)
+	contains(text, "aws_s3_bucket.logs")
+	contains(text, ".arn}/${local.s3_access_log_prefix}")
+}
+
+lake_log_object_resource(res) if {
+	text := ref_str(res)
+	contains(text, "aws_s3_bucket.logs")
+	contains(text, ".arn}/${local.cloudtrail_s3_prefix}")
+}
+
+statement_limits_log_prefixes(stmt) if {
+	some cond in ensure_array(stmt.condition)
+	is_object(cond)
+	cond.test == "StringLike"
+	cond.variable == "s3:prefix"
+	count(as_list(cond.values)) > 0
+	not prefix_value_outside_logs(cond)
+	some value in as_list(cond.values)
+	contains(ref_str(value), "s3_access_log_prefix")
+	some value2 in as_list(cond.values)
+	contains(ref_str(value2), "cloudtrail_s3_prefix")
+}
+
+prefix_value_outside_logs(cond) if {
+	some value in as_list(cond.values)
+	text := ref_str(value)
+	not contains(text, "s3_access_log_prefix")
+	not contains(text, "cloudtrail_s3_prefix")
 }
 
 # --- KMS rotation ---

@@ -41,6 +41,7 @@ Rules:
 - Export `PLUGIN` at module level.
 - Do not rewrite a live failure as a fixture. Return `mode="live_failed"` and `ok=False`.
 - The engine seals `payload` on the witness chain and writes a Merkle/TSA checkpoint.
+- `scf_targets` on the result is the seal list. Pass `()` when the run must not name a control. Leave it unset to use `spec.scf_targets`.
 
 ## Load path
 
@@ -53,5 +54,7 @@ beacon collect --plugin echo
 ```
 
 Builtin inspectors (`aws.inspector`, `azure.inspector`, `gcp.inspector`) are the same `CloudInspectorPlugin` class with a per-cloud profile.
+
+`aws.lake.logs` reads the evidence-lake logging bucket (`s3-access-logs/` and `cloudtrail/`). It seals observations and findings on **IAC-01**. Raw AWS objects stay in the logging bucket. Set `BEACON_LOGS_BUCKET` for `--live`. With no bucket, collect uses the fixture. A live read failure stays `live_failed`.
 
 See [examples/echo_platform.py](../examples/echo_platform.py).

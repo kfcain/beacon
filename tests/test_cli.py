@@ -21,6 +21,7 @@ def test_cli_init_seed_check(beacon_home):
     assert check_res.exit_code == 0
     plugins = runner.invoke(main, ["plugins"])
     assert "aws.inspector" in plugins.output
+    assert "aws.lake.logs" in plugins.output
     assert "azure.inspector" in plugins.output
     assert "gcp.inspector" in plugins.output
 

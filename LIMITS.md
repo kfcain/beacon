@@ -4,7 +4,8 @@ Beacon is an evidence engine. It is not a substitute for an audit opinion, a QSA
 
 ## Honest coverage
 
-- Builtin collectors are `aws.inspector`, `azure.inspector`, and `gcp.inspector`. They are thin CLI wrappers (`aws` / `az` / `gcloud`) plus sealed fixtures. They are not a full copy of GRC Engineering Club inspector scripts or Paramify's fetcher catalog.
+- Builtin collectors are `aws.inspector`, `azure.inspector`, `gcp.inspector`, and `aws.lake.logs`. The cloud inspectors are thin CLI wrappers (`aws` / `az` / `gcloud`) plus sealed fixtures. They are not a full copy of GRC Engineering Club inspector scripts or Paramify's fetcher catalog.
+- `aws.lake.logs` reads S3 server access logs and CloudTrail data events from `BEACON_LOGS_BUCKET`. It seals a bounded extract and the object SHA-256. It does not copy raw AWS log objects into the evidence bucket. The only seal target is **IAC-01**. A different target is not sealed as IAC-01. The finding does not assert that IAC-01, FedRAMP, NIST 800-53, CMMC, or SOC 2 is met. CloudTrail rows must be `eventCategory` Data or `managementEvent` false. Gzip output is capped. No logs bucket uses the fixture. A live read failure stays `live_failed`.
 - The unified SCF engine maps a control id to overlapping fetchers. It does not evaluate maturity, compensating controls, or residual risk.
 - Offline mode (`BEACON_SCF_OFFLINE=1`) ships **IAC-01** and **CRY-05** only. It does not vendor the 1468-control SCF workbook.
 - Live collection needs working cloud CLIs and credentials. Missing credentials use fixtures. A live API or CLI failure is sealed as `live_failed` and is never converted into a passing fixture.

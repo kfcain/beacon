@@ -174,11 +174,19 @@ Do **not**:
 - Mix raw logs with sealed findings.
 - Copy raw logs to `public/trust-center/`.
 
-To seal them as lake evidence:
+`aws.lake.logs` seals them as lake evidence:
 
-1. Ingest a log object as an **observation** (local `evidence/{uuid}.json` / remote `.../observations/{uuid}.json`, `beacon-class=observation`).
-2. After `seal_payload`, dual-write the derived record as a **finding** (`.../evidence/{uuid}.json`, `beacon-class=finding`).
-3. Keep the witness chain fail-closed (`E_NO_CHECKPOINT`).
+1. Read log objects from the logging bucket (`BEACON_LOGS_BUCKET`).
+2. Store a bounded extract and the object SHA-256 as an **observation** (local `evidence/{uuid}.json` / remote `.../observations/{uuid}.json`, `beacon-class=observation`).
+3. After `seal_payload`, dual-write the derived record as a **finding** (`.../evidence/{uuid}.json`, `beacon-class=finding`).
+4. Keep the witness chain fail-closed (`E_NO_CHECKPOINT`).
+
+```bash
+beacon collect --plugin aws.lake.logs
+beacon collect --plugin aws.lake.logs --live
+```
+
+`--live` fails closed when the bucket is unset, unreadable, empty, or not a valid access log / CloudTrail data-event file. The fixture is used only when live collection is not requested and `BEACON_LOGS_BUCKET` is unset. Raw AWS objects are not copied into the evidence bucket. The seal target is IAC-01. The finding does not assert that the control is met.
 
 FedRAMP 20x asks for machine-readable and human-readable reconciled evidence from CloudTrail (and Config, Security Hub, Inspector) in a tamper-resistant lake. This logging path supplies the CloudTrail and S3 access raw material. Seal and pack remain Beacon jobs.
 

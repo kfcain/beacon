@@ -54,3 +54,5 @@ See [docs/STORAGE.md](../../docs/STORAGE.md). Architecture: [docs/architecture/b
 OPA/Conftest (`make policy`) checks the controls in this module. See `policy/terraform`.
 
 S3 server access logs and CloudTrail object-level data events default to **on**. They write to a dedicated logging bucket (`beacon-evidence-logs-<account>-<region>` by default) with the same SSE-KMS, Block Public Access, and BucketOwnerEnforced posture. Object Lock is off on that bucket because S3 cannot deliver access logs to an Object Lock destination. Set `enable_s3_access_logging = false` or `enable_cloudtrail_data_events = false` only when you already cover those events. This module does not create an account-level management-event trail.
+
+`BeaconWriter` can list and get `s3-access-logs/` and `cloudtrail/` on that bucket. It cannot put or delete those objects. `aws.lake.logs` uses `BEACON_LOGS_BUCKET` (Terraform output `logging_bucket`) to read them and seal observations and findings into the evidence bucket. Raw AWS log objects stay in the logging bucket.

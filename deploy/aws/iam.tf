@@ -98,6 +98,45 @@ data "aws_iam_policy_document" "writer" {
       values   = [local.ddb_pk]
     }
   }
+
+  # Read the logging bucket only. Raw AWS files stay there.
+  # The collector seals extracts into the evidence bucket as observation + finding.
+  dynamic "statement" {
+    for_each = local.enable_log_bucket ? [1] : []
+    content {
+      sid    = "S3ListLakeLogs"
+      effect = "Allow"
+      actions = [
+        "s3:ListBucket",
+        "s3:ListBucketVersions",
+      ]
+      resources = [aws_s3_bucket.logs[0].arn]
+      condition {
+        test     = "StringLike"
+        variable = "s3:prefix"
+        values = [
+          "${local.s3_access_log_prefix}*",
+          "${local.cloudtrail_s3_prefix}*",
+        ]
+      }
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.enable_log_bucket ? [1] : []
+    content {
+      sid    = "S3GetLakeLogs"
+      effect = "Allow"
+      actions = [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+      ]
+      resources = [
+        "${aws_s3_bucket.logs[0].arn}/${local.s3_access_log_prefix}*",
+        "${aws_s3_bucket.logs[0].arn}/${local.cloudtrail_s3_prefix}*",
+      ]
+    }
+  }
 }
 
 data "aws_iam_policy_document" "auditor" {

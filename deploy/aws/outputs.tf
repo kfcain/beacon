@@ -65,6 +65,7 @@ output "beacon_env" {
     export BEACON_TENANT_ID=${var.tenant_id}
     export BEACON_WORKSPACE_ID=${var.workspace_id}
     export BEACON_S3_PREFIX=${var.s3_key_prefix}
+    export BEACON_LOGS_BUCKET=${try(aws_s3_bucket.logs[0].bucket, "")}
     # Prefer STS. Do not put long-lived keys in Beacon env.
     # aws sts assume-role --role-arn ${aws_iam_role.writer.arn} --role-session-name beacon-writer
   EOT

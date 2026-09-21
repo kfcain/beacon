@@ -23,6 +23,19 @@ PINNED_COUNTS: dict[str, int] = {
 }
 PINNED_QTS_FAMILY = "QTS"
 PINNED_QTS_CONTROL_COUNT = 34
+# Already declared in PIN.json. Do not invent framework ids.
+PINNED_PILLAR_FRAMEWORK_IDS: tuple[str, ...] = (
+    "usa-federal-gsa-fedramp-5-high",
+    "general-nist-800-53-r5-2",
+    "usa-federal-dow-cmmc-2-level-2",
+    "general-aicpa-tsc-2017",
+)
+PINNED_NOT_A_FRAMEWORK_IDS: tuple[str, ...] = ("usa-federal-gsa-fedramp-20x-ksi",)
+PINNED_FILE_SHA256: dict[str, str] = {
+    "summary.json": "8edff57f97690c4b8fc6e3dc7acc5536aa756550043ff342f2d8a43016737167",
+    "families.json": "ad00f1f3ce91c405539935fcd2c61b1fb32a84cdd9f412b8f8279128f8270650",
+    "index-meta.json": "b2e0dcf466ea0666494662b26f984fa34e482b7b057dab1b90ad9324af952dd6",
+}
 CATALOG_PROVENANCE = "scf-catalog"
 # Documented drop-in target already used by examples/echo_platform.py. Not invented.
 CATALOG_SCF_TARGET = "GOV-01"
@@ -129,7 +142,8 @@ def _framework_ids(value: object) -> list[str] | None:
             ids.append(item.strip())
             continue
         if isinstance(item, dict):
-            ids.append(_as_str(item.get("framework_id")))
+            raw = item.get("framework_id")
+            ids.append(raw.strip() if isinstance(raw, str) else "")
             continue
         ids.append("")
     return ids
@@ -284,12 +298,7 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
             errors.append(f"{key} {declared} does not match list length {len(listed)}")
         got = _count_from(source, key, list_key=list_key)
         if got is None:
-            got = _as_int(pin.get(key))
-        if got is None:
-            meta_counts = meta.get("counts") if isinstance(meta.get("counts"), dict) else {}
-            got = _as_int(meta_counts.get(key))
-        if got is None:
-            errors.append(f"count {key} is missing")
+            errors.append(f"count {key} is missing from summary.json")
             continue
         counts[key] = got
         expected = PINNED_COUNTS[key]
@@ -310,14 +319,18 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
             errors.append("summary.json crosswalk_frameworks has an empty framework_id")
         if len(framework_ids) != len(set(framework_ids)):
             errors.append("summary.json crosswalk_frameworks has duplicate framework_id values")
-        forbidden = pin.get("not_a_framework_id")
-        if isinstance(forbidden, list):
-            blocked = {_as_str(item) for item in forbidden if _as_str(item)}
-            present = blocked.intersection(framework_ids)
-            if present:
-                errors.append(
-                    "summary.json crosswalk_frameworks includes a documented non-framework id"
-                )
+        have = {item.lower() for item in framework_ids if item}
+        blocked = {item.lower() for item in PINNED_NOT_A_FRAMEWORK_IDS}
+        extra_blocked = pin.get("not_a_framework_id")
+        if isinstance(extra_blocked, list):
+            blocked.update(_as_str(item).lower() for item in extra_blocked if _as_str(item))
+        if blocked.intersection(have):
+            errors.append(
+                "summary.json crosswalk_frameworks includes a documented non-framework id"
+            )
+        for pillar in PINNED_PILLAR_FRAMEWORK_IDS:
+            if pillar.lower() not in have:
+                errors.append(f"summary.json crosswalk_frameworks is missing pillar {pillar}")
 
     if family_rows:
         family_sum = 0
@@ -360,10 +373,18 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
         digest = sha256_bytes(path.read_bytes())
         measured[name] = digest
         expected = expected_hashes.get(name, "")
-        if not expected:
-            continue
-        if expected != digest:
+        if expected and expected != digest:
             errors.append(f"SHA-256 mismatch for {name}")
+        if kind == "vendored":
+            pinned_digest = PINNED_FILE_SHA256[name]
+            if digest != pinned_digest:
+                errors.append(f"vendored SHA-256 mismatch for {name}")
+            if expected and expected != pinned_digest:
+                errors.append(f"PIN.json file_sha256 for {name} is not the vendored pin")
+        elif kind == "env":
+            pass
+        else:
+            _never(kind)
 
     workbook_path = _find_file(
         pin_dir,

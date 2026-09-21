@@ -21,6 +21,7 @@ from beacon.scf.catalog_pin import (
     CATALOG_PROVENANCE,
     CATALOG_SCF_TARGET,
     PINNED_COUNTS,
+    PINNED_FILE_SHA256,
     PINNED_SCF_VERSION,
     PINNED_WORKBOOK_SHA256,
     inspect_catalog_pin,
@@ -85,6 +86,8 @@ def test_vendored_pin_matches_catalog_truth():
     assert pin["file_sha256"]["summary.json"] == result.file_sha256["summary.json"]
     assert pin["file_sha256"]["families.json"] == result.file_sha256["families.json"]
     assert pin["file_sha256"]["index-meta.json"] == result.file_sha256["index-meta.json"]
+    assert pin["file_sha256"] == PINNED_FILE_SHA256
+    assert result.file_sha256 == PINNED_FILE_SHA256
     summary = json.loads((vendored_catalog_dir() / "summary.json").read_text(encoding="utf-8"))
     framework_ids = [row["framework_id"] for row in summary["crosswalk_frameworks"]]
     assert len(framework_ids) == 249
@@ -247,6 +250,57 @@ def test_not_a_framework_id_fails_closed(catalog_copy: Path):
     result = inspect_catalog_pin(catalog_copy)
     assert result.ok is False
     assert any("non-framework id" in item for item in result.errors)
+
+
+def test_omitted_pin_blocklist_still_rejects_non_framework_id(catalog_copy: Path):
+    pin_path = catalog_copy / "PIN.json"
+    pin = json.loads(pin_path.read_text(encoding="utf-8"))
+    pin.pop("not_a_framework_id")
+    _dump(pin_path, pin)
+    summary_path = catalog_copy / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["crosswalk_frameworks"][0]["framework_id"] = "usa-federal-gsa-fedramp-20x-ksi"
+    _dump(summary_path, summary)
+    _rehash_pin(catalog_copy)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("non-framework id" in item for item in result.errors)
+
+
+def test_non_string_framework_id_fails_closed(catalog_copy: Path):
+    summary_path = catalog_copy / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["crosswalk_frameworks"][0]["framework_id"] = ["usa-federal-gsa-fedramp-5-high"]
+    _dump(summary_path, summary)
+    _rehash_pin(catalog_copy)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("empty framework_id" in item for item in result.errors)
+
+
+def test_missing_pillar_framework_id_fails_closed(catalog_copy: Path):
+    summary_path = catalog_copy / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    for row in summary["crosswalk_frameworks"]:
+        if row["framework_id"] == "usa-federal-gsa-fedramp-5-high":
+            row["framework_id"] = "americas-arg-ppd-2018-duplicate"
+            break
+    _dump(summary_path, summary)
+    _rehash_pin(catalog_copy)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("pillar" in item for item in result.errors)
+
+
+def test_missing_summary_count_fails_closed(catalog_copy: Path):
+    summary_path = catalog_copy / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary.pop("total_evidence_requests")
+    _dump(summary_path, summary)
+    _rehash_pin(catalog_copy)
+    result = inspect_catalog_pin(catalog_copy)
+    assert result.ok is False
+    assert any("total_evidence_requests" in item and "summary.json" in item for item in result.errors)
 
 
 def test_crosswalk_count_disagrees_with_list_fails_closed(catalog_copy: Path):

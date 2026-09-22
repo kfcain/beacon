@@ -51,6 +51,54 @@ PR #4 added Conftest for the AWS evidence lake but left Greptile P1 gaps: the su
 - `/workspace/scf-catalog` is not mounted.
 - Repo stays private. No secrets.
 
+## 2026-09-17 — Cycle 3
+
+PR: https://github.com/kfcain/beacon/pull/7
+
+### Why
+
+Cycle 2 PR #6 merged to `main` (fail-closed Conftest lake policy, evidence-bucket S3 access logging, module-scoped CloudTrail data events). Cycle 2 next-item #1 is CRA Article 14 early-warning packing. Reporting obligations have been in force since 2026-09-11. This cycle adds a drop-in packer (`cra.art14.early_warning`) that ingests KEV as an optional signal, records product/component identity and observation time, and seals observations separately from findings. KEV listing and severity never set `exploitation_status=confirmed` or a notification duty. Those fields stay `undetermined` / `not_evaluated` unless a human or separate policy input sets them. Live KEV fetch is opt-in HTTPS; a live failure is `live_failed` and is never rewritten as a fixture. The witness chain still fails closed. This is evidence packing, not legal advice, and not ENISA filing.
+
+### Next 3 items
+
+1. Standing: mount the full SCF 2026.2 catalog from `/workspace/scf-catalog` when that tree is available. Keep the pin at 2026.2. Do not invent control IDs. Do not treat live HackIDLE / GRCEngClub APIs as 2026.2. Open draft PR #5 still holds the offline slice.
+2. Add a collector that ingests S3 access logs and CloudTrail data-event files as observations, then seals findings. Keep observation vs finding separation.
+3. Optional later lake hardening: MFA Delete, VPC endpoints, explicit bucket Deny for `s3:BypassGovernanceRetention`.
+
+### Blockers
+
+- Open PR #5 (`cursor/scf-2026-2-pin-e292`) is still draft. This cycle does not widen, rebase-force, or close it.
+- Open PR #4 (`cursor/evidence-lake-architecture-opa-14c3`) is superseded for Conftest. Leave that branch untouched.
+- Greptile review credits may be exhausted. Human review still required.
+- No production AWS apply in this cycle.
+- `/workspace/scf-catalog` is not mounted.
+- Repo stays private. No secrets.
+
+## 2026-09-17 — Cycle 4
+
+PR: https://github.com/kfcain/beacon/pull/7
+
+### What
+
+PR #7 hardening — loopback alias block, KEV schema gate, relative fixture URI resolve.
+
+### Why
+
+Codex P2 review on the CRA Art 14 packer. Alternate numeric hosts such as `127.1`, `2130706433`, and `0177.0.0.1` bypassed `ipaddress` and could resolve to loopback. Object-shaped errors such as `{"error":"unavailable"}` sealed as live success with empty matches. Relative fixture paths crashed in `Path.as_uri()`. Live failures stay `mode=live_failed` / `ok=false` and are not rewritten as a fixture. The witness chain still fails closed (`E_NO_CHECKPOINT`).
+
+### Next 3 items
+
+1. Standing: SCF 2026.2 catalog alignment. Keep the pin at 2026.2. Open draft PR #5 still holds the offline slice. Do not invent control IDs.
+2. Add a collector that ingests S3 access logs and CloudTrail data-event files as observations, then seals findings.
+3. Optional later lake hardening: MFA Delete, VPC endpoints, explicit bucket Deny for `s3:BypassGovernanceRetention`.
+
+### Blockers
+
+- Open PR #5 (`cursor/scf-2026-2-pin-e292`) is still draft and dirty. This cycle does not widen, rebase-force, or close it.
+- Open PR #4 (`cursor/evidence-lake-architecture-opa-14c3`) is superseded for Conftest. Leave that branch untouched.
+- No production AWS apply in this cycle.
+- Repo stays private. No secrets.
+
 ## 2026-09-18 — Cycle 5
 
 PR: https://github.com/kfcain/beacon/pull/8

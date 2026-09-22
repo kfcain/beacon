@@ -84,14 +84,18 @@ conftest test --combine --parser hcl2 -p policy/terraform deploy/aws/*.tf
 
 ## SCF hub
 
-Default API: `https://hackidle.github.io/scf-api/` (SCF 2026.1.1).
+Default API: `https://hackidle.github.io/scf-api/` (live host max 2026.1.1). That host is **not** the 2026.2 pin.
 
 - Override base URL: `BEACON_SCF_API_BASE`
 - Offline tests and air-gap: `BEACON_SCF_OFFLINE=1`
+- Catalog pin directory: `BEACON_SCF_CATALOG_PATH` (default: `beacon/scf/catalog/`)
 
 ```bash
 BEACON_SCF_OFFLINE=1 pytest
+BEACON_SCF_OFFLINE=1 beacon collect --plugin scf.catalog.offline --fixture
 ```
+
+See [docs/SCF_CATALOG.md](docs/SCF_CATALOG.md).
 
 ## Drop-in platforms
 
@@ -102,6 +106,15 @@ export BEACON_PLUGIN_PATH=./examples/echo_platform.py
 beacon plugins
 beacon collect --plugin echo
 ```
+
+CRA Article 14 early-warning evidence (KEV as a signal, not product exploitation):
+
+```bash
+export BEACON_PLUGIN_PATH=./examples/cra_art14_early_warning.py
+beacon collect --plugin cra.art14.early_warning --fixture
+```
+
+See [docs/CRA_ART14.md](docs/CRA_ART14.md).
 
 ## MCP
 
@@ -116,3 +129,5 @@ Tools: `beacon_status`, `beacon_init`, `beacon_seed`, `beacon_check`, `beacon_co
 - [LIMITS.md](LIMITS.md) — what Beacon does not claim
 - [docs/SOURCES.md](docs/SOURCES.md) — GRCEngClub inspectors and Paramify fetchers as shape references
 - [docs/STORAGE.md](docs/STORAGE.md) — S3 evidence lake, DynamoDB index, IAM
+- [docs/CRA_ART14.md](docs/CRA_ART14.md) — CRA Article 14 early-warning packer (signal vs exploitation)
+- [docs/IMPROVEMENT_LOG.md](docs/IMPROVEMENT_LOG.md) — cycle log

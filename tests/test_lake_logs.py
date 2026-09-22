@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from beacon.errors import E_NO_CHECKPOINT, BeaconError
 from beacon.plugins.lake_logs import (
     PLUGIN_NAME,
     LakeLogPlugin,
+    _newest_dated_flat,
     parse_cloudtrail_data_events,
     parse_s3_access_log,
 )
@@ -305,6 +307,93 @@ def test_live_missing_bucket_is_live_failed(initialized: Path, monkeypatch: pyte
     assert "NoSuchBucket" in str(result.error) or "S3" in str(result.error)
 
 
+def test_digest_keys_do_not_hide_data_events(initialized: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Digest keys sort before CloudTrail/ and must not exhaust the list."""
+    _aws(monkeypatch)
+    monkeypatch.setenv("BEACON_LOGS_BUCKET", LOGS_BUCKET)
+    monkeypatch.setenv("BEACON_LOGS_MAX_OBJECTS", "1")
+    with mock_aws():
+        s3 = boto3.client("s3", region_name=REGION)
+        s3.create_bucket(Bucket=LOGS_BUCKET)
+        s3.put_object(Bucket=LOGS_BUCKET, Key="s3-access-logs/only", Body=ACCESS_LINE.encode("utf-8"))
+        for index in range(30):
+            s3.put_object(
+                Bucket=LOGS_BUCKET,
+                Key=f"cloudtrail/AWSLogs/123/CloudTrail-Digest/us-east-1/2026/09/01/{index:02d}.json.gz",
+                Body=b"not-a-data-event",
+            )
+        s3.put_object(
+            Bucket=LOGS_BUCKET,
+            Key="cloudtrail/AWSLogs/123/CloudTrail/us-east-1/2026/09/21/file.json",
+            Body=json.dumps(TRAIL).encode("utf-8"),
+        )
+        result = LakeLogPlugin().collect(CollectContext(live=True))
+    assert result.ok is True
+    assert result.mode == "live"
+    keys = {item["key"] for item in result.payload["observations"]}
+    assert "cloudtrail/AWSLogs/123/CloudTrail/us-east-1/2026/09/21/file.json" in keys
+    assert not any("CloudTrail-Digest" in key for key in keys)
+
+
+def test_dated_access_prefix_selects_the_newest_day(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A truncated flat list walks YYYY-MM-DD prefixes from the newest day."""
+
+    class _FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 9, 22, 12, 0, tzinfo=tz)
+
+    monkeypatch.setattr("beacon.plugins.lake_logs.datetime", _FrozenDateTime)
+    _aws(monkeypatch)
+    with mock_aws():
+        s3 = boto3.client("s3", region_name=REGION)
+        s3.create_bucket(Bucket=LOGS_BUCKET)
+        s3.put_object(Bucket=LOGS_BUCKET, Key="s3-access-logs/2026-09-01-00-00-00-old", Body=b"old")
+        s3.put_object(Bucket=LOGS_BUCKET, Key="s3-access-logs/2026-09-21-00-00-00-new", Body=b"new")
+        keys, truncated = _newest_dated_flat(s3, LOGS_BUCKET, "s3-access-logs/", 1, lambda _key: True)
+    assert keys == ["s3-access-logs/2026-09-21-00-00-00-new"]
+    assert truncated is True
+
+
+def test_live_seals_newest_logs_not_oldest(initialized: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ascending ListObjectsV2 order must not seal the oldest object."""
+    _aws(monkeypatch)
+    monkeypatch.setenv("BEACON_LOGS_BUCKET", LOGS_BUCKET)
+    monkeypatch.setenv("BEACON_LOGS_MAX_OBJECTS", "1")
+    with mock_aws():
+        s3 = boto3.client("s3", region_name=REGION)
+        s3.create_bucket(Bucket=LOGS_BUCKET)
+        s3.put_object(
+            Bucket=LOGS_BUCKET,
+            Key="s3-access-logs/2026-09-01-00-00-00-old",
+            Body=b"not an access log\n",
+        )
+        s3.put_object(
+            Bucket=LOGS_BUCKET,
+            Key="s3-access-logs/2026-09-21-00-00-00-new",
+            Body=ACCESS_LINE.encode("utf-8"),
+        )
+        s3.put_object(
+            Bucket=LOGS_BUCKET,
+            Key="cloudtrail/AWSLogs/123/CloudTrail/us-east-1/2026/09/01/old.json",
+            Body=b'{"error":"unavailable"}',
+        )
+        s3.put_object(
+            Bucket=LOGS_BUCKET,
+            Key="cloudtrail/AWSLogs/123/CloudTrail/us-east-1/2026/09/21/new.json",
+            Body=json.dumps(TRAIL).encode("utf-8"),
+        )
+        result = LakeLogPlugin().collect(CollectContext(live=True))
+    assert result.ok is True
+    assert result.mode == "live"
+    keys = {item["key"] for item in result.payload["observations"]}
+    assert keys == {
+        "s3-access-logs/2026-09-21-00-00-00-new",
+        "cloudtrail/AWSLogs/123/CloudTrail/us-east-1/2026/09/21/new.json",
+    }
+    assert result.payload["complete"] is False
+
+
 def test_truncated_list_is_partial(initialized: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _aws(monkeypatch)
     monkeypatch.setenv("BEACON_LOGS_BUCKET", LOGS_BUCKET)
@@ -324,6 +413,9 @@ def test_truncated_list_is_partial(initialized: Path, monkeypatch: pytest.Monkey
     assert result.payload["complete"] is False
     access = next(item for item in result.payload["findings"] if item["check"] == "s3_access_log_ingest")
     assert access["status"] == "collected_partial"
+    keys = {item["key"] for item in result.payload["observations"]}
+    assert "s3-access-logs/b" in keys
+    assert "s3-access-logs/a" not in keys
 
 
 def test_collect_named_checks_chain(initialized: Path) -> None:

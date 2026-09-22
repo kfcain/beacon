@@ -57,4 +57,17 @@ Builtin inspectors (`aws.inspector`, `azure.inspector`, `gcp.inspector`) are the
 
 `aws.lake.logs` reads the evidence-lake logging bucket (`s3-access-logs/` and `cloudtrail/`). It seals observations and findings on **IAC-01**. Raw AWS objects stay in the logging bucket. Set `BEACON_LOGS_BUCKET` for `--live`. With no bucket, collect uses the fixture. A live read failure stays `live_failed`.
 
-See [examples/echo_platform.py](../examples/echo_platform.py).
+Builtin `scf.catalog.offline` verifies the slim SCF 2026.2 catalog pin. It does not fetch live HackIDLE. See [SCF_CATALOG.md](SCF_CATALOG.md).
+
+```bash
+beacon collect --plugin scf.catalog.offline --fixture
+```
+
+CRA Article 14 early-warning packing is a drop-in, not a builtin:
+
+```bash
+export BEACON_PLUGIN_PATH=./examples/cra_art14_early_warning.py
+beacon collect --plugin cra.art14.early_warning --fixture
+```
+
+KEV is a signal only. See [CRA_ART14.md](CRA_ART14.md), [examples/cra_art14_early_warning.py](../examples/cra_art14_early_warning.py), and [examples/echo_platform.py](../examples/echo_platform.py).

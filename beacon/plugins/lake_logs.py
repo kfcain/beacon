@@ -13,6 +13,7 @@ import io
 import json
 import re
 import zlib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -31,6 +32,9 @@ CLOUDTRAIL_PREFIX = "cloudtrail/"
 DEFAULT_MAX_OBJECTS = 25
 DEFAULT_MAX_BYTES = 20 * 1024 * 1024
 SAMPLE_LIMIT = 5
+_MAX_LIST_PAGES = 40
+_DATE_LOOKBACK_DAYS = 366
+_LIST_PAGE_SIZE = 1000
 FIXTURE_PATH = Path(__file__).resolve().parent.parent / "fixtures" / "aws.lake.logs.json"
 
 _BUCKET_NAME = re.compile(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")
@@ -38,6 +42,7 @@ _ACCESS_TIME = re.compile(r"\[[^\[\]]+\]")
 _ACCESS_OP_FIELD = re.compile(r"^(?:REST|SOAP|WEBSITE|BATCH|S3)\.[A-Z0-9._]+$")
 _ACCESS_STATUS_AFTER_HTTP = re.compile(r'HTTP/\d(?:\.\d)?"\s+(\d{3}|-)\b')
 _ACCESS_BUCKET = re.compile(r"^\S+\s+(\S+)\s+\[")
+_ACCESS_DAY_STAMP = re.compile(r"^\d{4}-\d{2}-\d{2}")
 
 _TRAIL_FIELDS = (
     "eventID",
@@ -426,6 +431,189 @@ def _failure_payload(
     return body
 
 
+def _s3_list(
+    client: Any,
+    bucket: str,
+    prefix: str,
+    *,
+    token: str | None = None,
+    delimiter: str | None = None,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": _LIST_PAGE_SIZE}
+    if token:
+        kwargs["ContinuationToken"] = token
+    if delimiter:
+        kwargs["Delimiter"] = delimiter
+    try:
+        response = client.list_objects_v2(**kwargs)
+    except (ClientError, BotoCoreError) as exc:
+        raise RuntimeError(_aws_failure(exc)) from exc
+    if not isinstance(response, dict):
+        raise RuntimeError("S3 request failed")
+    return response
+
+
+def _require_key(key: str) -> None:
+    if not _key_ok(key):
+        raise RuntimeError(f"refusing log object key: {key[:128]}")
+
+
+def _page_keys(client: Any, bucket: str, prefix: str) -> tuple[list[str], bool]:
+    """Return object keys under ``prefix``. The flag is true when the page cap stops the walk."""
+    keys: list[str] = []
+    token: str | None = None
+    for _page in range(_MAX_LIST_PAGES):
+        response = _s3_list(client, bucket, prefix, token=token)
+        for item in response.get("Contents") or []:
+            key = str(item.get("Key") or "")
+            if not key or key.endswith("/"):
+                continue
+            keys.append(key)
+        if not response.get("IsTruncated"):
+            return keys, False
+        token = response.get("NextContinuationToken")
+        if not token:
+            return keys, True
+    return keys, True
+
+
+def _list_level(client: Any, bucket: str, prefix: str) -> tuple[list[str], list[str], bool]:
+    """Return keys and child prefixes at one ``/`` level."""
+    keys: list[str] = []
+    children: list[str] = []
+    token: str | None = None
+    for _page in range(_MAX_LIST_PAGES):
+        response = _s3_list(client, bucket, prefix, token=token, delimiter="/")
+        for item in response.get("Contents") or []:
+            key = str(item.get("Key") or "")
+            if not key or key.endswith("/"):
+                continue
+            keys.append(key)
+        for item in response.get("CommonPrefixes") or []:
+            child = str(item.get("Prefix") or "")
+            if child:
+                children.append(child)
+        if not response.get("IsTruncated"):
+            return keys, children, False
+        token = response.get("NextContinuationToken")
+        if not token:
+            return keys, children, True
+    return keys, children, True
+
+
+def _tail_match(
+    keys: list[str],
+    limit: int,
+    predicate: Callable[[str], bool],
+    truncated: bool,
+) -> tuple[list[str], bool]:
+    """Keep the lexicographically last ``limit`` keys that pass ``predicate``."""
+    matched: list[str] = []
+    for key in keys:
+        _require_key(key)
+        if predicate(key):
+            matched.append(key)
+    matched.sort()
+    if len(matched) > limit:
+        return matched[-limit:], True
+    return matched, truncated
+
+
+def _is_digest_prefix(prefix: str) -> bool:
+    """CloudTrail digest keys sort before ``CloudTrail/`` data-event keys."""
+    return "cloudtrail-digest/" in prefix.casefold()
+
+
+def _newest_slice_keys(client: Any, bucket: str, day_prefix: str, limit: int) -> tuple[list[str], bool]:
+    """Keys under one UTC day. A truncated day is read from the newest hour backward."""
+    keys, truncated = _page_keys(client, bucket, day_prefix)
+    if not truncated:
+        return keys, False
+    gathered: list[str] = []
+    for hour in range(23, -1, -1):
+        hour_keys, hour_truncated = _page_keys(client, bucket, f"{day_prefix}-{hour:02d}")
+        gathered.extend(hour_keys)
+        if hour_truncated or len(gathered) >= limit:
+            return gathered, True
+    return gathered, True
+
+
+def _newest_dated_flat(
+    client: Any,
+    bucket: str,
+    prefix: str,
+    limit: int,
+    predicate: Callable[[str], bool],
+) -> tuple[list[str], bool] | None:
+    """Newest access-log keys. Names start with ``YYYY-MM-DD``. None when no dated key exists."""
+    today = datetime.now(timezone.utc).date()
+    found: list[str] = []
+    saw = False
+    for back in range(_DATE_LOOKBACK_DAYS):
+        day = today - timedelta(days=back)
+        day_prefix = f"{prefix}{day.isoformat()}"
+        day_keys, _day_truncated = _newest_slice_keys(client, bucket, day_prefix, limit)
+        for key in day_keys:
+            if not key.startswith(prefix):
+                continue
+            if _ACCESS_DAY_STAMP.match(key[len(prefix) :]) is None:
+                continue
+            _require_key(key)
+            if predicate(key):
+                found.append(key)
+                saw = True
+        if len(found) >= limit:
+            break
+    if not saw:
+        return None
+    found.sort()
+    if len(found) > limit:
+        found = found[-limit:]
+    return found, True
+
+
+def _newest_under(
+    client: Any,
+    bucket: str,
+    prefix: str,
+    limit: int,
+    predicate: Callable[[str], bool],
+) -> tuple[list[str], bool]:
+    """Newest matching keys under ``prefix``.
+
+    ListObjectsV2 is ascending. Access-log keys and CloudTrail data-event keys
+    encode time, so the last key is the newest. The module trail is single-region,
+    and date folders are zero-padded, so the last child prefix is the newest folder.
+    """
+    if limit <= 0:
+        return [], True
+    objects, children, level_trunc = _list_level(client, bucket, prefix)
+    children = sorted(child for child in children if not _is_digest_prefix(child))
+    if children and objects:
+        keys, scan_trunc = _page_keys(client, bucket, prefix)
+        return _tail_match(keys, limit, predicate, scan_trunc or level_trunc)
+    if children:
+        selected: list[str] = []
+        truncated = level_trunc
+        for index, child in enumerate(reversed(children)):
+            need = limit - len(selected)
+            if need <= 0:
+                return selected[-limit:], True
+            child_keys, child_trunc = _newest_under(client, bucket, child, need, predicate)
+            selected = child_keys + selected
+            if child_trunc or len(selected) >= limit:
+                more_children = index < len(children) - 1
+                return selected[-limit:], truncated or child_trunc or more_children
+        if len(selected) > limit:
+            return selected[-limit:], True
+        return selected, truncated
+    if level_trunc:
+        dated = _newest_dated_flat(client, bucket, prefix, limit, predicate)
+        if dated is not None:
+            return dated
+    return _tail_match(objects, limit, predicate, level_trunc)
+
+
 def _list_keys(
     client: Any,
     bucket: str,
@@ -433,39 +621,8 @@ def _list_keys(
     limit: int,
     predicate: Callable[[str], bool],
 ) -> tuple[list[str], bool]:
-    """Return up to ``limit`` keys. Skip keys the predicate rejects. Bound the scan."""
-    matched: list[str] = []
-    scanned = 0
-    scan_cap = max(limit * 20, limit)
-    token: str | None = None
-    while True:
-        kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": 1000}
-        if token:
-            kwargs["ContinuationToken"] = token
-        try:
-            response = client.list_objects_v2(**kwargs)
-        except (ClientError, BotoCoreError) as exc:
-            raise RuntimeError(_aws_failure(exc)) from exc
-        for item in response.get("Contents") or []:
-            key = str(item.get("Key") or "")
-            if not key or key.endswith("/"):
-                continue
-            if not _key_ok(key):
-                raise RuntimeError(f"refusing log object key: {key[:128]}")
-            scanned += 1
-            if scanned > scan_cap:
-                return sorted(matched[:limit]), True
-            if not predicate(key):
-                continue
-            matched.append(key)
-            if len(matched) > limit:
-                return sorted(matched[:limit]), True
-        if not response.get("IsTruncated"):
-            break
-        token = response.get("NextContinuationToken")
-        if not token:
-            break
-    return sorted(matched), False
+    """Return up to ``limit`` newest keys. Skip keys the predicate rejects."""
+    return _newest_under(client, bucket, prefix, limit, predicate)
 
 
 def _read_object(client: Any, bucket: str, key: str, max_bytes: int) -> bytes:

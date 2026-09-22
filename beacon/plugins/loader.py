@@ -12,6 +12,7 @@ from beacon.config import Settings
 from beacon.errors import E_UNKNOWN_PLUGIN, fail
 from beacon.plugins.cloud import builtin_plugins
 from beacon.plugins.lake_logs import PLUGIN as LAKE_LOG_PLUGIN
+from beacon.plugins.scf_catalog import PLUGIN as SCF_CATALOG_PLUGIN
 from beacon.plugins.spec import FetcherSpec, Plugin, covers_target
 
 
@@ -49,7 +50,7 @@ def iter_plugin_files(plugin_path: tuple[Path, ...]) -> Iterable[Path]:
 
 def load_plugins(settings: Settings) -> dict[str, Plugin]:
     found: dict[str, Plugin] = {}
-    for plugin in (*builtin_plugins(), LAKE_LOG_PLUGIN):
+    for plugin in (*builtin_plugins(), LAKE_LOG_PLUGIN, SCF_CATALOG_PLUGIN):
         found[plugin.spec.name] = plugin
     for path in iter_plugin_files(settings.plugin_path):
         if path.name.startswith("_"):

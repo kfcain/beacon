@@ -23,5 +23,6 @@ Beacon's `FetcherSpec`, drop-in `PLUGIN` loader, TUI tabs (Dashboard, Freshness,
 
 - API: [https://hackidle.github.io/scf-api/](https://hackidle.github.io/scf-api/)
 - Project: [hackIDLE/scf-api](https://github.com/hackIDLE/scf-api)
-- Version: SCF 2026.1.1 (CC BY-ND)
-- Offline bundle: verbatim `IAC-01` and `CRY-05` control JSON plus a compact summary, for `BEACON_SCF_OFFLINE=1` tests only
+- Live host version: SCF 2026.1.1 (CC BY-ND). **Not** the 2026.2 pin.
+- Offline control bundle: verbatim `IAC-01` and `CRY-05` control JSON plus a compact summary, for `BEACON_SCF_OFFLINE=1` tests only
+- Offline catalog pin: `beacon/scf/catalog/` (SCF **2026.2** summary, families, 249 crosswalk framework ids, index-meta, workbook SHA-256). Collector: `scf.catalog.offline`. Air-gap collect does not need the `.xlsx` file. See [SCF_CATALOG.md](SCF_CATALOG.md).

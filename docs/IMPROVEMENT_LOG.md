@@ -50,3 +50,49 @@ PR #4 added Conftest for the AWS evidence lake but left Greptile P1 gaps: the su
 - Open PR #5 (SCF 2026.2 pin) is still draft. This cycle does not widen it.
 - `/workspace/scf-catalog` is not mounted.
 - Repo stays private. No secrets.
+
+## 2026-09-18 — Cycle 5
+
+PR: https://github.com/kfcain/beacon/pull/8
+
+### Why
+
+PR #5 vendors the 2026.2 control slice and seal-time `scf_binding`. It does not ship a standing catalog freshness collector.
+PR #6 already added lake access logging / CloudTrail for the evidence bucket.
+This cycle adds builtin plugin `scf.catalog.offline`. The plugin verifies a slim offline SCF **2026.2** pin (summary, families, index-meta, workbook SHA-256 `9e0a4df4993726c95e636f04b3028d8b5edeba2bda45d16ed6722b13540e6835`). It fails closed on version, missing files, SHA-256, or count mismatch. It does not vendor `controls.json`. It does not treat live HackIDLE as the pin. Sealed evidence stores `catalog_pin` plus `scf_binding` with `provenance: scf-catalog` and documented drop-in id `GOV-01`. The witness chain still fails closed (`E_NO_CHECKPOINT`).
+
+### Next 3 items
+
+1. Merge open PR #7 (CRA Article 14 early-warning packer). Manufacturer reporting obligations are in force. Lake CloudTrail / access-log raw material already landed in #6.
+2. Merge draft PR #5 (SCF 2026.2 control slice + seal-time `scf_binding`) after this catalog collector. Do not invent overlay maps.
+3. When `/workspace/scf-catalog` is mounted, point `BEACON_SCF_CATALOG_PATH` at that tree and refresh file hashes. Do not vendor the full 15 MB `controls.json`. Do not invent SCF IDs.
+
+### Blockers
+
+- `/workspace/scf-catalog` is not mounted on this host.
+- Draft PR #5 is still open. Engine `SCF_VERSION` on `main` stays 2026.1.1 until that PR merges. This collector independently proves the 2026.2 catalog pin.
+- Open PR #7 should merge next. This cycle does not rebase it.
+- Greptile review credits were exhausted earlier. Human review still required.
+- Repo stays private. No secrets. No production AWS apply.
+
+## 2026-09-21 — Cycle 6
+
+PR: https://github.com/kfcain/beacon/pull/8
+
+### Why
+
+PR #8 was mergeable. Codex P1 (workbook SHA + complete `file_sha256`) and P2 (GOV-01 target bind) were already on HEAD. GitHub had no pytest workflow; CodeRabbit was the only check and it passed (rate-limited). This cycle stays on the same branch. It re-verifies the slim SCF **2026.2** pin against attached catalog truth (`summary`, `families`, 249 crosswalk framework ids). Counts still match: 1534 controls, 34 families, 249 mapped frameworks, 316 ERLs, 5956 AOs. `summary.json` now hashes the 249 `framework_id` values from that truth. Vendored file SHA-256 values are compiled into `catalog_pin.py` so PIN.json cannot rewrite the in-repo pin. The verifier always rejects `usa-federal-gsa-fedramp-20x-ksi` and requires the four pillar framework ids. It does not vendor `controls.json`, display names, hop maps, or the `.xlsx` workbook. LIMITS.md now states the air-gap path: JSON pin only; workbook optional; engine offline slice remains IAC-01 and CRY-05. The witness chain still fails closed (`E_NO_CHECKPOINT`). Drop-in target remains `GOV-01`. No new SCF control ids.
+
+### Next 3 items
+
+1. Merge open PR #7 (CRA Article 14 early-warning packer). Manufacturer 24h reporting is already in force.
+2. After #8 merges: add a collector that seals S3 access logs and CloudTrail data-event files as lake evidence. Keep observation vs finding separation.
+3. Merge draft PR #5 (SCF 2026.2 control slice + seal-time `scf_binding`) after this catalog collector. Do not invent overlay maps. Optional later: add GitHub Actions pytest so PR checks are more than CodeRabbit.
+
+### Blockers
+
+- `/workspace/scf-catalog` is not mounted. Cycle 6 used attached catalog JSON (summary/families/crosswalks), not the official `.xlsx` bytes, to refresh hashes.
+- Draft PR #5 is still open. Engine `SCF_VERSION` on `main` stays 2026.1.1 until that PR merges.
+- Open PR #7 should merge next. This cycle does not rebase it.
+- This repository has no GitHub Actions pytest workflow. Human review still required.
+- Repo stays private. No secrets. No production AWS apply.

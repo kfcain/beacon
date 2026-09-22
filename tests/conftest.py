@@ -20,6 +20,7 @@ def beacon_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.delenv("BEACON_TSA_URL", raising=False)
     monkeypatch.delenv("BEACON_FORCE_FIXTURE", raising=False)
     monkeypatch.delenv("BEACON_SCF_API_BASE", raising=False)
+    monkeypatch.delenv("BEACON_SCF_CATALOG_PATH", raising=False)
     for key in (
         "BEACON_S3_BUCKET",
         "BEACON_S3_PREFIX",

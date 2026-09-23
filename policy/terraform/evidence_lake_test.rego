@@ -339,6 +339,100 @@ test_deny_trust_center_missing_classes if {
 	count({m | some m in deny; contains(m, "DenyRawInTrustCenterByClass")}) > 0 with input as as_input(cfg)
 }
 
+test_deny_writer_put_on_logging_bucket if {
+	cfg := parse_config("hcl2", concat("\n", [
+		`data "aws_iam_policy_document" "writer" {`,
+		`  statement {`,
+		`    sid     = "S3GetLakeLogs"`,
+		`    effect  = "Allow"`,
+		`    actions = ["s3:PutObject"]`,
+		`    resources = ["${aws_s3_bucket.logs[0].arn}/${local.s3_access_log_prefix}*"]`,
+		`  }`,
+		`}`,
+	]))
+	count({m | some m in deny; contains(m, "logging-bucket")}) > 0 with input as as_input(cfg)
+}
+
+test_allow_writer_log_prefix_read if {
+	cfg := parse_config("hcl2", concat("\n", [
+		`data "aws_iam_policy_document" "writer" {`,
+		`  statement {`,
+		`    sid     = "S3ListLakeLogs"`,
+		`    effect  = "Allow"`,
+		`    actions = ["s3:ListBucket", "s3:ListBucketVersions"]`,
+		`    resources = [aws_s3_bucket.logs[0].arn]`,
+		`    condition {`,
+		`      test     = "StringLike"`,
+		`      variable = "s3:prefix"`,
+		`      values   = ["${local.s3_access_log_prefix}*", "${local.cloudtrail_s3_prefix}*"]`,
+		`    }`,
+		`  }`,
+		`  statement {`,
+		`    sid     = "S3GetLakeLogs"`,
+		`    effect  = "Allow"`,
+		`    actions = ["s3:GetObject", "s3:GetObjectVersion"]`,
+		`    resources = [`,
+		`      "${aws_s3_bucket.logs[0].arn}/${local.s3_access_log_prefix}*",`,
+		`      "${aws_s3_bucket.logs[0].arn}/${local.cloudtrail_s3_prefix}*",`,
+		`    ]`,
+		`  }`,
+		`}`,
+	]))
+	count({m | some m in deny; contains(m, "logging-bucket")}) == 0 with input as as_input(cfg)
+}
+
+test_deny_writer_log_list_with_extra_prefix_star if {
+	cfg := parse_config("hcl2", concat("\n", [
+		`data "aws_iam_policy_document" "writer" {`,
+		`  statement {`,
+		`    sid     = "S3ListLakeLogs"`,
+		`    effect  = "Allow"`,
+		`    actions = ["s3:ListBucket"]`,
+		`    resources = [aws_s3_bucket.logs[0].arn]`,
+		`    condition {`,
+		`      test     = "StringLike"`,
+		`      variable = "s3:prefix"`,
+		`      values   = ["*", "${local.s3_access_log_prefix}*", "${local.cloudtrail_s3_prefix}*"]`,
+		`    }`,
+		`  }`,
+		`}`,
+	]))
+	count({m | some m in deny; contains(m, "logging-bucket")}) > 0 with input as as_input(cfg)
+}
+
+test_deny_writer_log_list_string_not_like if {
+	cfg := parse_config("hcl2", concat("\n", [
+		`data "aws_iam_policy_document" "writer" {`,
+		`  statement {`,
+		`    sid     = "S3ListLakeLogs"`,
+		`    effect  = "Allow"`,
+		`    actions = ["s3:ListBucket"]`,
+		`    resources = [aws_s3_bucket.logs[0].arn]`,
+		`    condition {`,
+		`      test     = "StringNotLike"`,
+		`      variable = "s3:prefix"`,
+		`      values   = ["${local.s3_access_log_prefix}*", "${local.cloudtrail_s3_prefix}*"]`,
+		`    }`,
+		`  }`,
+		`}`,
+	]))
+	count({m | some m in deny; contains(m, "logging-bucket")}) > 0 with input as as_input(cfg)
+}
+
+test_deny_writer_log_get_without_both_prefixes if {
+	cfg := parse_config("hcl2", concat("\n", [
+		`data "aws_iam_policy_document" "writer" {`,
+		`  statement {`,
+		`    sid     = "S3GetLakeLogs"`,
+		`    effect  = "Allow"`,
+		`    actions = ["s3:GetObject"]`,
+		`    resources = ["${aws_s3_bucket.logs[0].arn}/*"]`,
+		`  }`,
+		`}`,
+	]))
+	count({m | some m in deny; contains(m, "logging-bucket")}) > 0 with input as as_input(cfg)
+}
+
 # Paths are relative to policy/terraform (conftest verify load dir).
 _live_files := [
 	"../../deploy/aws/s3.tf",

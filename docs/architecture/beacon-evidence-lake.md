@@ -50,7 +50,7 @@ flowchart LR
 | 6 | Customer CMK `alias/beacon-evidence` encrypts S3 objects and the DynamoDB table. Automatic annual rotation is on. Writer may `Encrypt` / `GenerateDataKey`. Auditor may `Decrypt` only. | `deploy/aws/kms.tf` |
 | 7 | An auditor assumes `BeaconAuditor` with STS. The role is Get/List/Query on the same prefix and partition. | `deploy/aws/iam.tf` |
 | 8 | `beacon pull` downloads objects, verifies SHA-256 / input / audit hashes and the staged witness chain, then installs local files. Hash mismatch does not prove the original observation is true. See [LIMITS.md](../../LIMITS.md). | `beacon/storage/s3.py` `pull_workspace` |
-| 9 | S3 server access logs and CloudTrail object-level data events land in a dedicated logging bucket. They are raw observations. Seal them to findings before they become lake evidence. Do not mix them into evidence-bucket `observations/` or `evidence/` from Terraform. | `deploy/aws/logging.tf` |
+| 9 | S3 server access logs and CloudTrail object-level data events land in a dedicated logging bucket. `aws.lake.logs` reads those objects and seals an observation plus a finding. Raw AWS files stay in the logging bucket. | `deploy/aws/logging.tf`, `beacon/plugins/lake_logs.py` |
 
 ## Object layout
 
@@ -72,7 +72,7 @@ Collectors call regional AWS APIs after the local seal.
 
 | Service | Role |
 | --- | --- |
-| IAM `BeaconWriter` | Put/Get/List and `PutObjectRetention` on the workspace prefix. No `DeleteObject`. No `BypassGovernanceRetention`. |
+| IAM `BeaconWriter` | Put/Get/List and `PutObjectRetention` on the workspace prefix. Read-only List/Get on `s3-access-logs/` and `cloudtrail/` in the logging bucket. No `DeleteObject`. No `BypassGovernanceRetention`. |
 | IAM `BeaconAuditor` | Read-only Get/List/Query on the same prefix. |
 | KMS CMK | SSE-KMS for S3 and DynamoDB. Rotation enabled. |
 | S3 | Evidence lake. Versioning, Object Lock, Block Public Access, BucketOwnerEnforced, lifecycle to STANDARD_IA / GLACIER. |

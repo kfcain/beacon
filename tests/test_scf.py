@@ -48,9 +48,14 @@ def test_collect_target_iac_01_selects_overlapping_inspectors(initialized):
         CollectContext(target="IAC-01", live=False),
         checkpoint=True,
     )
-    assert set(result["plugins"]) == {"aws.inspector", "azure.inspector", "gcp.inspector"}
+    assert set(result["plugins"]) == {
+        "aws.inspector",
+        "aws.lake.logs",
+        "azure.inspector",
+        "gcp.inspector",
+    }
     assert result["control"]["control_id"] == "IAC-01"
-    assert len(result["runs"]) == 3
+    assert len(result["runs"]) == 4
     check_chain(load_settings())
     modes = {row.mode for row in load_records(load_settings())}
     assert "fixture" in modes

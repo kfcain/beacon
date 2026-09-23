@@ -33,7 +33,8 @@ class CollectResult:
     mode: str
     payload: dict[str, Any]
     error: str | None = None
-    scf_targets: tuple[str, ...] = ()
+    # None uses FetcherSpec.scf_targets. () seals no control id.
+    scf_targets: tuple[str, ...] | None = None
 
     @property
     def status(self) -> str:

@@ -1,0 +1,33 @@
+{
+  "s3_access_log": "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be beacon-evidence-fixture [21/Sep/2026:12:00:00 +0000] 192.0.2.10 arn:aws:sts::123456789012:assumed-role/BeaconWriter/beacon REQ123EXAMPLE REST.GET.OBJECT tenant/ws/observations/example.json \"GET /beacon-evidence-fixture/tenant/ws/observations/example.json?token=QUERYSECRET HTTP/1.1\" 200 - - 128 20 \"-\" \"beacon\" - SigV4 - -\n",
+  "cloudtrail": {
+    "Records": [
+      {
+        "eventVersion": "1.11",
+        "eventTime": "2026-09-21T12:00:00Z",
+        "eventSource": "s3.amazonaws.com",
+        "eventName": "GetObject",
+        "awsRegion": "us-east-1",
+        "eventCategory": "Data",
+        "managementEvent": false,
+        "readOnly": true,
+        "recipientAccountId": "123456789012",
+        "eventID": "11111111-2222-3333-4444-555555555555",
+        "resources": [
+          {
+            "type": "AWS::S3::Object",
+            "ARN": "arn:aws:s3:::beacon-evidence-fixture/tenant/ws/observations/example.json"
+          }
+        ],
+        "userIdentity": {
+          "type": "AssumedRole",
+          "accessKeyId": "ASIAEXAMPLE"
+        },
+        "requestParameters": {
+          "bucketName": "beacon-evidence-fixture",
+          "x-amz-server-side-encryption-customer-key": "SECRETKEY"
+        }
+      }
+    ]
+  }
+}

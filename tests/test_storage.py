@@ -762,3 +762,65 @@ def test_named_draft_pack_type(aws_lake, monkeypatch: pytest.MonkeyPatch):
     assert meta["pack_type"] == "security-decision-record"
     assert meta["draft"] == "true"
     assert meta["report_format"] == "json"
+
+
+LOGS_BUCKET = "beacon-evidence-logs-test"
+_ACCESS_LINE = (
+    "79a59df900b949e55d96a1e698fbacedfd6e09d98eacf8f8d5218e7cd47ef2be "
+    "beacon-evidence-test [21/Sep/2026:12:00:00 +0000] 192.0.2.10 requester REQ123 "
+    "REST.GET.OBJECT tenant/ws/observations/example.json "
+    '"GET /beacon-evidence-test/tenant/ws/observations/example.json HTTP/1.1" 200 - - 10 10 "-" "beacon" -\n'
+)
+
+
+def test_lake_logs_dual_write_keeps_raw_logs_in_logging_bucket(aws_lake, monkeypatch: pytest.MonkeyPatch):
+    s3 = aws_lake["s3"]
+    s3.create_bucket(Bucket=LOGS_BUCKET)
+    access_key = "s3-access-logs/2026-09-21"
+    trail_key = "cloudtrail/AWSLogs/123/CloudTrail/us-east-1/2026/09/21/file.json"
+    s3.put_object(Bucket=LOGS_BUCKET, Key=access_key, Body=_ACCESS_LINE.encode("utf-8"))
+    s3.put_object(
+        Bucket=LOGS_BUCKET,
+        Key=trail_key,
+        Body=json.dumps(
+            {
+                "Records": [
+                    {
+                        "eventTime": "2026-09-21T12:00:00Z",
+                        "eventSource": "s3.amazonaws.com",
+                        "eventName": "PutObject",
+                        "eventCategory": "Data",
+                        "managementEvent": False,
+                        "readOnly": False,
+                        "eventID": "22222222-3333-4444-5555-666666666666",
+                    }
+                ]
+            }
+        ).encode("utf-8"),
+    )
+    monkeypatch.setenv("BEACON_LOGS_BUCKET", LOGS_BUCKET)
+    result = collect_named(load_settings(), "aws.lake.logs", CollectContext(live=True))
+    assert result["ok"] is True
+    assert result["mode"] == "live"
+    kinds = {item["kind"] for item in result["remote"]["objects"]}
+    assert "observation" in kinds
+    assert "finding" in kinds
+    evidence_keys = [
+        item["Key"]
+        for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET)
+        for item in page.get("Contents") or []
+    ]
+    assert access_key not in evidence_keys
+    assert trail_key not in evidence_keys
+    assert not any(key.startswith("s3-access-logs/") or key.startswith("cloudtrail/") for key in evidence_keys)
+    obs = next(item for item in result["remote"]["objects"] if item["kind"] == "observation")
+    obs_key = obs["s3_uri"].split(f"s3://{BUCKET}/", 1)[1]
+    body = json.loads(s3.get_object(Bucket=BUCKET, Key=obs_key)["Body"].read())
+    assert body["class_separation"]["observation_beacon_class"] == "observation"
+    assert body["class_separation"]["finding_beacon_class"] == "finding"
+    assert {item["log_class"] for item in body["observations"]} == {
+        "s3_access_log",
+        "cloudtrail_data_event",
+    }
+    assert s3.get_object(Bucket=LOGS_BUCKET, Key=access_key)["Body"].read() == _ACCESS_LINE.encode("utf-8")
+    check_chain(load_settings())

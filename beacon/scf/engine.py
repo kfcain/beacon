@@ -29,7 +29,10 @@ def seal_result(
     plugin: Plugin,
     result: CollectResult,
 ) -> dict[str, Any]:
-    targets = list(result.scf_targets or plugin.spec.scf_targets)
+    if result.scf_targets is None:
+        targets = list(plugin.spec.scf_targets)
+    else:
+        targets = list(result.scf_targets)
     record = seal_payload(
         settings,
         plugin=plugin.spec.name,

@@ -33,6 +33,11 @@ def beacon_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "BEACON_REQUIRE_REMOTE",
         "BEACON_PACK_TYPE",
         "BEACON_TRUST_CENTER_EXPORT",
+        "BEACON_LOGS_BUCKET",
+        "BEACON_LOGS_ACCESS_PREFIX",
+        "BEACON_LOGS_CLOUDTRAIL_PREFIX",
+        "BEACON_LOGS_MAX_OBJECTS",
+        "BEACON_LOGS_MAX_BYTES",
     ):
         monkeypatch.delenv(key, raising=False)
     os.environ["BEACON_HOME"] = str(home)

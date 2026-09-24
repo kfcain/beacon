@@ -20,8 +20,8 @@ def test_aws_azure_gcp_share_plugin_class():
     assert names == ["aws.inspector", "azure.inspector", "gcp.inspector"]
     assert all(type(plugin) is CloudInspectorPlugin for plugin in plugins)
     for plugin in plugins:
-        assert "IAC-01" in plugin.spec.scf_targets
-        assert "CRY-05" in plugin.spec.scf_targets
+        assert "IAC-02" in plugin.spec.scf_targets
+        assert "CRY-07" in plugin.spec.scf_targets
 
 
 def test_fixture_when_no_credentials(initialized):
@@ -58,9 +58,9 @@ def test_drop_in_plugin_from_beacon_plugin_path(initialized, monkeypatch: pytest
     assert "echo" in plugins
     plugin = plugins["echo"]
     assert isinstance(plugin.spec, FetcherSpec)
-    result = plugin.collect(CollectContext(target="GOV-01"))
+    result = plugin.collect(CollectContext(target="GOV-02"))
     assert result.ok is True
-    assert result.payload["message"] == "GOV-01"
+    assert result.payload["message"] == "GOV-02"
     assert hasattr(plugin, "collect")
     assert plugin.spec.name == "echo"
 

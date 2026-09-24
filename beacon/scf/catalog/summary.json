@@ -1,19 +1,19 @@
 {
-  "scf_version": "2026.2",
-  "total_controls": 1534,
+  "scf_version": "2026.3",
+  "total_controls": 1591,
   "total_families": 34,
-  "total_crosswalk_frameworks": 249,
-  "total_assessment_objectives": 5956,
-  "total_evidence_requests": 316,
-  "total_compensating_controls": 1534,
-  "total_threats": 42,
-  "total_risks": 39,
-  "total_privacy_principles": 258,
+  "total_crosswalk_frameworks": 270,
+  "total_assessment_objectives": 6446,
+  "total_evidence_requests": 422,
+  "total_compensating_controls": 1397,
+  "total_threats": 45,
+  "total_risks": 65,
+  "total_privacy_principles": 263,
   "families": [
     {
       "family_code": "AAT",
       "family_name": "Artificial Intelligence & Autonomous Technologies",
-      "control_count": 161
+      "control_count": 160
     },
     {
       "family_code": "AST",
@@ -23,17 +23,17 @@
     {
       "family_code": "BCD",
       "family_name": "Business Continuity & Disaster Recovery",
-      "control_count": 59
+      "control_count": 61
     },
     {
       "family_code": "CAP",
       "family_name": "Capacity & Performance Planning",
-      "control_count": 6
+      "control_count": 8
     },
     {
       "family_code": "CFG",
       "family_name": "Configuration Management",
-      "control_count": 32
+      "control_count": 58
     },
     {
       "family_code": "CHG",
@@ -43,82 +43,82 @@
     {
       "family_code": "CLD",
       "family_name": "Cloud Security",
-      "control_count": 24
+      "control_count": 19
     },
     {
       "family_code": "CPL",
       "family_name": "Compliance",
-      "control_count": 41
+      "control_count": 48
     },
     {
       "family_code": "CRY",
       "family_name": "Cryptographic Protections",
-      "control_count": 29
+      "control_count": 27
     },
     {
       "family_code": "DCH",
       "family_name": "Data Classification & Handling",
-      "control_count": 85
+      "control_count": 94
     },
     {
       "family_code": "EMB",
       "family_name": "Embedded Technology",
-      "control_count": 19
+      "control_count": 27
     },
     {
       "family_code": "END",
       "family_name": "Endpoint Security",
-      "control_count": 47
+      "control_count": 31
     },
     {
       "family_code": "GOV",
       "family_name": "Security, Compliance & Resilience Governance",
-      "control_count": 42
+      "control_count": 37
     },
     {
       "family_code": "HRS",
       "family_name": "Human Resources Security",
-      "control_count": 46
+      "control_count": 45
     },
     {
       "family_code": "IAC",
       "family_name": "Identification & Authentication",
-      "control_count": 116
+      "control_count": 123
     },
     {
       "family_code": "IAO",
       "family_name": "Information Assurance",
-      "control_count": 15
+      "control_count": 17
     },
     {
       "family_code": "IRO",
       "family_name": "Incident Response",
-      "control_count": 44
+      "control_count": 48
     },
     {
       "family_code": "MDM",
       "family_name": "Mobile Device Management",
-      "control_count": 11
+      "control_count": 10
     },
     {
       "family_code": "MNT",
       "family_name": "Maintenance",
-      "control_count": 28
+      "control_count": 29
     },
     {
       "family_code": "MON",
       "family_name": "Continuous Monitoring",
-      "control_count": 71
+      "control_count": 76
     },
     {
       "family_code": "NET",
       "family_name": "Network Security",
-      "control_count": 100
+      "control_count": 103
     },
     {
       "family_code": "OPS",
       "family_name": "Security Operations",
-      "control_count": 8
+      "control_count": 11
     },
     {
       "family_code": "PES",
@@ -128,32 +128,32 @@
     {
       "family_code": "PRI",
       "family_name": "Data Privacy",
-      "control_count": 103
+      "control_count": 102
     },
     {
       "family_code": "PRM",
       "family_name": "Project & Resource Management",
-      "control_count": 11
+      "control_count": 15
     },
     {
       "family_code": "QTS",
       "family_name": "Quantum Security",
-      "control_count": 34
+      "control_count": 31
     },
     {
       "family_code": "RSK",
       "family_name": "Risk Management",
-      "control_count": 33
+      "control_count": 35
     },
     {
       "family_code": "SAT",
       "family_name": "Security Awareness & Training",
-      "control_count": 18
+      "control_count": 22
     },
     {
       "family_code": "SEA",
       "family_name": "Secure Engineering & Architecture",
-      "control_count": 47
+      "control_count": 40
     },
     {
       "family_code": "TDA",
@@ -163,22 +163,22 @@
     {
       "family_code": "THR",
       "family_name": "Threat Management",
-      "control_count": 15
+      "control_count": 17
     },
     {
       "family_code": "TPM",
       "family_name": "Third-Party Management",
-      "control_count": 31
+      "control_count": 43
     },
     {
       "family_code": "VPM",
       "family_name": "Vulnerability & Patch Management",
-      "control_count": 34
+      "control_count": 32
     },
     {
       "family_code": "WEB",
       "family_name": "Web Security",
-      "control_count": 15
+      "control_count": 13
     }
   ],
   "crosswalk_frameworks": [
@@ -201,7 +201,7 @@
       "framework_id": "americas-can-osfi-b13-2022"
     },
     {
-      "framework_id": "americas-can-osfi-self-assessment-2"
+      "framework_id": "americas-can-osfi-self-assessment"
     },
     {
       "framework_id": "americas-can-pipeda-2000"
@@ -216,13 +216,16 @@
       "framework_id": "americas-mex-fdpa-2010"
     },
     {
+      "framework_id": "apac-aus-cloud-controls-matrix-2026"
+    },
+    {
       "framework_id": "apac-aus-cop-sitc-2020"
     },
     {
       "framework_id": "apac-aus-essential-8-2024"
     },
     {
-      "framework_id": "apac-aus-ism-2026-march"
+      "framework_id": "apac-aus-ism-2026-june"
     },
     {
       "framework_id": "apac-aus-privacy-principles-2026"
@@ -232,6 +235,9 @@
     },
     {
       "framework_id": "apac-aus-ps-cps-234-2019"
+    },
+    {
+      "framework_id": "apac-aus-soci-2018"
     },
     {
       "framework_id": "apac-chn-csnip-2012"
@@ -255,6 +261,18 @@
       "framework_id": "apac-ind-privacy-rules-2011"
     },
     {
+      "framework_id": "apac-ind-rbi-data-localization-2018"
+    },
+    {
+      "framework_id": "apac-ind-rbi-dpsc-2021"
+    },
+    {
+      "framework_id": "apac-ind-rbi-pa-2025"
+    },
+    {
+      "framework_id": "apac-ind-rbi-ppi-2021"
+    },
+    {
       "framework_id": "apac-ind-sebi-2024"
     },
     {
@@ -276,6 +294,9 @@
       "framework_id": "apac-nzl-hisf-microsmall-2023"
     },
     {
+      "framework_id": "apac-nzl-hisf-mlhsp-2023"
+    },
+    {
       "framework_id": "apac-nzl-hisf-suppliers-2023"
     },
     {
@@ -286,6 +307,9 @@
     },
     {
       "framework_id": "apac-phl-dpa-2012"
+    },
+    {
+      "framework_id": "apac-sgp-ccp-cii-2026"
     },
     {
       "framework_id": "apac-sgp-cyber-hygiene-practice-2019"
@@ -309,10 +333,13 @@
       "framework_id": "emea-che-fadp-2025"
     },
     {
+      "framework_id": "emea-che-finma-circ-23-1"
+    },
+    {
       "framework_id": "emea-deu-bsrit-2017"
     },
     {
-      "framework_id": "emea-deu-c5-2020"
+      "framework_id": "emea-deu-c5-2026"
     },
     {
       "framework_id": "emea-deu-fdpa-2017"
@@ -334,6 +361,9 @@
     },
     {
       "framework_id": "emea-eu-dora-2023"
+    },
+    {
+      "framework_id": "emea-eu-dora-rts-2024"
     },
     {
       "framework_id": "emea-eu-eba-ict-srm-2025"
@@ -397,6 +427,12 @@
     },
     {
       "framework_id": "emea-ken-pda-2019"
+    },
+    {
+      "framework_id": "emea-lux-cssf-20-750"
+    },
+    {
+      "framework_id": "emea-lux-cssf-22-806"
     },
     {
       "framework_id": "emea-nga-dpr-2019"
@@ -699,10 +735,13 @@
       "framework_id": "general-pci-dss-4-0-1-saq-p2pe"
     },
     {
+      "framework_id": "general-scf-dpmp-2026"
+    },
+    {
       "framework_id": "general-shared-assessments-sig-2025"
     },
     {
-      "framework_id": "general-sparta"
+      "framework_id": "general-sparta-4-0"
     },
     {
       "framework_id": "general-swift-cscf-2025"
@@ -739,6 +778,12 @@
     },
     {
       "framework_id": "usa-federal-doe-c2m2-2-1"
+    },
+    {
+      "framework_id": "usa-federal-dow-brilliant-basics-it"
+    },
+    {
+      "framework_id": "usa-federal-dow-brilliant-basics-ot"
     },
     {
       "framework_id": "usa-federal-dow-cert-rmm-1-2"
@@ -786,6 +831,9 @@
       "framework_id": "usa-federal-fda-21-cfr-part-11-2025"
     },
     {
+      "framework_id": "usa-federal-ffiec-iteh-2016"
+    },
+    {
       "framework_id": "usa-federal-gsa-fedramp-5-high"
     },
     {
@@ -816,7 +864,7 @@
       "framework_id": "usa-federal-law-ferpa-2010"
     },
     {
-      "framework_id": "usa-federal-law-ftc-act"
+      "framework_id": "usa-federal-law-ftc-act-1938"
     },
     {
       "framework_id": "usa-federal-law-glba-cfr-314-2023"
@@ -837,6 +885,12 @@
       "framework_id": "usa-federal-nispom-2020"
     },
     {
+      "framework_id": "usa-federal-nrc-10-cfr-73-54-2015"
+    },
+    {
+      "framework_id": "usa-federal-nsf-rig-2025-information-assurance"
+    },
+    {
       "framework_id": "usa-federal-omb-fipps-1973"
     },
     {
@@ -846,7 +900,10 @@
       "framework_id": "usa-federal-sro-fca-crm-2023"
     },
     {
-      "framework_id": "usa-federal-sro-finra"
+      "framework_id": "usa-federal-sro-finra-2007"
+    },
+    {
+      "framework_id": "usa-federal-tsa-sd-pipeline-2021-02f"
     },
     {
       "framework_id": "usa-federal-tsa-security-directive-1580-82-2022-01"
@@ -877,6 +934,9 @@
     },
     {
       "framework_id": "usa-state-ma-201-cmr-17-2008"
+    },
+    {
+      "framework_id": "usa-state-mt-cdpa-2025"
     },
     {
       "framework_id": "usa-state-nv-privacy-law-2023"
@@ -918,6 +978,9 @@
       "framework_id": "usa-state-tx-sb820-2019"
     },
     {
+      "framework_id": "usa-state-tx-traiga-2025"
+    },
+    {
       "framework_id": "usa-state-tx-txramp-2-0-level-1"
     },
     {
@@ -930,6 +993,6 @@
       "framework_id": "usa-state-vt-act-171-2018"
     }
   ],
-  "source": "slim pin from official SCF 2026.2 catalog truth (summary, families, crosswalk framework ids). Does not vendor controls.json.",
+  "source": "slim pin from official SCF 2026.3 catalog truth (summary, families, crosswalk framework ids). Does not vendor controls.json.",
   "live_hosts_not_authoritative": true
 }

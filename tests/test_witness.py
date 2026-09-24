@@ -34,7 +34,7 @@ def test_check_fails_closed_without_checkpoint(initialized):
         settings,
         plugin="aws.inspector",
         mode="fixture",
-        scf_targets=["IAC-01"],
+        scf_targets=["IAC-02"],
         payload={"n": 1},
     )
     with pytest.raises(BeaconError) as caught:
@@ -49,14 +49,14 @@ def test_checkpoint_covers_chain_and_tsa_matches_merkle(initialized):
         settings,
         plugin="aws.inspector",
         mode="fixture",
-        scf_targets=["CRY-05"],
+        scf_targets=["CRY-07"],
         payload={"n": 1},
     )
     seal_payload(
         settings,
         plugin="azure.inspector",
         mode="fixture",
-        scf_targets=["CRY-05"],
+        scf_targets=["CRY-07"],
         payload={"n": 2},
     )
     checkpoint = create_checkpoint(settings)
@@ -77,7 +77,7 @@ def test_partial_checkpoint_still_fail_closed(initialized):
         settings,
         plugin="aws.inspector",
         mode="fixture",
-        scf_targets=["IAC-01"],
+        scf_targets=["IAC-02"],
         payload={"a": 1},
     )
     create_checkpoint(settings)
@@ -85,7 +85,7 @@ def test_partial_checkpoint_still_fail_closed(initialized):
         settings,
         plugin="gcp.inspector",
         mode="fixture",
-        scf_targets=["IAC-01"],
+        scf_targets=["IAC-02"],
         payload={"a": 2},
     )
     with pytest.raises(BeaconError) as caught:
@@ -99,14 +99,14 @@ def test_hash_chain_links(initialized):
         settings,
         plugin="aws.inspector",
         mode="fixture",
-        scf_targets=["IAC-01"],
+        scf_targets=["IAC-02"],
         payload={"k": "a"},
     )
     second = seal_payload(
         settings,
         plugin="aws.inspector",
         mode="fixture",
-        scf_targets=["IAC-01"],
+        scf_targets=["IAC-02"],
         payload={"k": "b"},
     )
     assert second.prev_sha256 == sha256_obj(first.to_dict())
@@ -124,7 +124,7 @@ def test_tampered_evidence_fails_check(initialized):
         settings,
         plugin="aws.inspector",
         mode="fixture",
-        scf_targets=["IAC-01"],
+        scf_targets=["IAC-02"],
         payload={"k": "clean"},
     )
     create_checkpoint(settings)
@@ -142,7 +142,7 @@ def test_checkpoint_gap_is_e_no_checkpoint(initialized):
             settings,
             plugin="aws.inspector",
             mode="fixture",
-            scf_targets=["IAC-01"],
+            scf_targets=["IAC-02"],
             payload={"i": i},
         )
     create_checkpoint(settings, from_seq=3, to_seq=3)

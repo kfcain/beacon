@@ -59,7 +59,7 @@ AWS_PROFILE = CloudProfile(
         ("aws", "ec2", "get-ebs-encryption-by-default"),
         ("aws", "cloudtrail", "describe-trails"),
     ),
-    scf_targets=("IAC-01", "CRY-05"),
+    scf_targets=("IAC-02", "CRY-07"),
     description="AWS inspector: IAM, S3 encryption, EBS default encryption, CloudTrail.",
 )
 
@@ -74,7 +74,7 @@ AZURE_PROFILE = CloudProfile(
         ("az", "keyvault", "list", "-o", "json"),
         ("az", "monitor", "diagnostic-settings", "subscription", "list", "-o", "json"),
     ),
-    scf_targets=("IAC-01", "CRY-05"),
+    scf_targets=("IAC-02", "CRY-07"),
     description="Azure inspector: Entra identity, storage encryption, Key Vault.",
 )
 
@@ -89,7 +89,7 @@ GCP_PROFILE = CloudProfile(
         ("gcloud", "kms", "keys", "list", "--format=json"),
         ("gcloud", "logging", "sinks", "list", "--format=json"),
     ),
-    scf_targets=("IAC-01", "CRY-05"),
+    scf_targets=("IAC-02", "CRY-07"),
     description="GCP inspector: IAM, Cloud Storage encryption, KMS, audit sinks.",
 )
 

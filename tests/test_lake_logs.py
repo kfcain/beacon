@@ -86,7 +86,7 @@ def _put_pair(s3, *, trail_body: bytes, trail_key: str, access_body: bytes | Non
 def test_plugin_is_builtin(initialized: Path) -> None:
     plugins = load_plugins(load_settings())
     assert PLUGIN_NAME in plugins
-    assert plugins[PLUGIN_NAME].spec.scf_targets == ("IAC-01",)
+    assert plugins[PLUGIN_NAME].spec.scf_targets == ("IAC-02",)
 
 
 def test_fixture_seals_extract_without_secrets(initialized: Path) -> None:
@@ -107,7 +107,7 @@ def test_fixture_seals_extract_without_secrets(initialized: Path) -> None:
         "s3_access_log_ingest": "collected",
         "cloudtrail_data_event_ingest": "collected",
     }
-    assert all(item["scf"] == "IAC-01" for item in result.payload["findings"])
+    assert all(item["scf"] == "IAC-02" for item in result.payload["findings"])
     access = next(item for item in result.payload["observations"] if item["log_class"] == "s3_access_log")
     assert access["records"][0]["operation"] == "REST.GET.OBJECT"
     assert access["records"][0]["http_status"] == 200
@@ -161,7 +161,7 @@ def test_auto_without_bucket_uses_fixture(initialized: Path) -> None:
 
 
 def test_foreign_target_is_refused(initialized: Path) -> None:
-    result = LakeLogPlugin().collect(CollectContext(target="CRY-05", live=False))
+    result = LakeLogPlugin().collect(CollectContext(target="CRY-07", live=False))
     assert result.ok is False
     assert result.mode == "failed"
     assert result.scf_targets == ()
@@ -170,7 +170,7 @@ def test_foreign_target_is_refused(initialized: Path) -> None:
 
 
 def test_child_control_id_is_refused(initialized: Path) -> None:
-    result = LakeLogPlugin().collect(CollectContext(target="IAC-01.1", live=False))
+    result = LakeLogPlugin().collect(CollectContext(target="IAC-03.2", live=False))
     assert result.ok is False
     assert result.mode == "failed"
     assert result.scf_targets == ()
@@ -180,7 +180,7 @@ def test_foreign_target_is_not_sealed_as_iac_01(initialized: Path) -> None:
     sealed = collect_named(
         load_settings(),
         PLUGIN_NAME,
-        CollectContext(target="CRY-05", live=False),
+        CollectContext(target="CRY-07", live=False),
     )
     assert sealed["ok"] is False
     assert sealed["scf_targets"] == []
@@ -432,7 +432,7 @@ def test_seal_without_checkpoint_fails_closed(initialized: Path) -> None:
         load_settings(),
         plugin=PLUGIN_NAME,
         mode=result.mode,
-        scf_targets=["IAC-01"],
+        scf_targets=["IAC-02"],
         payload=result.payload,
     )
     with pytest.raises(BeaconError) as caught:

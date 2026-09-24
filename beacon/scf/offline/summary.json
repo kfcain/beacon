@@ -4,8 +4,8 @@
   "total_families": 33,
   "source": "https://hackidle.github.io/scf-api/api/summary.json",
   "offline_controls": [
-    "IAC-01",
-    "CRY-05"
+    "IAC-02",
+    "CRY-07"
   ],
   "families": [
     {

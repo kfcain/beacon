@@ -32,7 +32,7 @@ def test_cli_check_prints_e_no_checkpoint(initialized):
         load_settings(),
         plugin="aws.inspector",
         mode="fixture",
-        scf_targets=["IAC-01"],
+        scf_targets=["IAC-02"],
         payload={"x": 1},
     )
     runner = CliRunner()
@@ -43,7 +43,7 @@ def test_cli_check_prints_e_no_checkpoint(initialized):
 
 def test_cli_collect_target(initialized):
     runner = CliRunner()
-    result = runner.invoke(main, ["collect", "--target", "IAC-01", "--fixture"])
+    result = runner.invoke(main, ["collect", "--target", "IAC-02", "--fixture"])
     assert result.exit_code == 0
     assert "aws.inspector" in result.output
     status = runner.invoke(main, ["status"])

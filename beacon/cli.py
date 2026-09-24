@@ -60,7 +60,7 @@ def cmd_seed() -> None:
 
 
 @main.command("collect")
-@click.option("--target", "target", default=None, help="SCF control id, for example IAC-01 or CRY-05.")
+@click.option("--target", "target", default=None, help="SCF control id, for example IAC-02 or CRY-07.")
 @click.option("--plugin", "plugin_name", default=None, help="Plugin name, for example aws.inspector.")
 @click.option(
     "--live/--fixture",

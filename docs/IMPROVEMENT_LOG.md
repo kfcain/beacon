@@ -211,3 +211,26 @@ The witness chain still fails closed (`E_NO_CHECKPOINT`).
 - No production AWS apply in this cycle.
 - PR #9 waits on human review. This cycle does not merge it.
 - Repo stays private. No secrets.
+
+## 2026-09-24 — Cycle 9
+
+### Why
+
+Official SCF 2026.3 (published 2026-09-21) replaces the slim offline pin.
+Workbook SHA-256 is `5a89bf2d3c106a9a87d4b6e3d62dd3e147d0e960d4c07473045a10aa8a7df697`.
+Parser counts: 1591 controls, 34 families, 270 mapped crosswalks, 6446 assessment objectives, 422 evidence requests, 1397 compensating controls. QTS stays at 31 controls.
+The same control id often names a different control. Seeds follow workbook Legacy SCF #: IAC-01 (IAM) to IAC-02, CRY-05 (data at rest) to CRY-07, GOV-01 (SCRP) to GOV-02.
+2026.3 IAC-01, CRY-05, and GOV-01 are different controls. Seals use the remapped ids.
+The collector still fails closed on version, SHA-256, and count mismatch. It does not vendor `controls.json` or the workbook.
+
+### Next 3 items
+
+1. Human review of the 2026.3 pin. Do not treat live HackIDLE as the pin.
+2. Do not invent control ids. Keep using Legacy SCF # when a seed id moves.
+3. Optional lake follow-ups stay out of this pin bump.
+
+### Blockers
+
+- Assessment-scope design is out of scope.
+- Live HackIDLE remains 2026.1.x.
+- Repo stays private. No secrets.

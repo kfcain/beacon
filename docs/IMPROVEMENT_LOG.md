@@ -352,3 +352,34 @@ It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouche
 
 - No production AWS apply in this cycle.
 - Repo stays private. No secrets.
+
+## 2026-09-24 — Cycle 14
+
+### Why
+
+PR #16 merged to main (merge commit `d614bed48ec4b8dcffa026f9338241c3f81c87c0`).
+Phase 2 scope bind is on main. Phase 8 is the next assurance-stack slice in this cycle.
+`beacon ledger show` indexes local sealed observations, or one pack file, by SCF id, `scope_id` and `scope_sha256` when the payload has the pair, custody tags, and the seal digest.
+`beacon ledger summary` counts distinct automated evidence methods on those seals.
+Class C minimum is 2. That figure is CR26 guide rule FRC-CSX-VVK.
+Class D minimum is 4. The attached guide is Class C only. This cycle does not invent a Class D rule id.
+The same method id counts once. A manual method is listed and does not count.
+An unknown tag namespace or an unregistered value fails closed.
+A shortfall is a package gap. The report does not say a control is met.
+`Record.v` stays 1. The witness record fields are unchanged.
+Example control ids stay IAC-02, CRY-07, and GOV-02.
+KSI labels in tests stay `fixture-ksi-*`. This cycle does not list the 46 KSI ids.
+This cycle does not compile CPO, SDR, OCR, or SCG. It does not add a workshop UI, a Jev client, or a lake `SCOPE#` index.
+It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouched.
+
+### Next 3 items
+
+1. Human review of the evidence ledger and the Class C/D method counts.
+2. After that merge, phase 9 can compile pack drafts from ledger pointers. Do not fetch a FedRAMP schema in that phase.
+3. Do not revive draft PR #5 or draft PR #2. Do not invent SCF control ids or a 20x crosswalk id.
+
+### Blockers
+
+- No production AWS apply in this cycle.
+- The 46 KSI ids are not in this repository. The ledger does not invent them.
+- Repo stays private. No secrets.

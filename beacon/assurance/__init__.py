@@ -3,6 +3,12 @@
 See docs/architecture/beacon-assurance-stack.md.
 """
 
+from beacon.assurance.index import (
+    EvidenceIndexEntry,
+    EvidenceLedger,
+    ledger_method_report,
+    load_evidence_ledger,
+)
 from beacon.assurance.ledger import (
     CLASS_AUTOMATED_METHOD_MIN,
     KsiMethodCount,
@@ -15,6 +21,8 @@ from beacon.assurance.tags import NAMESPACES, Tag, parse_tag
 
 __all__ = [
     "CLASS_AUTOMATED_METHOD_MIN",
+    "EvidenceIndexEntry",
+    "EvidenceLedger",
     "KsiMethodCount",
     "LedgerGapReport",
     "MethodRecord",
@@ -25,5 +33,7 @@ __all__ = [
     "Tag",
     "compile_pack_draft",
     "ksi_method_report",
+    "ledger_method_report",
+    "load_evidence_ledger",
     "parse_tag",
 ]

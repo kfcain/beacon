@@ -124,6 +124,10 @@ beacon mcp
 
 Tools: `beacon_status`, `beacon_init`, `beacon_seed`, `beacon_check`, `beacon_collect`, `beacon_plugins`, `beacon_freshness`, `beacon_scf_lookup`, `beacon_push`, `beacon_validation`.
 
+## Assessment scope
+
+Beacon can describe one instance with an assessment scope document. The document names the boundary, the frameworks in play, the data classes, the exclusions, and the allowed evidence kinds. A later collect, seal, and push will carry `scope_id` and the hash of that document. Jev (TypeSafe System One) can then judge candidates that Beacon code builds. Choice picks a candidate or returns no-match. Score reports coverage. Noul reports sufficiency. Beacon code keeps the thresholds and fails closed. Beacon shows a control as compliant, evidenced, or proven only when a judgment receipt is linked and the threshold check passes. This change adds the design and a schema stub. It does not collect with `--scope`, and it does not change the SCF catalog pin. See [docs/architecture/assessment-scope-and-jev.md](docs/architecture/assessment-scope-and-jev.md).
+
 ## Limits and sources
 
 - [LIMITS.md](LIMITS.md) — what Beacon does not claim

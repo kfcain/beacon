@@ -2,21 +2,43 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from beacon.config import DEFAULT_SCF_API_BASE, load_settings
 from beacon.crypto.witness import check_chain, load_records
 from beacon.plugins.spec import CollectContext
 from beacon.errors import E_UNKNOWN_CONTROL, BeaconError
+from beacon.scf.catalog_pin import vendored_catalog_dir
 from beacon.scf.client import expected_version, fetch_control, summary
 from beacon.scf.engine import collect_target
-from beacon.workspace import seed_workspace
+from beacon.workspace import seed_workspace, system_status
 
 
-def test_offline_summary_is_scf_2026(beacon_home):
+def test_offline_summary_is_seed_index_for_2026_3(beacon_home):
     data = summary(load_settings())
-    assert data["scf_version"] == "2026.1.1"
+    assert data["role"] == "offline-seed-index"
+    assert data["catalog_pin_version"] == "2026.3"
+    assert "scf_version" not in data
+    assert data["offline_controls"] == ["IAC-02", "CRY-07"]
+    assert data["seed_control_count"] == 2
+    assert "total_controls" not in data
+    assert "total_families" not in data
+    assert "https://hackidle.github.io" not in data["source"]
+    assert "2026.3" in data["source"]
+    pin = json.loads((vendored_catalog_dir() / "families.json").read_text(encoding="utf-8"))
+    pin_counts = {
+        row["family_code"]: row["control_count"]
+        for row in pin["families"]
+        if row["family_code"] in {"CRY", "IAC"}
+    }
+    seed_counts = {row["family_code"]: row["control_count"] for row in data["families"]}
+    assert seed_counts == pin_counts == {"CRY": 27, "IAC": 123}
     assert expected_version() == "2026.1.1"
+    status = system_status(load_settings())
+    assert status["scf_offline"] is True
+    assert status["scf_version"] == "2026.1.1"
 
 
 def test_offline_controls_iac_01_and_cry_05(beacon_home):

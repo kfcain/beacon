@@ -9,7 +9,7 @@ The control hub is the offline Secure Controls Framework (SCF) **2026.3** pin. A
 ```mermaid
 flowchart LR
   scope["scope init"] --> collect["collect --scope"] --> check["check"] --> ledger["ledger"] --> push["push"] --> lake["optional S3"]
-  ledger --> compile["pack compile drafts"]
+  ledger --> compile["pack compile shipped"]
   compile -.-> later["trust center host: design"]
 ```
 
@@ -18,7 +18,7 @@ flowchart LR
 3. `beacon check` fails closed on a missing checkpoint or a scope hash mismatch.
 4. `beacon ledger summary` counts methods. Class C (at least 2) and Class D (at least 4) shortfalls are package gaps. They are not an authorization.
 5. `beacon push` writes a local pack. With `BEACON_S3_BUCKET`, the lake stores sealed copies. Private keys stay in `.beacon/keys`.
-6. `beacon pack compile` writes CPO, SDR, OCR, and SCG drafts. The official schema is not fetched. A hosted trust center is design. `BEACON_TRUST_CENTER_EXPORT=1` copies packs and reports only.
+6. `beacon pack compile` is shipped. It writes offline CPO, SDR, OCR, and SCG JSON drafts (`beacon-20x-draft/v1`) and Markdown from sealed observations and the Class C/D method counts. Shortfalls are `package_gaps`. Official CR26 schemas are `not-fetched`. The field map is in [beacon/assurance/README.md](beacon/assurance/README.md). This is not a FedRAMP submission. A hosted trust center is design. `BEACON_TRUST_CENTER_EXPORT=1` copies packs and reports only.
 
 Package name: `beacon`. CLI name: `beacon`. Environment prefix: `BEACON_`. Data directory: `.beacon/`. MCP tools: `beacon_*`.
 

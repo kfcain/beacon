@@ -22,7 +22,7 @@ flowchart TD
   ledger["4 ledger show / summary<br/>shipped"]
   push["5 push<br/>shipped"]
   lake["6 optional S3 lake<br/>shipped when configured"]
-  compile["7 pack compile<br/>shipped drafts"]
+  compile["7 pack compile<br/>shipped"]
   later["Hosted trust center, git policy, Jev<br/>design"]
 
   scope --> collect --> check --> ledger --> push --> lake
@@ -42,7 +42,7 @@ flowchart TD
 
 6. **Optional S3 lake (shipped when configured).** When `BEACON_S3_BUCKET` is set, collect and push dual-write sealed artifacts after the local seal. Raw observations stay under `observations/`. Findings stay under `evidence/`. Packs go to `exports/packs/{pack_type}/{version}/`. DynamoDB `beacon-artifact-index` stores pointers and hashes. The lake stores sealed bytes. It does not prove that the observation content is true. Supported deploy regions are `us-east-1` and `us-gov-west-1`.
 
-7. **Pack compilers (shipped drafts).** `beacon pack compile` writes JSON drafts for CPO, SDR, OCR, and SCG from those seals. Markdown is rendered from that JSON. `official_schema` is `not-fetched`. A method shortfall is a `package_gaps` row. The draft does not set a schema status word. These files are not a submitted FedRAMP package. See [beacon/assurance/README.md](../beacon/assurance/README.md).
+7. **Pack compile (shipped).** `beacon pack compile` writes offline CPO, SDR, OCR, and SCG JSON drafts (`beacon-20x-draft/v1`) and Markdown from sealed observations and the Class C/D method counts. Shortfalls are `package_gaps`. Official CR26 schemas are `not-fetched`. The draft does not set a schema status word. This is not a FedRAMP submission. The field map is in [beacon/assurance/README.md](../beacon/assurance/README.md).
 
 8. **Trust center and later work.** `BEACON_TRUST_CENTER_EXPORT=1` is shipped. It copies pack and report objects only to `public/trust-center/`. Raw observations are refused. A hosted trust center, significant-change mail, and the FedRAMP security inbox are design. A workshop UI, a live Jev client, and a git policy seal (`evidence:policy`) are design. CMMC views and Rev5 SSP, POA&M, and CVMP objects are not generated.
 

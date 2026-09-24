@@ -69,17 +69,18 @@ def cmd_seed() -> None:
     default=None,
     help="Force live collection or fixtures. Default: auto (fixture without credentials).",
 )
-def cmd_collect(target: str | None, plugin_name: str | None, live: bool | None) -> None:
+@click.option("--scope", "scope_id", default=None, help="Assessment scope id to bind into each payload.")
+def cmd_collect(target: str | None, plugin_name: str | None, live: bool | None, scope_id: str | None) -> None:
     """Collect evidence, seal it, and write a Merkle/TSA checkpoint."""
     settings = _settings()
     ctx = CollectContext(target=target, live=live)
     try:
         if plugin_name:
-            result = collect_named(settings, plugin_name, ctx, checkpoint=True)
+            result = collect_named(settings, plugin_name, ctx, checkpoint=True, scope_id=scope_id)
         elif target:
-            result = collect_target(settings, target, ctx, checkpoint=True)
+            result = collect_target(settings, target, ctx, checkpoint=True, scope_id=scope_id)
         else:
-            result = collect_all(settings, ctx, checkpoint=True)
+            result = collect_all(settings, ctx, checkpoint=True, scope_id=scope_id)
     except BeaconError as exc:
         _die(exc)
     _emit(result)
@@ -124,10 +125,11 @@ def cmd_scope_hash(scope_id: str) -> None:
 
 
 @main.command("check")
-def cmd_check() -> None:
+@click.option("--scope", "scope_id", default=None, help="Assessment scope id to verify against sealed payloads.")
+def cmd_check(scope_id: str | None) -> None:
     """Verify signatures, the hash chain, Merkle roots, and TSA tokens. Fail closed."""
     try:
-        result = check_chain(_settings())
+        result = check_chain(_settings(), scope_id=scope_id)
     except BeaconError as exc:
         _die(exc)
     _emit(result)

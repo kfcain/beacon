@@ -325,3 +325,30 @@ Draft PR #5 and draft PR #2 stay untouched.
 - No production AWS apply in this cycle.
 - The 46 KSI ids are not in this repository. The ledger does not invent them.
 - Repo stays private. No secrets.
+
+## 2026-09-24 — Cycle 13
+
+### Why
+
+PR #15 merged to main (merge commit `78e5799161daa99440bae1c15d48327f0222f144`).
+The assurance-stack ADR is on main. Phase 2 scope bind is the next slice in that order.
+`beacon collect --scope` loads `.beacon/scopes/{scope_id}.json`, checks ScopeDocument version 1, and copies `scope_id` and `scope_sha256` (`content_sha256()`) into each sealed observation payload.
+`beacon check` reloads that file when `--scope` is set or when a payload already carries the pair. A missing file or a hash mismatch fails closed.
+A record sealed with no pair keeps the current check rules.
+`beacon push` copies the same pair from the sealed payload into the pack manifest. It does not replace one sealed scope with another.
+`Record.v` stays 1. The witness record fields are unchanged.
+`BEACON_REQUIRE_SCOPE=1` makes a missing `--scope` on collect and check fail closed. The default stays off.
+Example and test control ids stay IAC-02, CRY-07, and GOV-02.
+This cycle does not add a workshop UI, a Jev client, a lake `SCOPE#` index, or a claim word.
+It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouched.
+
+### Next 3 items
+
+1. Human review of the phase-2 scope bind.
+2. After that merge, phase 3 can build candidates from plugins, the catalog slice, and the scope. Targets stay IAC-02 and CRY-07.
+3. Do not bind ledger method counts to seals in that phase. Do not revive draft PR #5 or draft PR #2.
+
+### Blockers
+
+- No production AWS apply in this cycle.
+- Repo stays private. No secrets.

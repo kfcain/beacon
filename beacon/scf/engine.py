@@ -9,6 +9,8 @@ from beacon.crypto.witness import create_checkpoint, seal_payload
 from beacon.plugins.loader import get_plugin, load_plugins, plugins_for_target
 from beacon.plugins.spec import CollectContext, CollectResult, Plugin
 from beacon.scf.client import fetch_control
+from beacon.scope.bind import bind_observation_payload, collect_scope
+from beacon.scope.document import ScopeDocument
 from beacon.storage import publish_collect_run
 
 
@@ -28,17 +30,22 @@ def seal_result(
     settings: Settings,
     plugin: Plugin,
     result: CollectResult,
+    *,
+    scope: ScopeDocument | None = None,
 ) -> dict[str, Any]:
     if result.scf_targets is None:
         targets = list(plugin.spec.scf_targets)
     else:
         targets = list(result.scf_targets)
+    payload = result.payload
+    if scope is not None:
+        payload = bind_observation_payload(payload, scope)
     record = seal_payload(
         settings,
         plugin=plugin.spec.name,
         mode=result.mode,
         scf_targets=targets,
-        payload=result.payload,
+        payload=payload,
     )
     return {
         "plugin": plugin.spec.name,
@@ -57,10 +64,12 @@ def collect_named(
     ctx: CollectContext,
     *,
     checkpoint: bool = True,
+    scope_id: str | None = None,
 ) -> dict[str, Any]:
+    scope = collect_scope(settings, scope_id)
     plugin = get_plugin(settings, name)
     result = collect_plugin(settings, plugin, ctx)
-    sealed = seal_result(settings, plugin, result)
+    sealed = seal_result(settings, plugin, result, scope=scope)
     cp = None
     if checkpoint:
         cp = create_checkpoint(settings)
@@ -77,14 +86,16 @@ def collect_target(
     ctx: CollectContext | None = None,
     *,
     checkpoint: bool = True,
+    scope_id: str | None = None,
 ) -> dict[str, Any]:
+    scope = collect_scope(settings, scope_id)
     control = fetch_control(settings, target)
     bound = CollectContext(target=target, live=(ctx.live if ctx else None), extra=dict(ctx.extra) if ctx else {})
     selected = plugins_for_target(settings, target)
     runs = []
     for plugin in selected:
         result = collect_plugin(settings, plugin, bound)
-        runs.append(seal_result(settings, plugin, result))
+        runs.append(seal_result(settings, plugin, result, scope=scope))
     out: dict[str, Any] = {
         "target": target.upper(),
         "ok": all(item["ok"] for item in runs) if runs else True,
@@ -116,12 +127,14 @@ def collect_all(
     ctx: CollectContext | None = None,
     *,
     checkpoint: bool = True,
+    scope_id: str | None = None,
 ) -> dict[str, Any]:
+    scope = collect_scope(settings, scope_id)
     ctx = ctx or CollectContext()
     runs = []
     for plugin in load_plugins(settings).values():
         result = collect_plugin(settings, plugin, ctx)
-        runs.append(seal_result(settings, plugin, result))
+        runs.append(seal_result(settings, plugin, result, scope=scope))
     out: dict[str, Any] = {"ok": all(item["ok"] for item in runs) if runs else True, "runs": runs}
     cp = None
     if checkpoint and runs:

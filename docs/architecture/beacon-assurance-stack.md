@@ -180,6 +180,8 @@ Phases 0–6 remain the assessment-scope plan. Do them as that document says. Th
 | 5 | 10 | Git policy ingest bridge. Mapper proposes commits. A human commits. Beacon seals the tip SHA as `evidence:policy`. | Design only. |
 | 6 | 11 | Trust-center publish of packs and reports, SCN draft from significant-change objects, security-inbox runbook. Just-in-time access, access logs, programmatic API docs, FedRAMP ID on artifacts. | Design only. The current trust-center refusal of raw observations stays as it is. No mail send. |
 
+Phase 2 scope bind is implemented. `collect` and `push` copy `scope_id` and `scope_sha256` when `--scope` is set. `check` recomputes the hash. Ledger counts are still not bound to seals.
+
 Phase 7 is the review surface for phases 8–11. Phases 3–6 of the assessment-scope ADR (candidate builder, Jev, lake index, claim-word display) stay in force. A KSI shortfall of 0 does not permit a claim word. `decide_claim` still does.
 
 ## Non-goals

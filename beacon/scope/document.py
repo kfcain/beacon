@@ -6,6 +6,7 @@ push, or call Jev. See docs/architecture/assessment-scope-and-jev.md.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from typing import Literal, NoReturn
@@ -75,7 +76,7 @@ def _nonblank_token(value: str, *, label: str) -> str:
 class Boundary(BaseModel):
     """Accounts, subscriptions, projects, regions, and systems in the instance."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     accounts: list[str] = Field(default_factory=list)
     subscriptions: list[str] = Field(default_factory=list)
@@ -114,7 +115,7 @@ class Boundary(BaseModel):
 class Exclusion(BaseModel):
     """One item the instance must not treat as in scope."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: ExclusionKind
     value: str = Field(min_length=1)
@@ -141,7 +142,7 @@ class Exclusion(BaseModel):
 class ScopeDocument(BaseModel):
     """Operator boundary for one Beacon instance. This is not a control catalog."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal[1] = SCHEMA_VERSION
     scope_id: str
@@ -194,7 +195,7 @@ class ScopeDocument(BaseModel):
 class ChoiceResult(BaseModel):
     """Jev Choice. pick names one Beacon candidate. no_match names none."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     disposition: ChoiceDisposition
     candidate_id: str | None = None
@@ -221,15 +222,22 @@ class ChoiceResult(BaseModel):
 class ScoreResult(BaseModel):
     """Jev Score. coverage is a number from 0 through 1. It is not a pass mark."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     coverage: float = Field(ge=0.0, le=1.0)
+
+    @field_validator("coverage")
+    @classmethod
+    def coverage_is_finite(cls, value: float) -> float:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("coverage must be a finite number from 0 through 1")
+        return float(value)
 
 
 class NoulResult(BaseModel):
     """Jev Noul. sufficiency under the scope. It is not a compliance word."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     disposition: NoulDisposition
 
@@ -240,7 +248,7 @@ class JudgmentReceipt(BaseModel):
     The receipt has no compliance-claim field. Beacon code decides claims.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal[1] = SCHEMA_VERSION
     receipt_id: str
@@ -291,7 +299,7 @@ def _check_score_min(score_min: float) -> float:
     if isinstance(score_min, bool) or not isinstance(score_min, (int, float)):
         raise ValueError("score_min must be a number from 0 through 1")
     value = float(score_min)
-    if value < 0.0 or value > 1.0:
+    if not math.isfinite(value) or value < 0.0 or value > 1.0:
         raise ValueError("score_min must be a number from 0 through 1")
     return value
 
@@ -348,6 +356,14 @@ def decide_claim(
             pass
         case _ as unknown_noul:
             _never(unknown_noul)
-    if receipt.score.coverage < minimum:
+    coverage = receipt.score.coverage
+    if (
+        isinstance(coverage, bool)
+        or not isinstance(coverage, (int, float))
+        or not math.isfinite(float(coverage))
+        or float(coverage) < 0.0
+        or float(coverage) > 1.0
+        or float(coverage) < minimum
+    ):
         return ClaimDecision(permitted=False, receipt_id=receipt_id, reason="score_below_min")
     return ClaimDecision(permitted=True, receipt_id=receipt_id, reason="thresholds_met")

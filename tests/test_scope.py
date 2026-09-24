@@ -178,3 +178,7 @@ def test_decide_claim_permits_only_a_linked_passing_receipt():
 def test_decide_claim_rejects_bad_threshold():
     with pytest.raises(ValueError):
         decide_claim(_receipt(_scope()), score_min=1.5)
+    with pytest.raises(ValueError):
+        decide_claim(_receipt(_scope()), score_min=float("nan"))
+    with pytest.raises(ValidationError):
+        ScoreResult(coverage=float("nan"))

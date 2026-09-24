@@ -16,4 +16,6 @@ beacon scope hash --id prod-commercial
 
 This package does not collect evidence, seal the witness chain, push to the lake, or call Jev. The design is [docs/architecture/assessment-scope-and-jev.md](../../docs/architecture/assessment-scope-and-jev.md).
 
+`draft_v2.py` is a schema version 2 workshop draft. It wraps a version 1 document. `beacon scope init` does not write it. See [docs/architecture/beacon-assurance-stack.md](../../docs/architecture/beacon-assurance-stack.md).
+
 `scope_id` here is the assessment document id. It is not `BEACON_TENANT_ID` or `BEACON_WORKSPACE_ID`.

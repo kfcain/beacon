@@ -234,3 +234,33 @@ The collector still fails closed on version, SHA-256, and count mismatch. It doe
 - Assessment-scope design is out of scope.
 - Live HackIDLE remains 2026.1.x.
 - Repo stays private. No secrets.
+
+## 2026-09-24 — Cycle 10
+
+PR: https://github.com/kfcain/beacon/pull/11
+
+### Why
+
+PR #10 merged to main. The slim SCF pin is 2026.3.
+Workbook SHA-256 is `5a89bf2d3c106a9a87d4b6e3d62dd3e147d0e960d4c07473045a10aa8a7df697` (1591 controls, 34 families, 270 crosswalks).
+This cycle hardens open PR #11 for that pin.
+It merges main into the assessment-scope branch.
+Example and test control ids follow the 2026.3 Legacy SCF # map: IAC-01 (IAM) to IAC-02, CRY-05 (Encrypting Data At Rest) to CRY-07, GOV-01 (SCRP) to GOV-02.
+`catalog_pin_version` examples are `2026.3`.
+The lake collector on main seals IAC-02.
+The ADR no longer says the pin bump is pending.
+This pull request does not re-vendor `controls.json` and does not invent control ids.
+Scope stays a design and a schema stub. There is no collect wiring, no live Jev client, and no `Record.v` bump.
+Codex P1 and P2 on the claim gate are fixed here. `decide_claim` requires the sealed receipt id. Coverage rejects a boolean and a string. Scope collections are tuples, so a caller cannot append after the hash.
+
+### Next 3 items
+
+1. Human review and merge of PR #11.
+2. After that merge, add the phase-1 scope CLI (`beacon scope init`, `show`, and `hash`).
+3. Do not revive draft PR #5 (obsolete 2026.2 pin) or superseded PR #4. Do not start lake MFA, VPC, or BypassGovernanceRetention work.
+
+### Blockers
+
+- PR #11 waits on human review.
+- No production AWS apply in this cycle.
+- Repo stays private. No secrets.

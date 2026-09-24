@@ -435,3 +435,35 @@ The README one-liner still said SCF 2026.1.1. The catalog pin is 2026.3. The liv
 
 - No production AWS apply in this cycle.
 - Repo stays private. No secrets.
+
+## 2026-09-24 — Cycle 17
+
+### Why
+
+PR #19 merged to main (merge commit `0fde211`). That change is Cycle 16 (`docs/HOW_IT_WORKS.md`). This cycle is the git policy spine and the mapper bridge. The log label is Cycle 17 so the two cycles stay distinct.
+`beacon policy show` and `beacon policy hash` address a git JSON policy by path and canonical content hash.
+The file holds people, process, and technology rows. `control_refs` accepts only IAC-02, CRY-07, and GOV-02.
+Word and PDF files fail closed. The custody tag is `evidence:policy`.
+`beacon ingest mapper` reads a grc-pdf-mapper JSON file.
+Known shapes are a mapping report, a KSI catalog, and policy-code links.
+The command writes a candidate under `.beacon/ingest/mapper/`.
+An unknown shape, an ambiguous shape, or a bad JSON file fails closed.
+The candidate role is `candidate`. The file has no claim word.
+Mapper control labels stay labels. The policy draft does not copy them into `control_refs`.
+This cycle does not call grc-pdf-mapper and does not read a PDF.
+`Record.v` stays 1. The witness record fields are unchanged.
+This cycle does not publish a trust center, send SCN mail, or read a security inbox.
+It does not add a workshop UI, a Jev client, or a lake `SCOPE#` index.
+It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouched.
+
+### Next 3 items
+
+1. Human review of the git policy spine and the mapper candidate bridge.
+2. After that merge, phase 11 can publish pack and report copies, draft an SCN, and document the security inbox. Do not send mail in that phase.
+3. Do not revive draft PR #5 or draft PR #2. Do not invent SCF control ids or a 20x crosswalk id.
+
+### Blockers
+
+- No production AWS apply in this cycle.
+- The 46 KSI ids are not in this repository. The mapper bridge stores indicator ids from the input file. It does not author them.
+- Repo stays private. No secrets.

@@ -188,6 +188,8 @@ Phase 7 is the review surface for phases 8–11. Phases 3–6 of the assessment-
 
 Phase 9 compilers are `beacon pack compile`. They read the same ledger and the same Class C / Class D counters. They write JSON drafts for CPO, SDR, OCR, and SCG, plus Markdown rendered from those objects. `scope_id` and `scope_sha256` are stamped when the selected seals share one scope pair, or when `--scope` is set. A method shortfall is `package_gaps`. The official schema URLs are still not fetched. `official_schema` stays `not-fetched`. CMMC and Rev5 emitters stay out of this phase. `beacon push` is unchanged.
 
+Phase 10 is a git policy spine and a mapper ingest bridge. A policy file is JSON under a relative path. `beacon policy show` and `beacon policy hash` address that file by path and canonical content hash. The custody tag is `evidence:policy`. Word and PDF files fail closed. `beacon ingest mapper` reads a grc-pdf-mapper JSON file (mapping report, KSI catalog, or policy-code links) and writes a candidate under `.beacon/ingest/mapper/`. An unknown or ambiguous shape fails closed. The candidate role is `candidate`. The command does not copy statement prose and does not append a witness record. `Record.v` stays 1. A human commit still puts the policy into git. This phase does not call grc-pdf-mapper and does not read a PDF.
+
 ## Appendix: Beacon draft field map
 
 The attached CR26 Class C schemas are not vendored in this repository. The compiler emits Beacon-shaped drafts (`format` `beacon-20x-draft/v1`). This table maps those fields to guide names already cited above. A row in this table is not a statement that a guide rule is met.

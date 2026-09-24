@@ -12,6 +12,8 @@ from beacon import __version__
 from beacon.config import load_settings
 from beacon.assurance.compile import compile_20x_drafts, write_compiled_packs
 from beacon.assurance.index import ledger_method_report, load_evidence_ledger
+from beacon.assurance.mapper_ingest import ingest_mapper_file
+from beacon.assurance.policy import address_policy
 from beacon.assurance.packs import PACK_KINDS
 from beacon.crypto.witness import check_chain, create_checkpoint, load_checkpoints, load_records
 from beacon.errors import BeaconError
@@ -262,6 +264,73 @@ def cmd_pack_compile(
             "paths": paths,
             "package_gaps": [gap.model_dump(mode="json") for gap in first.package_gaps],
             "official_schema": first.official_schema,
+        }
+    )
+
+
+@main.group("policy")
+def cmd_policy() -> None:
+    """Address a git policy file by path and content hash. The hash is custody metadata."""
+
+
+@cmd_policy.command("show")
+@click.option("--path", "policy_path", required=True, help="Relative path of the JSON policy file.")
+@click.option("--root", "root", type=click.Path(path_type=Path, file_okay=False), default=None)
+@click.option("--expect-sha256", "expect_sha256", default=None, help="Require this canonical content hash.")
+def cmd_policy_show(policy_path: str, root: Path | None, expect_sha256: str | None) -> None:
+    """Print path, content hash, and file hash. Word and PDF files fail closed."""
+    base = root if root is not None else Path.cwd()
+    try:
+        _document, custody = address_policy(base, policy_path, expect_sha256=expect_sha256)
+    except BeaconError as exc:
+        _die(exc)
+    _emit(custody.model_dump(mode="json"))
+
+
+@cmd_policy.command("hash")
+@click.option("--path", "policy_path", required=True, help="Relative path of the JSON policy file.")
+@click.option("--root", "root", type=click.Path(path_type=Path, file_okay=False), default=None)
+def cmd_policy_hash(policy_path: str, root: Path | None) -> None:
+    """Print the canonical content hash of one policy file."""
+    base = root if root is not None else Path.cwd()
+    try:
+        _document, custody = address_policy(base, policy_path)
+    except BeaconError as exc:
+        _die(exc)
+    click.echo(custody.content_sha256)
+
+
+@main.group("ingest")
+def cmd_ingest() -> None:
+    """Register an external file as a candidate. A candidate is not a witness seal."""
+
+
+@cmd_ingest.command("mapper")
+@click.option(
+    "--file",
+    "mapper_file",
+    required=True,
+    type=click.Path(path_type=Path, exists=True, dir_okay=False),
+    help="Mapper JSON file. PDF and Word files fail closed.",
+)
+@click.option("--out", "out_dir", type=click.Path(path_type=Path, file_okay=False), default=None)
+def cmd_ingest_mapper(mapper_file: Path, out_dir: Path | None) -> None:
+    """Write a candidate registration for a mapper report, KSI catalog, or link file."""
+    settings = _settings()
+    target = out_dir if out_dir is not None else settings.home / "ingest" / "mapper"
+    try:
+        candidate, written = ingest_mapper_file(mapper_file, target)
+    except BeaconError as exc:
+        _die(exc)
+    _emit(
+        {
+            "ok": True,
+            "role": candidate.role,
+            "shape": candidate.shape,
+            "path": str(written),
+            "input_sha256": candidate.input_sha256,
+            "policy_draft_sha256": candidate.policy_draft_sha256,
+            "record_v": candidate.record_v,
         }
     )
 

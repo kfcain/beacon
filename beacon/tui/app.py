@@ -6,7 +6,9 @@ from typing import Any, Literal, assert_never
 
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, VerticalScroll
+from textual.binding import Binding
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Header, Input, Static
 
 from beacon.config import load_settings
@@ -14,6 +16,12 @@ from beacon.errors import BeaconError
 from beacon.plugins.spec import CollectContext
 from beacon.push import write_pack
 from beacon.scf.engine import collect_all, collect_target
+from beacon.tui.tour import (
+    TourCursor,
+    mark_tour_seen,
+    should_auto_start_tour,
+    skip_tour_requested,
+)
 from beacon.workspace import freshness, system_status, validation
 
 ScreenName = Literal["dashboard", "freshness", "validation", "push", "system", "collect"]
@@ -54,6 +62,129 @@ class Pane(Static):
     DEFAULT_CSS = "Pane { width: 1fr; height: 1fr; padding: 1 2; background: #16161e; }"
 
 
+class TargetInput(Input):
+    """SCF target field. `?` stays a tour binding."""
+
+    def check_consume_key(self, key: str, character: str | None) -> bool:
+        if key == "question_mark":
+            return False
+        return super().check_consume_key(key, character)
+
+
+class TourScreen(ModalScreen[None]):
+    """Next / Back / Skip / Done walkthrough. Points at the live tab behind it."""
+
+    DEFAULT_CSS = """
+    TourScreen { align: center middle; background: #1a1b2680; }
+    #tour-dialog {
+        width: 68;
+        height: auto;
+        max-height: 18;
+        background: #16161e;
+        border: tall #7DCFFF;
+        padding: 1 2;
+    }
+    #tour-kicker { color: #BB9AF7; text-style: bold; }
+    #tour-title { color: #7DCFFF; text-style: bold; }
+    #tour-step { color: #565F89; }
+    #tour-scroll {
+        height: 6;
+        margin: 1 0 0 0;
+        background: #16161e;
+    }
+    #tour-body { color: #c0caf5; height: auto; }
+    #tour-actions { height: 3; margin-top: 1; }
+    #tour-actions Button {
+        margin: 0 1 0 0;
+        min-width: 0;
+        width: auto;
+        padding: 0 1;
+    }
+    """
+    BINDINGS = [
+        Binding("escape", "skip_tour", "Skip", show=False),
+        Binding("left", "tour_back", "Back", show=False),
+        Binding("right", "tour_next", "Next", show=False),
+        Binding("h", "restart_tour", "Tour", show=False),
+        Binding("question_mark", "restart_tour", "Tour", show=False),
+        Binding("q", "quit", "Quit", show=False),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.cursor = TourCursor()
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="tour-dialog"):
+            yield Static("Walkthrough", id="tour-kicker")
+            yield Static("", id="tour-title")
+            yield Static("", id="tour-step")
+            with VerticalScroll(id="tour-scroll"):
+                yield Static("", id="tour-body")
+            with Horizontal(id="tour-actions"):
+                yield Button("Back", id="tour-back")
+                yield Button("Next", id="tour-next", variant="primary")
+                yield Button("Skip", id="tour-skip")
+                yield Button("Done", id="tour-done")
+
+    def on_mount(self) -> None:
+        self.render_step()
+
+    def render_step(self) -> None:
+        step = self.cursor.step
+        self.query_one("#tour-title", Static).update(step.title)
+        self.query_one("#tour-step", Static).update(
+            f"Step {self.cursor.index + 1} of {self.cursor.total}"
+        )
+        self.query_one("#tour-body", Static).update(step.body)
+        self.query_one("#tour-back", Button).disabled = self.cursor.at_start
+        app = self.app
+        if isinstance(app, BeaconTUI):
+            app.show_for_tour(step.focus)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id or ""
+        if bid == "tour-back":
+            event.stop()
+            self.cursor.back()
+            self.render_step()
+            return
+        if bid == "tour-next":
+            event.stop()
+            self.action_tour_next()
+            return
+        if bid in {"tour-skip", "tour-done"}:
+            event.stop()
+            self._finish()
+
+    def action_tour_back(self) -> None:
+        self.cursor.back()
+        self.render_step()
+
+    def action_tour_next(self) -> None:
+        if self.cursor.at_end:
+            self._finish()
+            return
+        self.cursor.next()
+        self.render_step()
+
+    def action_skip_tour(self) -> None:
+        self._finish()
+
+    def action_restart_tour(self) -> None:
+        self.cursor.restart()
+        self.render_step()
+
+    def action_quit(self) -> None:
+        self.app.exit()
+
+    def _finish(self) -> None:
+        app = self.app
+        if isinstance(app, BeaconTUI):
+            mark_tour_seen(load_settings().home)
+        self.dismiss()
+
+
 class BeaconTUI(App[None]):
     """Keyboard-first evidence console."""
 
@@ -61,9 +192,15 @@ class BeaconTUI(App[None]):
     CSS = """
     Screen { background: #1a1b26; }
     #tabs { height: 3; dock: top; }
-    #tabs Button { margin: 0 1; }
+    #actions { height: 3; }
+    #tabs Button, #actions Button {
+        margin: 0 0 0 1;
+        min-width: 0;
+        width: auto;
+        padding: 0 1;
+    }
     #body { height: 1fr; }
-    Input { margin: 1 0; }
+    #target { width: 1fr; margin: 0 1; }
     """
     BINDINGS = [
         ("1", "show('dashboard')", "Dashboard"),
@@ -72,12 +209,15 @@ class BeaconTUI(App[None]):
         ("4", "show('push')", "Push"),
         ("5", "show('system')", "System"),
         ("6", "show('collect')", "Collect"),
+        Binding("question_mark", "tour", "Tour", priority=True),
+        Binding("h", "tour", "Tour", show=False),
         ("q", "quit", "Quit"),
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, *, skip_tour: bool = False) -> None:
         super().__init__()
         self.current: ScreenName = "dashboard"
+        self.skip_tour = skip_tour
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -88,10 +228,14 @@ class BeaconTUI(App[None]):
             yield Button("Push", id="tab-push")
             yield Button("System", id="tab-system")
             yield Button("Collect", id="tab-collect")
+            yield Button("Tour", id="do-tour")
         with VerticalScroll(id="body"):
             yield Pane(id="pane")
-        with Horizontal():
-            yield Input(placeholder="SCF target (IAC-02 / CRY-07) or empty for all", id="target")
+        with Horizontal(id="actions"):
+            yield TargetInput(
+                placeholder="SCF target (IAC-02 / CRY-07) or empty for all",
+                id="target",
+            )
             yield Button("Collect", id="do-collect", variant="primary")
             yield Button("Push pack", id="do-push")
             yield Button("Recheck", id="do-check")
@@ -100,8 +244,26 @@ class BeaconTUI(App[None]):
     def on_mount(self) -> None:
         self.theme = "tokyo-night"
         self.refresh_pane()
+        if should_auto_start_tour(load_settings().home, skip=self.skip_tour):
+            self.call_after_refresh(self.start_tour)
 
     def action_show(self, name: str) -> None:
+        if name not in SCREENS:
+            return
+        self.current = name  # type: ignore[assignment]
+        self.refresh_pane()
+
+    def action_tour(self) -> None:
+        self.start_tour()
+
+    def start_tour(self) -> None:
+        if isinstance(self.screen, TourScreen):
+            self.screen.cursor.restart()
+            self.screen.render_step()
+            return
+        self.push_screen(TourScreen())
+
+    def show_for_tour(self, name: str) -> None:
         if name not in SCREENS:
             return
         self.current = name  # type: ignore[assignment]
@@ -124,6 +286,9 @@ class BeaconTUI(App[None]):
         if bid == "do-check":
             self.current = "validation"
             self.refresh_pane()
+            return
+        if bid == "do-tour":
+            self.start_tour()
 
     def refresh_pane(self) -> None:
         pane = self.query_one("#pane", Pane)
@@ -161,7 +326,8 @@ class BeaconTUI(App[None]):
             "[cyan]Dashboard[/]\n"
             f"records={status.get('records')}  checkpoints={status.get('checkpoints')}  "
             f"covered={chain.get('covered_through')}\n"
-            f"SCF {status.get('scf_version')}  offline={status.get('scf_offline')}\n\n"
+            f"SCF {status.get('scf_version')}  offline={status.get('scf_offline')}\n"
+            "Press ? for the walkthrough.\n\n"
             f"[cyan]Plugins[/]\n{plugins or '  (none)'}"
         )
 
@@ -215,5 +381,5 @@ class BeaconTUI(App[None]):
         self.refresh_pane()
 
 
-def run_tui() -> None:
-    BeaconTUI().run()
+def run_tui(*, skip_tour: bool = False) -> None:
+    BeaconTUI(skip_tour=skip_tour_requested(skip_tour)).run()

@@ -32,6 +32,9 @@ E_SCOPE = "E_SCOPE"
 E_LEDGER = "E_LEDGER"
 E_POLICY = "E_POLICY"
 E_MAPPER = "E_MAPPER"
+E_TRUST = "E_TRUST"
+E_SCN = "E_SCN"
+E_INBOX = "E_INBOX"
 
 
 def fail(code: str, message: str) -> NoReturn:

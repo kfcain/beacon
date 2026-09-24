@@ -1,4 +1,4 @@
-"""Beacon CLI: init, seed, collect, check, scope, sync, pull, serve, tui, mcp."""
+"""Beacon CLI: init, seed, collect, check, scope, ledger, pack, trust, scn, inbox."""
 
 from __future__ import annotations
 
@@ -12,9 +12,12 @@ from beacon import __version__
 from beacon.config import load_settings
 from beacon.assurance.compile import compile_20x_drafts, write_compiled_packs
 from beacon.assurance.index import ledger_method_report, load_evidence_ledger
+from beacon.assurance.inbox import intake_inbox_file
+from beacon.assurance.packs import PACK_KINDS
+from beacon.assurance.scn import draft_scn, write_scn
+from beacon.assurance.trust_center import publish_bytes, publish_ledger_summary
 from beacon.assurance.mapper_ingest import ingest_mapper_file
 from beacon.assurance.policy import address_policy
-from beacon.assurance.packs import PACK_KINDS
 from beacon.crypto.witness import check_chain, create_checkpoint, load_checkpoints, load_records
 from beacon.errors import BeaconError
 from beacon.plugins.loader import load_plugins
@@ -264,6 +267,145 @@ def cmd_pack_compile(
             "paths": paths,
             "package_gaps": [gap.model_dump(mode="json") for gap in first.package_gaps],
             "official_schema": first.official_schema,
+        }
+    )
+
+
+@main.group("trust")
+def cmd_trust() -> None:
+    """Write allowlisted pack and report copies. This command does not host a site."""
+
+
+@cmd_trust.command("publish")
+@click.option("--relative", "relative", default=None, help="Allowlisted key under public/trust-center/.")
+@click.option("--file", "source", type=click.Path(path_type=Path, exists=True, dir_okay=False), default=None)
+@click.option("--ledger", "ledger", is_flag=True, help="Publish the local ledger summary.")
+@click.option("--stamp", "artifact_id", default="summary", show_default=True)
+@click.option("--scope", "scope_id", default=None)
+@click.option("--pack", "pack_path", type=click.Path(path_type=Path, exists=True, dir_okay=False), default=None)
+@click.option("--scf", "scf_id", default=None)
+@click.option("--class", "package_class", type=click.Choice(["c", "d"]), default="c", show_default=True)
+@click.option("--out", "out_dir", type=click.Path(path_type=Path, file_okay=False), default=None)
+def cmd_trust_publish(
+    relative: str | None,
+    source: Path | None,
+    ledger: bool,
+    artifact_id: str,
+    scope_id: str | None,
+    pack_path: Path | None,
+    scf_id: str | None,
+    package_class: str,
+    out_dir: Path | None,
+) -> None:
+    """Copy one allowlisted artifact into the local trust-center tree."""
+    settings = _settings()
+    target = out_dir if out_dir is not None else settings.export_dir / "trust-center"
+    match package_class:
+        case "c" | "d":
+            chosen_class = package_class
+        case _:
+            _die(BeaconError("E_TRUST", "package class must be c or d"))
+    try:
+        if ledger:
+            record = publish_ledger_summary(
+                settings,
+                artifact_id=artifact_id,
+                out_dir=target,
+                package_class=chosen_class,
+                scope_id=scope_id,
+                pack_path=pack_path,
+                scf_id=scf_id,
+            )
+        else:
+            if source is None or relative is None:
+                _die(BeaconError("E_TRUST", "pass --file and --relative, or pass --ledger"))
+            record = publish_bytes(settings, relative=relative, body=source.read_bytes(), out_dir=target)
+    except BeaconError as exc:
+        _die(exc)
+    _emit(record.model_dump(mode="json"))
+
+
+@main.group("scn")
+def cmd_scn() -> None:
+    """Draft a significant-change notice. This command does not send mail."""
+
+
+@cmd_scn.command("draft")
+@click.option("--scope", "scope_id", default=None)
+@click.option("--pack", "pack_path", type=click.Path(path_type=Path, exists=True, dir_okay=False), default=None)
+@click.option("--scf", "scf_id", default=None)
+@click.option("--class", "package_class", type=click.Choice(["c", "d"]), default="c", show_default=True)
+@click.option("--changes", "changes_path", type=click.Path(path_type=Path, exists=True, dir_okay=False), default=None)
+@click.option("--dry-run", is_flag=True, help="Print the draft and do not write a file.")
+@click.option("--out", "out_dir", type=click.Path(path_type=Path, file_okay=False), default=None)
+def cmd_scn_draft(
+    scope_id: str | None,
+    pack_path: Path | None,
+    scf_id: str | None,
+    package_class: str,
+    changes_path: Path | None,
+    dry_run: bool,
+    out_dir: Path | None,
+) -> None:
+    """Build one SCN draft from seals and package gaps."""
+    match package_class:
+        case "c" | "d":
+            chosen_class = package_class
+        case _:
+            _die(BeaconError("E_SCN", "package class must be c or d"))
+    settings = _settings()
+    try:
+        draft = draft_scn(
+            settings,
+            package_class=chosen_class,
+            scope_id=scope_id,
+            pack_path=pack_path,
+            scf_id=scf_id,
+            changes_path=changes_path,
+        )
+    except BeaconError as exc:
+        _die(exc)
+    payload = draft.canonical_body()
+    payload["dry_run"] = dry_run
+    if not dry_run:
+        target = out_dir if out_dir is not None else settings.export_dir / "scn"
+        try:
+            written = write_scn(draft, target)
+        except BeaconError as exc:
+            _die(exc)
+        payload["path"] = str(written)
+    _emit(payload)
+
+
+@main.group("inbox")
+def cmd_inbox() -> None:
+    """Digest a local security-inbox file. This command does not open a mailbox."""
+
+
+@cmd_inbox.command("intake")
+@click.option(
+    "--file",
+    "inbox_file",
+    required=True,
+    type=click.Path(path_type=Path, exists=True, dir_okay=False),
+)
+@click.option("--out", "out_dir", type=click.Path(path_type=Path, file_okay=False), default=None)
+def cmd_inbox_intake(inbox_file: Path, out_dir: Path | None) -> None:
+    """Write a candidate for each known message. An unknown shape fails closed."""
+    settings = _settings()
+    target = out_dir if out_dir is not None else settings.home / "ingest" / "inbox"
+    try:
+        candidates, paths = intake_inbox_file(inbox_file, target)
+    except BeaconError as exc:
+        _die(exc)
+    _emit(
+        {
+            "ok": True,
+            "count": len(candidates),
+            "paths": [str(path) for path in paths],
+            "credential_used": False,
+            "mailed": False,
+            "record_v": 1,
         }
     )
 

@@ -137,6 +137,7 @@ def test_decide_claim_fail_closed_reasons():
             no_match,
             expected_scope_sha256=scope_hash,
             expected_evidence_sha256=EVIDENCE_HASH,
+            expected_receipt_id="receipt-1",
         ).reason
         == "choice_no_match"
     )
@@ -146,6 +147,7 @@ def test_decide_claim_fail_closed_reasons():
             abstain,
             expected_scope_sha256=scope_hash,
             expected_evidence_sha256=EVIDENCE_HASH,
+            expected_receipt_id="receipt-1",
         ).reason
         == "noul_abstain"
     )
@@ -155,6 +157,7 @@ def test_decide_claim_fail_closed_reasons():
             low,
             expected_scope_sha256=scope_hash,
             expected_evidence_sha256=EVIDENCE_HASH,
+            expected_receipt_id="receipt-1",
         ).reason
         == "score_below_min"
     )
@@ -168,11 +171,26 @@ def test_decide_claim_permits_only_a_linked_passing_receipt():
         receipt,
         expected_scope_sha256=scope.content_sha256(),
         expected_evidence_sha256=EVIDENCE_HASH,
+        expected_receipt_id="receipt-1",
+    )
+    mismatch = decide_claim(
+        receipt,
+        expected_scope_sha256=scope.content_sha256(),
+        expected_evidence_sha256=EVIDENCE_HASH,
+        expected_receipt_id="receipt-2",
+    )
+    unbound = decide_claim(
+        receipt,
+        expected_scope_sha256=scope.content_sha256(),
+        expected_evidence_sha256=EVIDENCE_HASH,
     )
     assert decision.permitted is True
     assert decision.receipt_id == "receipt-1"
     assert decision.reason == "thresholds_met"
     assert decision.reason not in {"compliant", "evidenced", "proven"}
+    assert mismatch.permitted is False
+    assert mismatch.reason == "receipt_id_mismatch"
+    assert unbound.reason == "unbound_receipt"
 
 
 def test_decide_claim_rejects_bad_threshold():
@@ -182,3 +200,15 @@ def test_decide_claim_rejects_bad_threshold():
         decide_claim(_receipt(_scope()), score_min=float("nan"))
     with pytest.raises(ValidationError):
         ScoreResult(coverage=float("nan"))
+    with pytest.raises(ValidationError):
+        ScoreResult(coverage=True)  # type: ignore[arg-type]
+    with pytest.raises(ValidationError):
+        ScoreResult(coverage="1")  # type: ignore[arg-type]
+
+
+def test_scope_collections_reject_in_place_mutation():
+    scope = _scope()
+    with pytest.raises(AttributeError):
+        scope.frameworks.append("general-nist-800-53-r5")  # type: ignore[attr-defined]
+    with pytest.raises(AttributeError):
+        scope.boundary.accounts.append("999")  # type: ignore[attr-defined]

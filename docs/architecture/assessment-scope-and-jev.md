@@ -144,19 +144,19 @@ Thresholds live in Beacon. The stub constant `DEFAULT_SCORE_MIN` is `1.0`. Cover
 The code gate is `decide_claim`. It returns `permitted` false unless all of the following are true:
 
 1. A `JudgmentReceipt` is present.
-2. The caller passes the scope hash and the evidence hash from the seal.
-3. Those hashes equal `scope_sha256` and `evidence_sha256` on the receipt.
+2. The caller passes the scope hash, the evidence hash, and the receipt id from the seal.
+3. Those hashes equal `scope_sha256` and `evidence_sha256` on the receipt, and the receipt id equals `receipt_id` on the receipt.
 4. Choice is `pick` and names `candidate_id` plus `candidate_sha256`.
 5. Noul is `sufficient`.
 6. Score coverage is greater than or equal to the Beacon minimum.
 
-Any other result stays a machine reason: `missing_receipt`, `unbound_scope`, `unbound_evidence`, `scope_hash_mismatch`, `evidence_hash_mismatch`, `choice_no_match`, `missing_candidate`, `noul_abstain`, `noul_insufficient`, or `score_below_min`. The reason list has no claim word.
+Any other result stays a machine reason: `missing_receipt`, `unbound_scope`, `unbound_evidence`, `unbound_receipt`, `scope_hash_mismatch`, `evidence_hash_mismatch`, `receipt_id_mismatch`, `choice_no_match`, `missing_candidate`, `noul_abstain`, `noul_insufficient`, or `score_below_min`. The reason list has no claim word.
 
 ## Claim words
 
 The words compliant, evidenced, and proven are claim words. Beacon may show a claim word only when `decide_claim` returns `permitted` true and the same view shows `receipt_id`. The schema stub does not print those words. `decide_claim` does not return them.
 
-A receipt is linked when the sealed payload stores `scope_id`, `scope_sha256`, and `receipt_id`, and the receipt hashes match that payload and the scope file. A receipt file alone is not a link. `decide_claim` requires the caller to pass both expected hashes for that reason.
+A receipt is linked when the sealed payload stores `scope_id`, `scope_sha256`, and `receipt_id`, and the receipt hashes and receipt id match that payload and the scope file. A receipt file alone is not a link. `decide_claim` requires the caller to pass both expected hashes and the expected receipt id for that reason. A different receipt with the same hashes stays `receipt_id_mismatch`.
 
 ## Storage
 

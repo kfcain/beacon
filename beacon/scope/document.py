@@ -50,7 +50,9 @@ ClaimReason = Literal[
     "missing_receipt",
     "unbound_scope",
     "unbound_evidence",
+    "unbound_receipt",
     "scope_hash_mismatch",
+    "receipt_id_mismatch",
     "evidence_hash_mismatch",
     "choice_no_match",
     "missing_candidate",
@@ -78,15 +80,15 @@ class Boundary(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    accounts: list[str] = Field(default_factory=list)
-    subscriptions: list[str] = Field(default_factory=list)
-    projects: list[str] = Field(default_factory=list)
-    regions: list[str] = Field(default_factory=list)
-    systems: list[str] = Field(default_factory=list)
+    accounts: tuple[str, ...] = ()
+    subscriptions: tuple[str, ...] = ()
+    projects: tuple[str, ...] = ()
+    regions: tuple[str, ...] = ()
+    systems: tuple[str, ...] = ()
 
     @field_validator("accounts", "subscriptions", "projects", "regions", "systems")
     @classmethod
-    def entries_are_tokens(cls, values: list[str]) -> list[str]:
+    def entries_are_tokens(cls, values: list[str] | tuple[str, ...]) -> tuple[str, ...]:
         cleaned: list[str] = []
         seen: set[str] = set()
         for item in values:
@@ -95,7 +97,7 @@ class Boundary(BaseModel):
                 raise ValueError("boundary entries must not repeat")
             seen.add(text)
             cleaned.append(text)
-        return cleaned
+        return tuple(cleaned)
 
     @model_validator(mode="after")
     def require_a_boundary(self) -> Boundary:
@@ -147,10 +149,10 @@ class ScopeDocument(BaseModel):
     schema_version: Literal[1] = SCHEMA_VERSION
     scope_id: str
     catalog_pin_version: str = Field(min_length=1)
-    frameworks: list[str] = Field(min_length=1)
-    data_classes: list[str] = Field(default_factory=list)
-    exclusions: list[Exclusion] = Field(default_factory=list)
-    allowed_evidence_kinds: list[EvidenceKind] = Field(min_length=1)
+    frameworks: tuple[str, ...] = Field(min_length=1)
+    data_classes: tuple[str, ...] = ()
+    exclusions: tuple[Exclusion, ...] = ()
+    allowed_evidence_kinds: tuple[EvidenceKind, ...] = Field(min_length=1)
     boundary: Boundary
 
     @field_validator("scope_id")
@@ -167,7 +169,7 @@ class ScopeDocument(BaseModel):
 
     @field_validator("frameworks", "data_classes")
     @classmethod
-    def labels_are_unique(cls, values: list[str]) -> list[str]:
+    def labels_are_unique(cls, values: list[str] | tuple[str, ...]) -> tuple[str, ...]:
         cleaned: list[str] = []
         seen: set[str] = set()
         for item in values:
@@ -176,14 +178,16 @@ class ScopeDocument(BaseModel):
                 raise ValueError("labels must not repeat")
             seen.add(text)
             cleaned.append(text)
-        return cleaned
+        return tuple(cleaned)
 
     @field_validator("allowed_evidence_kinds")
     @classmethod
-    def kinds_are_unique(cls, values: list[EvidenceKind]) -> list[EvidenceKind]:
+    def kinds_are_unique(
+        cls, values: list[EvidenceKind] | tuple[EvidenceKind, ...]
+    ) -> tuple[EvidenceKind, ...]:
         if len(values) != len(set(values)):
             raise ValueError("allowed_evidence_kinds must not repeat")
-        return list(values)
+        return tuple(values)
 
     def canonical_body(self) -> dict:
         return self.model_dump(mode="json")
@@ -226,9 +230,9 @@ class ScoreResult(BaseModel):
 
     coverage: float = Field(ge=0.0, le=1.0)
 
-    @field_validator("coverage")
+    @field_validator("coverage", mode="before")
     @classmethod
-    def coverage_is_finite(cls, value: float) -> float:
+    def coverage_is_finite(cls, value: object) -> float:
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise ValueError("coverage must be a finite number from 0 through 1")
         return float(value)
@@ -314,12 +318,13 @@ def decide_claim(
     score_min: float = DEFAULT_SCORE_MIN,
     expected_scope_sha256: str | None = None,
     expected_evidence_sha256: str | None = None,
+    expected_receipt_id: str | None = None,
 ) -> ClaimDecision:
     """Return whether code may attach a positive claim to this receipt.
 
-    The caller must pass the scope hash and the evidence hash from the seal.
-    This function does not emit claim words. A later phase may emit those words
-    only when permitted is true and the caller also shows receipt_id.
+    The caller must pass the scope hash, the evidence hash, and the receipt id
+    from the seal. This function does not emit claim words. A later phase may
+    emit those words only when permitted is true and the caller also shows receipt_id.
     """
     minimum = _check_score_min(score_min)
     if receipt is None:
@@ -335,6 +340,10 @@ def decide_claim(
         return ClaimDecision(
             permitted=False, receipt_id=receipt_id, reason="evidence_hash_mismatch"
         )
+    if expected_receipt_id is None:
+        return ClaimDecision(permitted=False, receipt_id=receipt_id, reason="unbound_receipt")
+    if expected_receipt_id != receipt_id:
+        return ClaimDecision(permitted=False, receipt_id=receipt_id, reason="receipt_id_mismatch")
     match receipt.choice.disposition:
         case "no_match":
             return ClaimDecision(permitted=False, receipt_id=receipt_id, reason="choice_no_match")

@@ -251,6 +251,7 @@ The lake collector on main seals IAC-02.
 The ADR no longer says the pin bump is pending.
 This pull request does not re-vendor `controls.json` and does not invent control ids.
 Scope stays a design and a schema stub. There is no collect wiring, no live Jev client, and no `Record.v` bump.
+Codex P1 and P2 on the claim gate are fixed here. `decide_claim` requires the sealed receipt id. Coverage rejects a boolean and a string. Scope collections are tuples, so a caller cannot append after the hash.
 
 ### Next 3 items
 

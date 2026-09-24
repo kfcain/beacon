@@ -44,7 +44,7 @@ def test_drop_in_plugin_from_beacon_plugin_path(initialized, monkeypatch: pytest
     plugin = plugins["cra.art14.early_warning"]
     assert isinstance(plugin.spec, FetcherSpec)
     assert plugin.spec.category == "compliance"
-    assert plugin.spec.scf_targets == ("GOV-01",)
+    assert plugin.spec.scf_targets == ("GOV-02",)
     result = plugin.collect(CollectContext(live=False))
     assert result.ok is True
     assert result.mode == "fixture"
@@ -287,7 +287,7 @@ def test_cra_seal_without_checkpoint_fails_closed(initialized):
         settings,
         plugin="cra.art14.early_warning",
         mode="fixture",
-        scf_targets=["GOV-01"],
+        scf_targets=["GOV-02"],
         payload={"article": "CRA-Art-14", "exploitation_status": "undetermined"},
     )
     with pytest.raises(BeaconError) as caught:

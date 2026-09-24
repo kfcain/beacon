@@ -26,9 +26,9 @@ def test_mcp_initialize_and_tools_list():
 
 
 def test_mcp_collect_and_check(initialized):
-    collected = call_tool("beacon_collect", {"target": "CRY-05", "live": False})
+    collected = call_tool("beacon_collect", {"target": "CRY-07", "live": False})
     assert "runs" in collected
     checked = call_tool("beacon_check", {})
     assert checked.get("ok") is True
-    lookup = call_tool("beacon_scf_lookup", {"control_id": "IAC-01"})
-    assert lookup["control_id"] == "IAC-01"
+    lookup = call_tool("beacon_scf_lookup", {"control_id": "IAC-02"})
+    assert lookup["control_id"] == "IAC-02"

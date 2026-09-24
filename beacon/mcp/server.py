@@ -124,7 +124,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], ToolFn]] = {
         {
             "type": "object",
             "properties": {
-                "target": {"type": "string", "description": "SCF control id such as IAC-01 or CRY-05"},
+                "target": {"type": "string", "description": "SCF control id such as IAC-02 or CRY-07"},
                 "plugin": {"type": "string", "description": "Plugin name such as aws.inspector"},
                 "live": {"type": "boolean"},
             },

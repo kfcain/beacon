@@ -190,7 +190,7 @@ def test_refuses_private_key_material(initialized: Path):
     with pytest.raises(BeaconError) as caught_cfg:
         assert_upload_allowed(settings, settings.home / "config.json")
     assert caught_cfg.value.code == E_REMOTE
-    cache = settings.cache_dir / "scf" / "IAC-01.json"
+    cache = settings.cache_dir / "scf" / "IAC-02.json"
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text("{}", encoding="utf-8")
     with pytest.raises(BeaconError) as caught_cache:
@@ -224,7 +224,7 @@ def test_witness_fail_closed_with_s3_configured(aws_lake):
         settings,
         plugin="aws.inspector",
         mode="fixture",
-        scf_targets=["IAC-01"],
+        scf_targets=["IAC-02"],
         payload={"n": 1},
     )
     with pytest.raises(BeaconError) as caught:
@@ -250,7 +250,7 @@ def test_collect_dual_writes_s3_and_index(aws_lake):
     assert meta["audit_seq"] == str(record.seq)
     assert meta["prev_sha256"] == record.prev_sha256
     assert meta["plugin"] == "aws.inspector"
-    assert "iac-01" in meta["scf_targets"].lower() or "IAC-01" in meta["scf_targets"]
+    assert "iac-01" in meta["scf_targets"].lower() or "IAC-02" in meta["scf_targets"]
     assert meta["record_id"] == record.evidence_id
     assert meta["sealed_at"] == record.ts
     assert meta["expires_at"] == observation_expires_at(record.ts)
@@ -292,7 +292,7 @@ def test_collect_dual_writes_s3_and_index(aws_lake):
         parts = key_name.split("/")
         assert "evidence" not in parts or parts[-1].endswith(".json")
         assert "observations" not in parts or parts[-1].endswith(".json")
-    assert "IAC-01" in list(ev_item["control_ids"])
+    assert "IAC-02" in list(ev_item["control_ids"])
     fresh = ddb.get_item(Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": "FRESH#aws.inspector"})["Item"]
     assert fresh["s3_uri"] == ev_item["s3_uri"]
     assert fresh["expires_at"] == ev_item["expires_at"]
@@ -589,7 +589,7 @@ def test_freshness_24h_offline(initialized: Path):
         settings,
         plugin="aws.inspector",
         mode="fixture",
-        scf_targets=["IAC-01"],
+        scf_targets=["IAC-02"],
         payload={"n": 1},
     )
     rows = freshness(settings)

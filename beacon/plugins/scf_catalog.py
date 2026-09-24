@@ -1,4 +1,4 @@
-"""Builtin collector for the offline SCF 2026.2 catalog pin."""
+"""Builtin collector for the offline SCF 2026.3 catalog pin."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ SCHEMA_VERSION = "1.0"
 CollectMode = Literal["fixture", "live_failed", "failed"]
 
 DISCLAIMER = (
-    "The SCF 2026.2 pin is the offline catalog (slim summary, families, index-meta, "
+    "The SCF 2026.3 pin is the offline catalog (slim summary, families, index-meta, "
     "and workbook SHA-256). Live HackIDLE and GRCEngClub APIs stay at 2026.1.x. "
     "Those APIs are not authoritative. This collector does not vendor controls.json."
 )
@@ -107,7 +107,7 @@ class CatalogPlugin:
     spec = FetcherSpec(
         name=PLUGIN_NAME,
         version="0.1.0",
-        description="Verify the offline SCF 2026.2 catalog pin (slim manifest + hashes).",
+        description="Verify the offline SCF 2026.3 catalog pin (slim manifest + hashes).",
         category="scf",
         scf_targets=(CATALOG_SCF_TARGET,),
         tools=(),
@@ -152,7 +152,7 @@ class CatalogPlugin:
             )
         if ctx.live is True:
             error = (
-                "live HackIDLE/GRCEngClub APIs are not the SCF 2026.2 pin; "
+                "live HackIDLE/GRCEngClub APIs are not the SCF 2026.3 pin; "
                 "use the offline catalog (BEACON_SCF_OFFLINE=1 / BEACON_SCF_CATALOG_PATH)"
             )
             payload = {

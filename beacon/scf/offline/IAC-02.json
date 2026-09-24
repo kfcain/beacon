@@ -1,5 +1,5 @@
 {
-  "control_id": "IAC-01",
+  "control_id": "IAC-02",
   "title": "Identity & Access Management (IAM)",
   "family": "IAC",
   "description": "Mechanisms exist to facilitate the implementation of identification and access management controls.",

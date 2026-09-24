@@ -91,7 +91,7 @@ class BeaconTUI(App[None]):
         with VerticalScroll(id="body"):
             yield Pane(id="pane")
         with Horizontal():
-            yield Input(placeholder="SCF target (IAC-01 / CRY-05) or empty for all", id="target")
+            yield Input(placeholder="SCF target (IAC-02 / CRY-07) or empty for all", id="target")
             yield Button("Collect", id="do-collect", variant="primary")
             yield Button("Push pack", id="do-push")
             yield Button("Recheck", id="do-check")
@@ -143,7 +143,7 @@ class BeaconTUI(App[None]):
             case "collect":
                 pane.update(
                     "[cyan]Collect[/]\n"
-                    "Enter an SCF id (IAC-01, CRY-05) or leave empty to run every overlapping fetcher.\n"
+                    "Enter an SCF id (IAC-02, CRY-07) or leave empty to run every overlapping fetcher.\n"
                     "Results are sealed on the witness chain. A Merkle/TSA checkpoint is written."
                 )
             case _:

@@ -60,7 +60,7 @@ Explicit policy inputs (never inferred from KEV or severity):
 - `extra["notification_status"]`: `not_evaluated` | `notified` | `not_required` | `deferred`
 - `extra["confirmed_exploitation"]=True` sets exploitation to `confirmed` only
 
-SCF binding uses documented drop-in id `GOV-01` so the loader can select the plugin. That id is **not** a CRA mapping and is not an invented overlay control. Do not treat it as SCF 2026.2 coverage. HackIDLE remains 2026.1.x.
+SCF binding uses documented drop-in id `GOV-02` so the loader can select the plugin. Workbook Legacy SCF # maps prior GOV-01 (SCRP) to GOV-02. 2026.3 GOV-01 is a new policy control. That id is **not** a CRA mapping and is not an invented overlay control. Do not treat it as full SCF 2026.3 coverage. HackIDLE remains 2026.1.x.
 
 ## Offline fixture
 

@@ -186,7 +186,7 @@ beacon collect --plugin aws.lake.logs
 beacon collect --plugin aws.lake.logs --live
 ```
 
-`--live` fails closed when the bucket is unset, unreadable, empty, or not a valid access log / CloudTrail data-event file. The fixture is used only when live collection is not requested and `BEACON_LOGS_BUCKET` is unset. Raw AWS objects are not copied into the evidence bucket. The seal target is IAC-01. The finding does not assert that the control is met.
+`--live` fails closed when the bucket is unset, unreadable, empty, or not a valid access log / CloudTrail data-event file. The fixture is used only when live collection is not requested and `BEACON_LOGS_BUCKET` is unset. Raw AWS objects are not copied into the evidence bucket. The seal target is IAC-02. The finding does not assert that the control is met.
 
 FedRAMP 20x asks for machine-readable and human-readable reconciled evidence from CloudTrail (and Config, Security Hub, Inspector) in a tamper-resistant lake. This logging path supplies the CloudTrail and S3 access raw material. Seal and pack remain Beacon jobs.
 

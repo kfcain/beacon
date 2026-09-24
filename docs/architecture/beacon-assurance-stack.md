@@ -180,7 +180,9 @@ Phases 0–6 remain the assessment-scope plan. Do them as that document says. Th
 | 5 | 10 | Git policy ingest bridge. Mapper proposes commits. A human commits. Beacon seals the tip SHA as `evidence:policy`. | Design only. |
 | 6 | 11 | Trust-center publish of packs and reports, SCN draft from significant-change objects, security-inbox runbook. Just-in-time access, access logs, programmatic API docs, FedRAMP ID on artifacts. | Design only. The current trust-center refusal of raw observations stays as it is. No mail send. |
 
-Phase 2 scope bind is implemented. `collect` and `push` copy `scope_id` and `scope_sha256` when `--scope` is set. `check` recomputes the hash. Ledger counts are still not bound to seals.
+Phase 2 scope bind is implemented. `collect` and `push` copy `scope_id` and `scope_sha256` when `--scope` is set. `check` recomputes the hash.
+
+Phase 8 reads those seals. `beacon ledger show` indexes the local chain or one pack by SCF id, the scope pair, custody tags, and the seal digest. `beacon ledger summary` counts distinct automated evidence methods under that scope. Class C minimum is 2. Class D minimum is 4. A shortfall is a package gap. The command does not add a lake index and does not list 46 KSI ids.
 
 Phase 7 is the review surface for phases 8–11. Phases 3–6 of the assessment-scope ADR (candidate builder, Jev, lake index, claim-word display) stay in force. A KSI shortfall of 0 does not permit a claim word. `decide_claim` still does.
 

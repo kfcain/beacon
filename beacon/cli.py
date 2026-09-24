@@ -10,6 +10,7 @@ import click
 
 from beacon import __version__
 from beacon.config import load_settings
+from beacon.assurance.index import ledger_method_report, load_evidence_ledger
 from beacon.crypto.witness import check_chain, create_checkpoint, load_checkpoints, load_records
 from beacon.errors import BeaconError
 from beacon.plugins.loader import load_plugins
@@ -122,6 +123,65 @@ def cmd_scope_hash(scope_id: str) -> None:
     except BeaconError as exc:
         _die(exc)
     click.echo(digest)
+
+
+@main.group("ledger")
+def cmd_ledger() -> None:
+    """Index sealed observations and count evidence methods. A count is not a claim."""
+
+
+@cmd_ledger.command("show")
+@click.option("--scope", "scope_id", default=None, help="Assessment scope id. Reuses the sealed scope pair.")
+@click.option("--pack", "pack_path", type=click.Path(path_type=Path, exists=True, dir_okay=False), default=None)
+@click.option("--scf", "scf_id", default=None, help="Keep entries that name this SCF id.")
+def cmd_ledger_show(scope_id: str | None, pack_path: Path | None, scf_id: str | None) -> None:
+    """Print custody rows for the local chain or one pack. No observation body."""
+    try:
+        ledger = load_evidence_ledger(
+            _settings(),
+            scope_id=scope_id,
+            pack_path=pack_path,
+            scf_id=scf_id,
+        )
+    except BeaconError as exc:
+        _die(exc)
+    _emit(ledger.model_dump(mode="json"))
+
+
+@cmd_ledger.command("summary")
+@click.option("--scope", "scope_id", default=None, help="Assessment scope id. Reuses the sealed scope pair.")
+@click.option("--pack", "pack_path", type=click.Path(path_type=Path, exists=True, dir_okay=False), default=None)
+@click.option("--scf", "scf_id", default=None, help="Count methods whose control ref is this SCF id.")
+@click.option("--class", "package_class", type=click.Choice(["c", "d"]), default="c", show_default=True)
+@click.option("--ksi", "ksi_ids", multiple=True, help="KSI label to include. Repeat for more than one.")
+@click.option("--not-before", "not_before", default=None, help="Drop seals older than this ISO-8601 instant.")
+def cmd_ledger_summary(
+    scope_id: str | None,
+    pack_path: Path | None,
+    scf_id: str | None,
+    package_class: str,
+    ksi_ids: tuple[str, ...],
+    not_before: str | None,
+) -> None:
+    """Print method counts and shortfalls. This report does not authorize a package."""
+    match package_class:
+        case "c" | "d":
+            chosen_class = package_class
+        case _:
+            _die(BeaconError("E_LEDGER", "package class must be c or d"))
+    try:
+        report = ledger_method_report(
+            _settings(),
+            package_class=chosen_class,
+            scope_id=scope_id,
+            pack_path=pack_path,
+            scf_id=scf_id,
+            required_ksi_ids=ksi_ids or None,
+            not_before=not_before,
+        )
+    except BeaconError as exc:
+        _die(exc)
+    _emit(report.model_dump(mode="json"))
 
 
 @main.command("check")

@@ -29,6 +29,7 @@ E_REMOTE = "E_REMOTE"
 E_UNSAFE_SCOPE_ID = "E_UNSAFE_SCOPE_ID"
 E_UNKNOWN_SCOPE = "E_UNKNOWN_SCOPE"
 E_SCOPE = "E_SCOPE"
+E_LEDGER = "E_LEDGER"
 
 
 def fail(code: str, message: str) -> NoReturn:

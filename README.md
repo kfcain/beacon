@@ -137,6 +137,13 @@ beacon push
 
 The assurance stack is the path from that scope to a machine-readable package: a workshop draft, custody tags, a per-framework lens, an evidence ledger, pack compilers, a git policy bridge, and trust-center export. This change locks that design. It does not submit a FedRAMP package, host a trust center, or send mail. See [docs/architecture/beacon-assurance-stack.md](docs/architecture/beacon-assurance-stack.md).
 
+`beacon ledger show` indexes local seals (or one pack) by SCF id, the scope pair when it is present, custody tags, and the seal digest. `beacon ledger summary` counts distinct automated evidence methods for Class C (at least 2) and Class D (at least 4). A shortfall is a package gap. It does not say a control is met. Unknown tag values fail closed. `Record.v` stays 1.
+
+```bash
+beacon ledger show --scope prod-commercial
+beacon ledger summary --scope prod-commercial --class c
+```
+
 ## Limits and sources
 
 - [LIMITS.md](LIMITS.md) — what Beacon does not claim

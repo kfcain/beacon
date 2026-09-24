@@ -383,3 +383,38 @@ It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouche
 - No production AWS apply in this cycle.
 - The 46 KSI ids are not in this repository. The ledger does not invent them.
 - Repo stays private. No secrets.
+
+## 2026-09-24 — Cycle 15
+
+### Why
+
+PR #17 merged to main (merge commit `8be7b761957b0006b1d3e3cdcad7d5a9747eeb7b`).
+Phase 8 ledger and Class C/D method counts are on main. Phase 9 is the next assurance-stack slice in this cycle.
+`beacon pack compile` reads sealed observations and the same Class C / Class D counters.
+It writes JSON drafts for CPO, SDR, OCR, and SCG. Markdown is rendered from those objects.
+The official CR26 schemas are not in this repository. The draft format is `beacon-20x-draft/v1`. `official_schema` is `not-fetched`.
+`scope_id` and `scope_sha256` are stamped when the seals share one scope pair, or when `--scope` is set.
+Class C minimum stays 2. That figure is CR26 guide rule FRC-CSX-VVK.
+Class D minimum stays 4. The attached guide is Class C only. This cycle does not invent a Class D rule id.
+A shortfall is `package_gaps`. The draft does not set a schema status word.
+OCR does not emit `reportableIncidents`. SCG leaves `instructions_to_get_and_use` unset.
+An unknown tag namespace or an unregistered value fails closed.
+`Record.v` stays 1. The witness record fields are unchanged.
+Example control ids stay IAC-02, CRY-07, and GOV-02.
+KSI labels in tests stay `fixture-ksi-*`. This cycle does not list the 46 KSI ids.
+This cycle does not add a git policy bridge, a trust center, an SCN, or a security inbox.
+It does not add a workshop UI, a Jev client, or a lake `SCOPE#` index.
+It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouched.
+
+### Next 3 items
+
+1. Human review of the 20x pack compilers.
+2. After that merge, phase 10 can seal a git policy tip as `evidence:policy`. Do not call grc-pdf-mapper in that phase.
+3. Do not revive draft PR #5 or draft PR #2. Do not invent SCF control ids or a 20x crosswalk id.
+
+### Blockers
+
+- No production AWS apply in this cycle.
+- The 46 KSI ids are not in this repository. The compilers do not invent them.
+- The official CR26 schema files are not vendored. The drafts are Beacon-shaped.
+- Repo stays private. No secrets.

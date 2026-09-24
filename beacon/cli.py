@@ -10,7 +10,9 @@ import click
 
 from beacon import __version__
 from beacon.config import load_settings
+from beacon.assurance.compile import compile_20x_drafts, write_compiled_packs
 from beacon.assurance.index import ledger_method_report, load_evidence_ledger
+from beacon.assurance.packs import PACK_KINDS
 from beacon.crypto.witness import check_chain, create_checkpoint, load_checkpoints, load_records
 from beacon.errors import BeaconError
 from beacon.plugins.loader import load_plugins
@@ -182,6 +184,86 @@ def cmd_ledger_summary(
     except BeaconError as exc:
         _die(exc)
     _emit(report.model_dump(mode="json"))
+
+
+@main.group("pack")
+def cmd_pack() -> None:
+    """Compile 20x draft packs from sealed observations. A shortfall is a package gap."""
+
+
+@cmd_pack.command("compile")
+@click.option(
+    "--kind",
+    "kind",
+    type=click.Choice(["cpo", "sdr", "ocr", "scg", "all"]),
+    default="all",
+    show_default=True,
+    help="Draft kind. all writes CPO, SDR, OCR, and SCG.",
+)
+@click.option("--scope", "scope_id", default=None, help="Assessment scope id. Reuses the sealed scope pair.")
+@click.option("--pack", "pack_path", type=click.Path(path_type=Path, exists=True, dir_okay=False), default=None)
+@click.option("--scf", "scf_id", default=None, help="Keep seals that name this SCF id.")
+@click.option("--class", "package_class", type=click.Choice(["c", "d"]), default="c", show_default=True)
+@click.option("--ksi", "ksi_ids", multiple=True, help="KSI label to include. Repeat for more than one.")
+@click.option("--not-before", "not_before", default=None, help="Drop seals older than this ISO-8601 instant.")
+@click.option("--fedramp-id", "fedramp_id", default=None, help="Copy this token onto each draft. Omit to leave it unset.")
+@click.option("--out", "out_dir", type=click.Path(path_type=Path, file_okay=False), default=None)
+def cmd_pack_compile(
+    kind: str,
+    scope_id: str | None,
+    pack_path: Path | None,
+    scf_id: str | None,
+    package_class: str,
+    ksi_ids: tuple[str, ...],
+    not_before: str | None,
+    fedramp_id: str | None,
+    out_dir: Path | None,
+) -> None:
+    """Write JSON drafts and Markdown rendered from those drafts."""
+    match package_class:
+        case "c" | "d":
+            chosen_class = package_class
+        case _:
+            _die(BeaconError("E_LEDGER", "package class must be c or d"))
+    match kind:
+        case "all":
+            kinds = PACK_KINDS
+        case "cpo" | "sdr" | "ocr" | "scg":
+            kinds = (kind,)
+        case _:
+            _die(BeaconError("E_LEDGER", "pack kind must be cpo, sdr, ocr, scg, or all"))
+    settings = _settings()
+    target = out_dir if out_dir is not None else settings.export_dir / "20x"
+    try:
+        packs = compile_20x_drafts(
+            settings,
+            package_class=chosen_class,
+            kinds=kinds,
+            scope_id=scope_id,
+            pack_path=pack_path,
+            scf_id=scf_id,
+            required_ksi_ids=ksi_ids or None,
+            not_before=not_before,
+            fedramp_id=fedramp_id,
+        )
+        paths = write_compiled_packs(packs, target)
+    except BeaconError as exc:
+        _die(exc)
+    first = packs[0]
+    _emit(
+        {
+            "ok": True,
+            "draft": True,
+            "format": first.format,
+            "package_class": first.package_class,
+            "scope_id": first.scope_id,
+            "scope_sha256": first.scope_sha256,
+            "kinds": [pack.pack_kind for pack in packs],
+            "paths": paths,
+            "package_gaps": [gap.model_dump(mode="json") for gap in first.package_gaps],
+            "official_schema": first.official_schema,
+        }
+    )
 
 
 @main.command("check")

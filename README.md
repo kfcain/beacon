@@ -144,6 +144,12 @@ beacon ledger show --scope prod-commercial
 beacon ledger summary --scope prod-commercial --class c
 ```
 
+`beacon pack compile` writes CPO, SDR, OCR, and SCG drafts from those seals. The JSON file is the source. Markdown is rendered from that JSON. A method shortfall is a package gap. The command does not fetch a FedRAMP schema. See [beacon/assurance/README.md](beacon/assurance/README.md).
+
+```bash
+beacon pack compile --scope prod-commercial --class c
+```
+
 ## Limits and sources
 
 - [LIMITS.md](LIMITS.md) — what Beacon does not claim

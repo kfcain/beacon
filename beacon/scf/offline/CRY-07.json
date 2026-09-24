@@ -1,5 +1,5 @@
 {
-  "control_id": "CRY-05",
+  "control_id": "CRY-07",
   "title": "Encrypting Data At Rest",
   "family": "CRY",
   "description": "Cryptographic mechanisms exist to prevent unauthorized disclosure of data at rest.",

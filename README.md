@@ -28,14 +28,14 @@ beacon tui
 Without cloud credentials, inspectors seal **fixtures** through the witness chain. Live collection uses `aws`, `az`, and `gcloud`. A live failure is sealed as `live_failed`. It is never rewritten as a success fixture.
 
 ```bash
-beacon collect --target IAC-01
-beacon collect --target CRY-05
+beacon collect --target IAC-02
+beacon collect --target CRY-07
 beacon collect --plugin aws.inspector
 beacon collect --plugin aws.lake.logs
 beacon collect --plugin aws.lake.logs --live
 ```
 
-`--target IAC-01` and `--target CRY-05` select every loaded fetcher whose `FetcherSpec.scf_targets` overlap that control, then seal the results.
+`--target IAC-02` and `--target CRY-07` select every loaded fetcher whose `FetcherSpec.scf_targets` overlap that control, then seal the results.
 
 ## AWS evidence lake
 
@@ -50,7 +50,7 @@ export BEACON_WORKSPACE_ID=...
 export BEACON_LOGS_BUCKET=...
 # optional: BEACON_S3_PREFIX, BEACON_OBJECT_LOCK_MODE, BEACON_OBJECT_LOCK_DAYS
 # optional: BEACON_REQUIRE_REMOTE=1, BEACON_PACK_TYPE, BEACON_TRUST_CENTER_EXPORT=1
-beacon collect --target IAC-01
+beacon collect --target IAC-02
 beacon push
 beacon sync
 beacon pull
@@ -84,7 +84,7 @@ conftest test --combine --parser hcl2 -p policy/terraform deploy/aws/*.tf
 
 ## SCF hub
 
-Default API: `https://hackidle.github.io/scf-api/` (live host max 2026.1.1). That host is **not** the 2026.2 pin.
+Default API: `https://hackidle.github.io/scf-api/` (live host max 2026.1.1). That host is **not** the 2026.3 pin.
 
 - Override base URL: `BEACON_SCF_API_BASE`
 - Offline tests and air-gap: `BEACON_SCF_OFFLINE=1`

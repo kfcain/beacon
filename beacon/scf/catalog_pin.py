@@ -1,4 +1,4 @@
-"""Offline SCF 2026.2 catalog pin. Live HackIDLE is not the source of truth."""
+"""Offline SCF 2026.3 catalog pin. Live HackIDLE is not the source of truth."""
 
 from __future__ import annotations
 
@@ -11,18 +11,18 @@ from beacon.canonical import sha256_bytes
 from beacon.config import env
 from beacon.errors import E_SCF, fail
 
-PINNED_SCF_VERSION = "2026.2"
-PINNED_WORKBOOK_SHA256 = "9e0a4df4993726c95e636f04b3028d8b5edeba2bda45d16ed6722b13540e6835"
-PINNED_XLSX_NAME = "secure-controls-framework-scf-2026-2.xlsx"
+PINNED_SCF_VERSION = "2026.3"
+PINNED_WORKBOOK_SHA256 = "5a89bf2d3c106a9a87d4b6e3d62dd3e147d0e960d4c07473045a10aa8a7df697"
+PINNED_XLSX_NAME = "secure-controls-framework-scf-2026-3.xlsx"
 PINNED_COUNTS: dict[str, int] = {
-    "total_controls": 1534,
+    "total_controls": 1591,
     "total_families": 34,
-    "total_crosswalk_frameworks": 249,
-    "total_evidence_requests": 316,
-    "total_assessment_objectives": 5956,
+    "total_crosswalk_frameworks": 270,
+    "total_evidence_requests": 422,
+    "total_assessment_objectives": 6446,
 }
 PINNED_QTS_FAMILY = "QTS"
-PINNED_QTS_CONTROL_COUNT = 34
+PINNED_QTS_CONTROL_COUNT = 31
 # Already declared in PIN.json. Do not invent framework ids.
 PINNED_PILLAR_FRAMEWORK_IDS: tuple[str, ...] = (
     "usa-federal-gsa-fedramp-5-high",
@@ -32,13 +32,14 @@ PINNED_PILLAR_FRAMEWORK_IDS: tuple[str, ...] = (
 )
 PINNED_NOT_A_FRAMEWORK_IDS: tuple[str, ...] = ("usa-federal-gsa-fedramp-20x-ksi",)
 PINNED_FILE_SHA256: dict[str, str] = {
-    "summary.json": "8edff57f97690c4b8fc6e3dc7acc5536aa756550043ff342f2d8a43016737167",
-    "families.json": "ad00f1f3ce91c405539935fcd2c61b1fb32a84cdd9f412b8f8279128f8270650",
-    "index-meta.json": "b2e0dcf466ea0666494662b26f984fa34e482b7b057dab1b90ad9324af952dd6",
+    "summary.json": "584d0d830913a17c58812dde3a1b6771802fd8c29fdc3f47c9d7297bcf2d00ee",
+    "families.json": "ef1291c85660b679006749e12d95d16ac0891f2e2c9c5c2c9934161b5115f0a2",
+    "index-meta.json": "1a45e3f70768b7d185b432e595e76901cc1a8f4be8de7e6b46b942454e30adc4",
 }
 CATALOG_PROVENANCE = "scf-catalog"
 # Documented drop-in target already used by examples/echo_platform.py. Not invented.
-CATALOG_SCF_TARGET = "GOV-01"
+# 2026.3 GOV-02 is legacy GOV-01 (SCRP). 2026.3 GOV-01 is a new policy control.
+CATALOG_SCF_TARGET = "GOV-02"
 CATALOG_SCF_FAMILY = "GOV"
 REQUIRED_PIN_FILES: tuple[str, ...] = ("PIN.json", "summary.json", "families.json", "index-meta.json")
 HASHED_JSON_FILES: tuple[str, ...] = ("summary.json", "families.json", "index-meta.json")
@@ -173,7 +174,7 @@ def _summary_path(root: Path) -> Path | None:
 
 
 def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
-    """Verify the offline 2026.2 pin. Does not call live HackIDLE."""
+    """Verify the offline 2026.3 pin. Does not call live HackIDLE."""
     root, kind = resolve_catalog_root(explicit)
     errors: list[str] = []
     if kind not in ("vendored", "env"):
@@ -245,13 +246,13 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
         errors.append("PIN.json xlsx_sha256 is missing")
         declared_sha = workbook_sha
     elif workbook_sha != PINNED_WORKBOOK_SHA256:
-        errors.append("PIN.json workbook SHA-256 does not match the 2026.2 pin")
+        errors.append("PIN.json workbook SHA-256 does not match the 2026.3 pin")
         declared_sha = workbook_sha
     else:
         declared_sha = workbook_sha
     if meta_sha:
         if meta_sha != PINNED_WORKBOOK_SHA256:
-            errors.append("index-meta.json workbook SHA-256 does not match the 2026.2 pin")
+            errors.append("index-meta.json workbook SHA-256 does not match the 2026.3 pin")
 
     if families_path is not None:
         family_rows = _family_rows(families_doc.get("families"))
@@ -399,7 +400,7 @@ def inspect_catalog_pin(explicit: str | Path | None = None) -> CatalogPinResult:
     if workbook_present:
         xlsx_digest = sha256_bytes(workbook_path.read_bytes())
         if xlsx_digest != PINNED_WORKBOOK_SHA256:
-            errors.append("workbook SHA-256 does not match the 2026.2 pin")
+            errors.append("workbook SHA-256 does not match the 2026.3 pin")
 
     return CatalogPinResult(
         ok=not errors,

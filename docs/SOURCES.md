@@ -7,7 +7,7 @@ Beacon uses public GRC engineering work as **shape references**. This repository
 - Org: [GRCEngClub](https://github.com/GRCEngClub)
 - Toolkit: [GRCEngClub/claude-grc-engineering](https://github.com/GRCEngClub/claude-grc-engineering)
 - Connectors used as the inspector shape: `plugins/connectors/aws-inspector`, `azure-inspector`, `gcp-inspector`
-- Collect contract: CLI-backed probes (`aws` / `az` / `gcloud`), SCF-tagged findings (IAC-01, CRY-05, and related checks), fixture-friendly first run
+- Collect contract: CLI-backed probes (`aws` / `az` / `gcloud`), SCF-tagged findings (IAC-02, CRY-07, and related checks), fixture-friendly first run
 
 Beacon's `CloudInspectorPlugin` follows that connector outline (probe identity, collect a small IAM + encryption surface, emit SCF-tagged findings). It does not copy the Node collect scripts.
 
@@ -29,6 +29,6 @@ Beacon's `FetcherSpec`, drop-in `PLUGIN` loader, TUI tabs (Dashboard, Freshness,
 
 - API: [https://hackidle.github.io/scf-api/](https://hackidle.github.io/scf-api/)
 - Project: [hackIDLE/scf-api](https://github.com/hackIDLE/scf-api)
-- Live host version: SCF 2026.1.1 (CC BY-ND). **Not** the 2026.2 pin.
-- Offline control bundle: verbatim `IAC-01` and `CRY-05` control JSON plus a compact summary, for `BEACON_SCF_OFFLINE=1` tests only
-- Offline catalog pin: `beacon/scf/catalog/` (SCF **2026.2** summary, families, 249 crosswalk framework ids, index-meta, workbook SHA-256). Collector: `scf.catalog.offline`. Air-gap collect does not need the `.xlsx` file. See [SCF_CATALOG.md](SCF_CATALOG.md).
+- Live host version: SCF 2026.1.1 (CC BY-ND). **Not** the 2026.3 pin.
+- Offline control bundle: `IAC-02` and `CRY-07` control JSON plus a compact summary, for `BEACON_SCF_OFFLINE=1` tests only. Those ids are the 2026.3 Legacy SCF # maps of prior IAC-01 (IAM) and CRY-05 (data at rest).
+- Offline catalog pin: `beacon/scf/catalog/` (SCF **2026.3** summary, families, 270 crosswalk framework ids, index-meta, workbook SHA-256 `5a89bf2d3c106a9a87d4b6e3d62dd3e147d0e960d4c07473045a10aa8a7df697`). Collector: `scf.catalog.offline`. Air-gap collect does not need the `.xlsx` file. See [SCF_CATALOG.md](SCF_CATALOG.md).

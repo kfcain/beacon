@@ -35,7 +35,7 @@ aws sts assume-role --role-arn "$(terraform output -raw writer_role_arn)" --role
 Copy AccessKeyId, SecretAccessKey, and SessionToken from STS into the process environment. Then:
 
 ```bash
-beacon collect --target IAC-01
+beacon collect --target IAC-02
 beacon push
 beacon sync
 beacon pull

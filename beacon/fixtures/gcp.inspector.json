@@ -8,21 +8,21 @@
   },
   "findings": [
     {
-      "scf": "IAC-01",
+      "scf": "IAC-02",
       "check": "iam_policy",
       "status": "pass",
       "severity": "info",
       "detail": "Fixture: project IAM policy retrieved."
     },
     {
-      "scf": "IAC-01.2",
+      "scf": "IAC-03",
       "check": "org_policy",
       "status": "pass",
       "severity": "low",
       "detail": "Fixture: org policy service listed."
     },
     {
-      "scf": "CRY-05",
+      "scf": "CRY-07",
       "check": "gcs_encryption",
       "status": "pass",
       "severity": "high",

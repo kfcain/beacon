@@ -8,28 +8,28 @@
   },
   "findings": [
     {
-      "scf": "IAC-01",
+      "scf": "IAC-02",
       "check": "iam_program",
       "status": "pass",
       "severity": "info",
       "detail": "Fixture: IAM account summary present."
     },
     {
-      "scf": "IAC-01.1",
+      "scf": "IAC-03.2",
       "check": "root_mfa",
       "status": "pass",
       "severity": "critical",
       "detail": "Fixture: root MFA enabled."
     },
     {
-      "scf": "CRY-05",
+      "scf": "CRY-07",
       "check": "s3_default_encryption",
       "status": "pass",
       "severity": "high",
       "detail": "Fixture: S3 default encryption AES256."
     },
     {
-      "scf": "CRY-05",
+      "scf": "CRY-07",
       "check": "ebs_encryption_by_default",
       "status": "pass",
       "severity": "high",

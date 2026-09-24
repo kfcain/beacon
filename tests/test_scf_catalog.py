@@ -1,4 +1,4 @@
-"""Offline SCF 2026.2 catalog collector: pin, hashes, fail-closed witness."""
+"""Offline SCF 2026.3 catalog collector: pin, hashes, fail-closed witness."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from beacon.scf.catalog_pin import (
 from beacon.scf.engine import collect_named
 
 # Control id already declared by examples/echo_platform.py. Do not invent IDs.
-KNOWN_IN_REPO_TARGET = "GOV-01"
+KNOWN_IN_REPO_TARGET = "GOV-02"
 
 
 def _dump(path: Path, obj: object) -> None:
@@ -69,17 +69,17 @@ def test_plugin_is_builtin(initialized):
 def test_vendored_pin_matches_catalog_truth():
     result = verify_catalog_pin()
     assert result.ok is True
-    assert result.scf_version == PINNED_SCF_VERSION == "2026.2"
+    assert result.scf_version == PINNED_SCF_VERSION == "2026.3"
     assert result.workbook_sha256 == PINNED_WORKBOOK_SHA256
-    assert result.workbook_sha256 == "9e0a4df4993726c95e636f04b3028d8b5edeba2bda45d16ed6722b13540e6835"
+    assert result.workbook_sha256 == "5a89bf2d3c106a9a87d4b6e3d62dd3e147d0e960d4c07473045a10aa8a7df697"
     assert result.counts == PINNED_COUNTS
-    assert result.counts["total_controls"] == 1534
+    assert result.counts["total_controls"] == 1591
     assert result.counts["total_families"] == 34
-    assert result.counts["total_crosswalk_frameworks"] == 249
-    assert result.counts["total_evidence_requests"] == 316
-    assert result.counts["total_assessment_objectives"] == 5956
+    assert result.counts["total_crosswalk_frameworks"] == 270
+    assert result.counts["total_evidence_requests"] == 422
+    assert result.counts["total_assessment_objectives"] == 6446
     assert "QTS" in result.family_codes
-    assert result.qts_control_count == 34
+    assert result.qts_control_count == 31
     assert "GOV" in result.family_codes
     pin = json.loads((vendored_catalog_dir() / "PIN.json").read_text(encoding="utf-8"))
     assert pin["xlsx_sha256"] == PINNED_WORKBOOK_SHA256
@@ -90,16 +90,17 @@ def test_vendored_pin_matches_catalog_truth():
     assert result.file_sha256 == PINNED_FILE_SHA256
     summary = json.loads((vendored_catalog_dir() / "summary.json").read_text(encoding="utf-8"))
     framework_ids = [row["framework_id"] for row in summary["crosswalk_frameworks"]]
-    assert len(framework_ids) == 249
-    assert len(set(framework_ids)) == 249
+    assert len(framework_ids) == 270
+    assert len(set(framework_ids)) == 270
+    assert summary["total_compensating_controls"] == 1397
     assert "usa-federal-gsa-fedramp-5-high" in framework_ids
     assert "general-nist-800-53-r5-2" in framework_ids
     assert "usa-federal-dow-cmmc-2-level-2" in framework_ids
     assert "general-aicpa-tsc-2017" in framework_ids
     assert "usa-federal-gsa-fedramp-20x-ksi" not in framework_ids
     families = json.loads((vendored_catalog_dir() / "families.json").read_text(encoding="utf-8"))
-    assert families["total_controls"] == 1534
-    assert families["scf_version"] == "2026.2"
+    assert families["total_controls"] == 1591
+    assert families["scf_version"] == "2026.3"
 
 
 def test_fixture_collect_ok(initialized):
@@ -109,13 +110,13 @@ def test_fixture_collect_ok(initialized):
     payload = result.payload
     assert payload["source"] == PLUGIN_NAME
     assert payload["ok"] is True
-    assert payload["pin"]["scf_version"] == "2026.2"
+    assert payload["pin"]["scf_version"] == "2026.3"
     assert payload["pin"]["live_api_authoritative"] is False
     assert payload["pin"]["workbook_sha256"] == PINNED_WORKBOOK_SHA256
-    assert payload["pin"]["counts"]["total_controls"] == 1534
+    assert payload["pin"]["counts"]["total_controls"] == 1591
     assert payload["catalog_pin"]["provenance"] == CATALOG_PROVENANCE
     binding = payload["scf_binding"]
-    assert binding["scf_version"] == "2026.2"
+    assert binding["scf_version"] == "2026.3"
     assert binding["scf_id"] == KNOWN_IN_REPO_TARGET
     assert binding["scf_ids"] == [KNOWN_IN_REPO_TARGET]
     assert binding["scf_family"] == "GOV"
@@ -138,7 +139,7 @@ def test_live_is_failed_not_fixture_and_does_not_fetch(initialized, monkeypatch:
     assert result.payload["mode"] == "live_failed"
     assert result.payload["findings"] == []
     assert result.payload["scf_binding"]["pinned"] is False
-    assert "not the SCF 2026.2 pin" in (result.error or "")
+    assert "not the SCF 2026.3 pin" in (result.error or "")
 
 
 def test_missing_file_fails_closed(catalog_copy: Path):
@@ -167,7 +168,7 @@ def test_wrong_version_fails_closed(catalog_copy: Path):
     _rehash_pin(catalog_copy)
     result = inspect_catalog_pin(catalog_copy)
     assert result.ok is False
-    assert any("2026.2" in item for item in result.errors)
+    assert any("2026.3" in item for item in result.errors)
     collected = PLUGIN.collect(CollectContext(live=False, extra={"catalog_path": str(catalog_copy)}))
     assert collected.ok is False
     assert collected.payload["scf_binding"]["pinned"] is False
@@ -377,7 +378,7 @@ def test_seal_and_check(initialized):
     evidence = json.loads(
         (load_settings().evidence_dir / f"{records[-1].evidence_id}.json").read_text(encoding="utf-8")
     )
-    assert evidence["scf_binding"]["scf_version"] == "2026.2"
+    assert evidence["scf_binding"]["scf_version"] == "2026.3"
     assert evidence["scf_binding"]["provenance"] == "scf-catalog"
     assert evidence["findings"][0]["scf"] == KNOWN_IN_REPO_TARGET
 
@@ -395,22 +396,22 @@ def test_seal_without_checkpoint_is_e_no_checkpoint(initialized):
 
 
 def test_foreign_target_is_rejected(initialized):
-    result = PLUGIN.collect(CollectContext(target="IAC-01", live=False))
+    result = PLUGIN.collect(CollectContext(target="IAC-02", live=False))
     assert result.ok is False
     assert result.mode == "failed"
     assert result.scf_targets == (KNOWN_IN_REPO_TARGET,)
     assert result.payload["findings"] == []
     assert result.payload["scf_binding"]["scf_id"] == ""
-    assert "IAC-01" in (result.error or "")
+    assert "IAC-02" in (result.error or "")
     sealed = collect_named(
         load_settings(),
         PLUGIN_NAME,
-        CollectContext(target="IAC-01", live=False),
+        CollectContext(target="IAC-02", live=False),
         checkpoint=True,
     )
     assert sealed["ok"] is False
     assert sealed["scf_targets"] == [KNOWN_IN_REPO_TARGET]
-    assert "IAC-01" not in sealed["scf_targets"]
+    assert "IAC-02" not in sealed["scf_targets"]
 
 
 def test_cli_collect_plugin(initialized):

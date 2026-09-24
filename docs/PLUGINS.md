@@ -15,12 +15,12 @@ spec = FetcherSpec(
     version="0.1.0",
     description="Example platform",
     category="example",
-    scf_targets=("GOV-01",),
+    scf_targets=("GOV-02",),
     tools=(),
 )
 ```
 
-`scf_targets` is how `beacon collect --target IAC-01` selects overlapping fetchers. A plugin is selected when a declared target equals the requested id, is a parent/child (IAC-01 vs IAC-01.1), or shares the SCF family code.
+`scf_targets` is how `beacon collect --target IAC-02` selects overlapping fetchers. A plugin is selected when a declared target equals the requested id, is a parent/child (CRY-07 vs CRY-07.1), or shares the SCF family code.
 
 ## collect()
 
@@ -55,9 +55,9 @@ beacon collect --plugin echo
 
 Builtin inspectors (`aws.inspector`, `azure.inspector`, `gcp.inspector`) are the same `CloudInspectorPlugin` class with a per-cloud profile.
 
-`aws.lake.logs` reads the evidence-lake logging bucket (`s3-access-logs/` and `cloudtrail/`). It seals observations and findings on **IAC-01**. Raw AWS objects stay in the logging bucket. Set `BEACON_LOGS_BUCKET` for `--live`. With no bucket, collect uses the fixture. A live read failure stays `live_failed`.
+`aws.lake.logs` reads the evidence-lake logging bucket (`s3-access-logs/` and `cloudtrail/`). It seals observations and findings on **IAC-02** (2026.3 id for legacy IAC-01, IAM). Raw AWS objects stay in the logging bucket. Set `BEACON_LOGS_BUCKET` for `--live`. With no bucket, collect uses the fixture. A live read failure stays `live_failed`.
 
-Builtin `scf.catalog.offline` verifies the slim SCF 2026.2 catalog pin. It does not fetch live HackIDLE. See [SCF_CATALOG.md](SCF_CATALOG.md).
+Builtin `scf.catalog.offline` verifies the slim SCF 2026.3 catalog pin. It does not fetch live HackIDLE. See [SCF_CATALOG.md](SCF_CATALOG.md).
 
 ```bash
 beacon collect --plugin scf.catalog.offline --fixture

@@ -141,6 +141,8 @@ Jev returns only these results:
 
 Thresholds live in Beacon. The stub constant `DEFAULT_SCORE_MIN` is `1.0`. Coverage must be greater than or equal to that minimum. A later phase may store a lower operator minimum in Beacon configuration. Jev does not receive the minimum and does not return a permitted flag.
 
+Per-objective roll-up and the Foreman-shaped Jev adapter are in [ao-rules-and-jev.md](ao-rules-and-jev-adapter.md). That note does not change this schema stub. Jev still scores. Python still decides.
+
 The code gate is `decide_claim`. It returns `permitted` false unless all of the following are true:
 
 1. A `JudgmentReceipt` is present.
@@ -226,7 +228,7 @@ This design leaves the following work out:
 | 1 | `beacon scope init`, `show`, and `hash`. Persist `.beacon/scopes/{scope_id}.json`. Unknown id fails closed. | No |
 | 2 | Bind. `collect` and `push` copy `scope_id` and `scope_sha256` into the observation payload when `--scope` is set. `check` recomputes the hash. Mismatch fails closed. `Record.v` stays 1. | Yes. `BEACON_REQUIRE_SCOPE=1` is optional and fails closed when `--scope` is missing. |
 | 3 | Candidate builder. Pure function over loaded plugins, catalog targets, and the scope. Tests use existing plugin ids and existing targets (`IAC-02`, `CRY-07`). A target absent from the offline slice fails closed. Resolve framework ids against the pin. Reject ids the pin lists in `not_a_framework_id`. | No |
-| 4 | Jev adapter behind a small protocol: `choice`, `score`, `noul`. Tests use a local fake judge. No network. Write `JudgmentReceipt` files. Call `decide_claim` with `DEFAULT_SCORE_MIN` unless operator config sets a lower minimum. | No |
+| 4 | Jev adapter behind a small protocol: `choice`, `score`, `noul`. Tests use a local fake judge. No network. Write `JudgmentReceipt` files. Call `decide_claim` with `DEFAULT_SCORE_MIN` unless operator config sets a lower minimum. The objective roll-up and the adapter shape are in [ao-rules-and-jev-adapter.md](ao-rules-and-jev-adapter.md). | No |
 | 5 | Lake objects and index fields for `SCOPE#` and `RECEIPT#`, plus optional fields on `EVIDENCE#`. Same SSE-KMS rules. Trust-center prefix stays closed to these objects. | No |
 | 6 | GUI, TUI, and MCP show the scope hash and the receipt id. A claim word appears only beside that receipt id when `decide_claim` permits it. | No |
 

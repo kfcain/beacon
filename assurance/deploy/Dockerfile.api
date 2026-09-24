@@ -1,0 +1,10 @@
+# Supply a verified Chainguard Node 24+ runtime by immutable digest.
+ARG NODE_RUNTIME
+FROM ${NODE_RUNTIME}
+WORKDIR /app
+COPY --chown=65532:65532 lib/beacon/ ./lib/beacon/
+COPY --chown=65532:65532 portable/ ./portable/
+USER 65532:65532
+ENV NODE_ENV=production BEACON_DATABASE=/data/workspace.sqlite BEACON_BIND=0.0.0.0 PORT=8787
+EXPOSE 8787
+ENTRYPOINT ["node","portable/server.mjs"]

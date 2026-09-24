@@ -1,0 +1,28 @@
+name: Beacon assurance verification
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=high
+      - run: npm test
+      - name: Verify pinned OPA and run policy regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          beacon_opa="$RUNNER_TEMP/beacon-opa-1.8.0"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 90 --retry 2 https://github.com/open-policy-agent/opa/releases/download/v1.8.0/opa_linux_amd64_static --output "$beacon_opa"
+          printf '%s  %s\n' '1359b1bff233fc0a290066e864c75b8158e52756319757b6854df467fe7fc146' "$beacon_opa" | sha256sum --check --status
+          chmod 500 "$beacon_opa"
+          "$beacon_opa" test policies/beacon -v
+      - run: npm run test:collector
+      - run: npm run build:portable

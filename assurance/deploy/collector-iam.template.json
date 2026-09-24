@@ -1,0 +1,1 @@
+{"Version":"2012-10-17","Statement":[{"Sid":"ReadRegionalEbsDefault","Effect":"Allow","Action":"ec2:GetEbsEncryptionByDefault","Resource":"*","Condition":{"StringEquals":{"aws:RequestedRegion":["us-gov-west-1","us-gov-east-1"]}}}]}

@@ -271,6 +271,10 @@ Codex P1 and P2 on the claim gate are fixed here. `decide_claim` requires the se
 
 PR #11 merged to main (merge commit `4de2c37340b7b00807571a34fdfab2e363e00e55`).
 The assessment scope ADR and the schema stub are on main.
+PR #12 merged to main (merge commit `91bbb6539948b4dfb677ba5a473ce78c3ae1f4c6`).
+The offline SCF summary is a 2026.3 seed index. That pull request does not change the catalog pin.
+PR #13 merged to main (merge commit `3b3e6acdc1a3f90cdfff94245fe020b015ea5124`).
+The Beacon TUI shows a first-run walkthrough.
 `decide_claim` stays fail-closed. `DEFAULT_SCORE_MIN` stays `1.0`.
 This cycle adds phase 1 only: `beacon scope init`, `beacon scope show`, and `beacon scope hash`.
 `init` writes `.beacon/scopes/{scope_id}.json` as schema version 1.
@@ -281,7 +285,7 @@ An unsafe id, a missing file, a second init, or a scope id that does not match t
 `hash` prints `ScopeDocument.content_sha256()`.
 This cycle does not bind collect or check, does not build candidates, does not call Jev, and does not add lake index fields.
 Conftest on current OPA rejects the field name `default` as a keyword. Policy rules now read `item.values["default"]`. The rule text is the same.
-Open PR #12, draft PR #5, and PR #2 stay untouched.
+Draft PR #5 and draft PR #2 stay untouched.
 
 ### Next 3 items
 

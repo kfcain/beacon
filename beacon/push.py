@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,7 +12,8 @@ from beacon import __version__
 from beacon.canonical import dumps
 from beacon.config import PACK_TYPES, Settings
 from beacon.crypto.witness import load_checkpoints, load_records
-from beacon.errors import E_NOT_INITIALIZED, E_REMOTE, fail
+from beacon.errors import E_NOT_INITIALIZED, E_REMOTE, E_SCOPE, fail
+from beacon.scope.bind import SCOPE_HASH_FIELD, SCOPE_ID_FIELD, scope_pair_from_payload
 from beacon.storage import publish_pack
 
 
@@ -56,6 +58,17 @@ def _pack_markdown(pack: dict[str, Any], *, pack_type: str) -> str:
     return "\n".join(lines)
 
 
+def _pair_from_evidence_body(body: str | None) -> tuple[str, str] | None:
+    """Copy a scope pair from one sealed payload. Do not invent a scope."""
+    if body is None:
+        return None
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        fail(E_SCOPE, "sealed observation payload is not JSON")
+    return scope_pair_from_payload(parsed)
+
+
 def write_pack(
     settings: Settings,
     out_path: Path | None = None,
@@ -78,10 +91,17 @@ def write_pack(
     records = load_records(settings)
     checkpoints = load_checkpoints(settings)
     evidence = []
+    bound_pairs: list[tuple[str, str]] = []
     for record in records:
         path = settings.evidence_dir / f"{record.evidence_id}.json"
         body = path.read_text(encoding="utf-8") if path.exists() else None
-        evidence.append({"evidence_id": record.evidence_id, "payload": body})
+        row: dict[str, Any] = {"evidence_id": record.evidence_id, "payload": body}
+        pair = _pair_from_evidence_body(body)
+        if pair is not None:
+            row[SCOPE_ID_FIELD] = pair[0]
+            row[SCOPE_HASH_FIELD] = pair[1]
+            bound_pairs.append(pair)
+        evidence.append(row)
     pack = {
         "format": "beacon-pack/v1",
         "version": __version__,
@@ -96,6 +116,12 @@ def write_pack(
         "checkpoints": [row.to_dict() for row in checkpoints],
         "evidence": evidence,
     }
+    # One shared pair can sit on the pack. Mixed pairs stay on each evidence
+    # row so push does not replace one sealed scope with another.
+    if len(set(bound_pairs)) == 1:
+        scope_id, scope_sha256 = bound_pairs[0]
+        pack[SCOPE_ID_FIELD] = scope_id
+        pack[SCOPE_HASH_FIELD] = scope_sha256
     settings.export_dir.mkdir(parents=True, exist_ok=True)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     if out_path is None:

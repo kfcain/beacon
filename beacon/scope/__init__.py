@@ -1,4 +1,4 @@
-"""Assessment scope schema and local scope files. Collect and Jev calls are later phases."""
+"""Assessment scope schema, local scope files, and payload scope bind."""
 
 from beacon.scope.document import (
     DEFAULT_SCORE_MIN,

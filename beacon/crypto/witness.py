@@ -20,10 +20,13 @@ from beacon.errors import (
     E_KEY_COLLISION,
     E_NO_CHECKPOINT,
     E_NOT_INITIALIZED,
+    E_SCOPE,
     E_TSA,
     BeaconError,
     fail,
 )
+from beacon.scope.bind import verify_payload_scope
+from beacon.scope.store import load_scope
 
 CHAIN_VERSION = 1
 GENESIS_PREV = "0" * 64
@@ -295,9 +298,12 @@ def verify_record(record: Record, prev_hash: str) -> None:
         fail(E_BAD_SIGNATURE, f"seq {record.seq} recorder and witness keys are not distinct")
 
 
-def check_chain(settings: Settings) -> dict[str, Any]:
+def check_chain(settings: Settings, *, scope_id: str | None = None) -> dict[str, Any]:
     if not settings.keys_dir.exists():
         fail(E_NOT_INITIALIZED, "run `beacon init` first")
+    if scope_id is None and settings.require_scope:
+        fail(E_SCOPE, "BEACON_REQUIRE_SCOPE=1 requires --scope")
+    requested = load_scope(settings, scope_id) if scope_id is not None else None
     records = load_records(settings)
     checkpoints = load_checkpoints(settings)
     prev = GENESIS_PREV
@@ -312,6 +318,7 @@ def check_chain(settings: Settings) -> dict[str, Any]:
         payload_bytes = evidence_path.read_bytes()
         if sha256_bytes(payload_bytes) != record.payload_sha256:
             fail(E_BAD_CHAIN, f"seq {record.seq} evidence hash mismatch")
+        verify_payload_scope(settings, record.seq, payload_bytes, requested=requested)
         prev = sha256_obj(record.to_dict())
         expected_seq += 1
     if records and not checkpoints:

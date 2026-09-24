@@ -100,6 +100,7 @@ class Settings:
     require_remote: bool
     pack_type: str = DEFAULT_PACK_TYPE
     trust_center_export: bool = False
+    require_scope: bool = False
 
     @property
     def keys_dir(self) -> Path:
@@ -169,6 +170,7 @@ def load_settings(cwd: Path | None = None) -> Settings:
         require_remote=_truthy(env("REQUIRE_REMOTE")),
         pack_type=pack_type,
         trust_center_export=_truthy(env("TRUST_CENTER_EXPORT")),
+        require_scope=_truthy(env("REQUIRE_SCOPE")),
     )
 
 

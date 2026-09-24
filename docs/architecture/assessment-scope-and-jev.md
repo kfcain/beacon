@@ -224,7 +224,7 @@ This design leaves the following work out:
 | --- | --- | --- |
 | 0 | ADR, schema stub, round-trip tests, README and LIMITS pointer | Yes |
 | 1 | `beacon scope init`, `show`, and `hash`. Persist `.beacon/scopes/{scope_id}.json`. Unknown id fails closed. | No |
-| 2 | Bind. `collect` and `push` copy `scope_id` and `scope_sha256` into the observation payload when `--scope` is set. `check` recomputes the hash. Mismatch fails closed. `Record.v` stays 1. | No |
+| 2 | Bind. `collect` and `push` copy `scope_id` and `scope_sha256` into the observation payload when `--scope` is set. `check` recomputes the hash. Mismatch fails closed. `Record.v` stays 1. | Yes. `BEACON_REQUIRE_SCOPE=1` is optional and fails closed when `--scope` is missing. |
 | 3 | Candidate builder. Pure function over loaded plugins, catalog targets, and the scope. Tests use existing plugin ids and existing targets (`IAC-02`, `CRY-07`). A target absent from the offline slice fails closed. Resolve framework ids against the pin. Reject ids the pin lists in `not_a_framework_id`. | No |
 | 4 | Jev adapter behind a small protocol: `choice`, `score`, `noul`. Tests use a local fake judge. No network. Write `JudgmentReceipt` files. Call `decide_claim` with `DEFAULT_SCORE_MIN` unless operator config sets a lower minimum. | No |
 | 5 | Lake objects and index fields for `SCOPE#` and `RECEIPT#`, plus optional fields on `EVIDENCE#`. Same SSE-KMS rules. Trust-center prefix stays closed to these objects. | No |

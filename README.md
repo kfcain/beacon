@@ -126,7 +126,14 @@ Tools: `beacon_status`, `beacon_init`, `beacon_seed`, `beacon_check`, `beacon_co
 
 ## Assessment scope
 
-Beacon can describe one instance with an assessment scope document. The document names the boundary, the frameworks in play, the data classes, the exclusions, and the allowed evidence kinds. A later collect, seal, and push will carry `scope_id` and the hash of that document. Jev (TypeSafe System One) can then judge candidates that Beacon code builds. Choice picks a candidate or returns no-match. Score reports coverage. Noul reports sufficiency. Beacon code keeps the thresholds and fails closed. Beacon shows a control as compliant, evidenced, or proven only when a judgment receipt is linked and the threshold check passes. This change adds the design and a schema stub. It does not collect with `--scope`. Main already pins SCF 2026.3. This change does not re-vendor that pin. See [docs/architecture/assessment-scope-and-jev.md](docs/architecture/assessment-scope-and-jev.md).
+Beacon can describe one instance with an assessment scope document. The document names the boundary, the frameworks in play, the data classes, the exclusions, and the allowed evidence kinds. `beacon collect --scope <scope_id>` copies `scope_id` and `scope_sha256` into each sealed observation payload. `beacon check` reloads `.beacon/scopes/{scope_id}.json` and fails closed on a missing file or a hash mismatch. A record with no pair keeps the current check rules. `beacon push` copies that pair into the pack manifest. `BEACON_REQUIRE_SCOPE=1` makes a missing `--scope` on collect and check fail closed. `Record.v` stays 1. Jev (TypeSafe System One) can later judge candidates that Beacon code builds. Choice picks a candidate or returns no-match. Score reports coverage. Noul reports sufficiency. Beacon code keeps the thresholds and fails closed. Beacon shows a control as compliant, evidenced, or proven only when a judgment receipt is linked and the threshold check passes. Main already pins SCF 2026.3. This change does not re-vendor that pin. See [docs/architecture/assessment-scope-and-jev.md](docs/architecture/assessment-scope-and-jev.md).
+
+```bash
+beacon scope init --id prod-commercial
+beacon collect --scope prod-commercial --target IAC-02
+beacon check --scope prod-commercial
+beacon push
+```
 
 The assurance stack is the path from that scope to a machine-readable package: a workshop draft, custody tags, a per-framework lens, an evidence ledger, pack compilers, a git policy bridge, and trust-center export. This change locks that design. It does not submit a FedRAMP package, host a trust center, or send mail. See [docs/architecture/beacon-assurance-stack.md](docs/architecture/beacon-assurance-stack.md).
 

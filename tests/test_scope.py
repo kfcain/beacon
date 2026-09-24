@@ -25,7 +25,7 @@ OTHER_HASH = "cd" * 32
 def _scope() -> ScopeDocument:
     return ScopeDocument(
         scope_id="prod-commercial",
-        catalog_pin_version="2026.2",
+        catalog_pin_version="2026.3",
         frameworks=["general-nist-800-53-r5-2"],
         data_classes=["security-log"],
         exclusions=[
@@ -42,7 +42,7 @@ def _receipt(scope: ScopeDocument, *, coverage: float = 1.0, noul: str = "suffic
         scope_id=scope.scope_id,
         scope_sha256=scope.content_sha256(),
         evidence_sha256=EVIDENCE_HASH,
-        control_ref="IAC-01",
+        control_ref="IAC-02",
         choice=ChoiceResult(
             disposition="pick",
             candidate_id="aws.inspector",

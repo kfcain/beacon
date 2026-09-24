@@ -1,16 +1,16 @@
 {
-  "scf_version": "2026.2",
-  "xlsx_name": "secure-controls-framework-scf-2026-2.xlsx",
-  "xlsx_sha256": "9e0a4df4993726c95e636f04b3028d8b5edeba2bda45d16ed6722b13540e6835",
-  "xlsx_bytes": 4522269,
-  "source": "official SCF 2026.2 workbook (CC BY-ND). Slim pin only. Does not vendor controls.json.",
-  "total_controls": 1534,
+  "scf_version": "2026.3",
+  "xlsx_name": "secure-controls-framework-scf-2026-3.xlsx",
+  "xlsx_sha256": "5a89bf2d3c106a9a87d4b6e3d62dd3e147d0e960d4c07473045a10aa8a7df697",
+  "xlsx_bytes": 5378907,
+  "source": "official SCF 2026.3 workbook (CC BY-ND). Slim pin only. Does not vendor controls.json.",
+  "total_controls": 1591,
   "total_families": 34,
-  "total_crosswalk_frameworks": 249,
-  "total_evidence_requests": 316,
-  "total_assessment_objectives": 5956,
+  "total_crosswalk_frameworks": 270,
+  "total_evidence_requests": 422,
+  "total_assessment_objectives": 6446,
   "qts_family_code": "QTS",
-  "qts_control_count": 34,
+  "qts_control_count": 31,
   "pillar_framework_ids": [
     "usa-federal-gsa-fedramp-5-high",
     "general-nist-800-53-r5-2",
@@ -27,9 +27,9 @@
     "SC-12(06)"
   ],
   "file_sha256": {
-    "summary.json": "8edff57f97690c4b8fc6e3dc7acc5536aa756550043ff342f2d8a43016737167",
-    "families.json": "ad00f1f3ce91c405539935fcd2c61b1fb32a84cdd9f412b8f8279128f8270650",
-    "index-meta.json": "b2e0dcf466ea0666494662b26f984fa34e482b7b057dab1b90ad9324af952dd6"
+    "summary.json": "584d0d830913a17c58812dde3a1b6771802fd8c29fdc3f47c9d7297bcf2d00ee",
+    "families.json": "ef1291c85660b679006749e12d95d16ac0891f2e2c9c5c2c9934161b5115f0a2",
+    "index-meta.json": "1a45e3f70768b7d185b432e595e76901cc1a8f4be8de7e6b46b942454e30adc4"
   },
   "live_hosts_not_authoritative": [
     "https://hackidle.github.io/scf-api",

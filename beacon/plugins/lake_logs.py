@@ -26,7 +26,8 @@ from beacon.plugins.spec import CollectContext, CollectResult, FetcherSpec
 
 PLUGIN_NAME = "aws.lake.logs"
 SCHEMA_VERSION = "1.0"
-SCF_TARGET = "IAC-01"
+# 2026.3 IAC-02 is legacy IAC-01 (IAM). 2026.3 IAC-01 is a new policy control.
+SCF_TARGET = "IAC-02"
 S3_ACCESS_LOG_PREFIX = "s3-access-logs/"
 CLOUDTRAIL_PREFIX = "cloudtrail/"
 DEFAULT_MAX_OBJECTS = 25
@@ -687,7 +688,7 @@ class LakeLogPlugin:
 
     def collect(self, ctx: CollectContext) -> CollectResult:
         if not _target_allowed(ctx):
-            return self._refused(ctx, "lake log collector seals IAC-01 only")
+            return self._refused(ctx, "lake log collector seals IAC-02 only")
         force_fixture = bool(ctx.extra.get("force_fixture"))
         if ctx.live is True:
             force_fixture = False

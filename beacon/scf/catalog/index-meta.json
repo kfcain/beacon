@@ -1,32 +1,32 @@
 {
   "chosen_host": "vendored:beacon/scf/catalog",
-  "chosen_reason": "Slim SCF 2026.2 pin (summary + families + index-meta + workbook SHA). Live HackIDLE/GRCEngClub hosts stay at 2026.1.1 / 2026.1 and are not the pin.",
-  "fetched_at": "2026-09-14",
-  "reverified_at": "2026-09-21",
-  "scf_version": "2026.2",
-  "scf_version_source": "official workbook main sheet name SCF 2026.2 + parser --tag 2026.2",
-  "scf_release_date": "2026-07-08",
+  "chosen_reason": "Slim SCF 2026.3 pin (summary + families + index-meta + workbook SHA). Live HackIDLE/GRCEngClub hosts stay at 2026.1.1 / 2026.1 and are not the pin.",
+  "fetched_at": "2026-09-22",
+  "reverified_at": "2026-09-24",
+  "scf_version": "2026.3",
+  "scf_version_source": "official workbook main sheet name SCF 2026.3 + parser --tag 2026.3",
+  "scf_release_date": "2026-09-21",
   "workbook": {
-    "url": "https://github.com/securecontrolsframework/securecontrolsframework/releases/download/2026.2/secure-controls-framework-scf-2026-2.xlsx",
-    "xlsx_name": "secure-controls-framework-scf-2026-2.xlsx",
-    "sha256": "9e0a4df4993726c95e636f04b3028d8b5edeba2bda45d16ed6722b13540e6835",
-    "bytes": 4522269
+    "url": "https://github.com/securecontrolsframework/securecontrolsframework/releases/download/2026.3/secure-controls-framework-scf-2026-3.xlsx",
+    "xlsx_name": "secure-controls-framework-scf-2026-3.xlsx",
+    "sha256": "5a89bf2d3c106a9a87d4b6e3d62dd3e147d0e960d4c07473045a10aa8a7df697",
+    "bytes": 5378907
   },
   "counts": {
-    "total_controls": 1534,
+    "total_controls": 1591,
     "total_families": 34,
-    "total_crosswalk_frameworks": 249,
-    "total_evidence_requests": 316,
-    "total_assessment_objectives": 5956,
-    "total_threats": 42,
-    "total_risks": 39,
-    "total_compensating_controls": 1534,
-    "total_privacy_principles": 258
+    "total_crosswalk_frameworks": 270,
+    "total_evidence_requests": 422,
+    "total_assessment_objectives": 6446,
+    "total_threats": 45,
+    "total_risks": 65,
+    "total_compensating_controls": 1397,
+    "total_privacy_principles": 263
   },
   "qts": {
     "family_code": "QTS",
     "family_name": "Quantum Security",
-    "control_count": 34
+    "control_count": 31
   },
   "family_codes": [
     "AAT",

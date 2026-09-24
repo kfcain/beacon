@@ -491,7 +491,7 @@ class CraArt14EarlyWarningPlugin:
             "Does not assert product exploitation or a notification duty."
         ),
         category="compliance",
-        scf_targets=("GOV-01",),
+        scf_targets=("GOV-02",),
         tools=(),
     )
 

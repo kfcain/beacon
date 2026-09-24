@@ -11,7 +11,7 @@ class EchoPlugin:
         version="0.1.0",
         description="Example drop-in platform that echoes the collect context.",
         category="example",
-        scf_targets=("GOV-01",),
+        scf_targets=("GOV-02",),
         tools=(),
     )
 

@@ -418,3 +418,20 @@ It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouche
 - The 46 KSI ids are not in this repository. The compilers do not invent them.
 - The official CR26 schema files are not vendored. The drafts are Beacon-shaped.
 - Repo stays private. No secrets.
+
+## 2026-09-24 — Cycle 16
+
+### Why
+
+The README one-liner still said SCF 2026.1.1. The catalog pin is 2026.3. The live HackIDLE host max stays 2026.1.1 and is not the pin. A new reader had to open ADRs to see the custody path. This cycle adds `docs/HOW_IT_WORKS.md`, rewrites the README top, and adds `docs/architecture/README.md`. Docs only. No product logic. The catalog pin is not re-vendored. Draft PR #5 and draft PR #2 stay untouched.
+
+### Next 3 items
+
+1. Human review of the operating-model docs.
+2. After that review, phase 10 can seal a git policy tip as `evidence:policy`. Do not call grc-pdf-mapper in that phase.
+3. Do not revive draft PR #5 or draft PR #2. Do not invent SCF control ids or a 20x crosswalk id.
+
+### Blockers
+
+- No production AWS apply in this cycle.
+- Repo stays private. No secrets.

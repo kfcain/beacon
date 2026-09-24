@@ -1,6 +1,24 @@
 # Beacon
 
-Beacon is a GRC evidence engine. It collects cloud inspector evidence, maps it to Secure Controls Framework (SCF) 2026.1.1, and seals every result on a signed witness chain.
+Beacon is a custody-first local evidence engine. You run the CLI or the TUI on your machine. An optional AWS lake stores sealed copies. Beacon is not a SaaS GRC product.
+
+The control hub is the offline Secure Controls Framework (SCF) **2026.3** pin. A seal records collected bytes on a signed witness chain. A seal does not mean a control is met. The words compliant, evidenced, and proven need a linked judgment receipt and a passing `decide_claim` check.
+
+**How it works:** [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md)
+
+```mermaid
+flowchart LR
+  scope["scope init"] --> collect["collect --scope"] --> check["check"] --> ledger["ledger"] --> push["push"] --> lake["optional S3"]
+  ledger --> compile["pack compile shipped"]
+  compile -.-> later["trust center host: design"]
+```
+
+1. `beacon scope init` writes the assessment boundary.
+2. `beacon collect --scope` seals evidence and copies `scope_id` and `scope_sha256` into each payload.
+3. `beacon check` fails closed on a missing checkpoint or a scope hash mismatch.
+4. `beacon ledger summary` counts methods. Class C (at least 2) and Class D (at least 4) shortfalls are package gaps. They are not an authorization.
+5. `beacon push` writes a local pack. With `BEACON_S3_BUCKET`, the lake stores sealed copies. Private keys stay in `.beacon/keys`.
+6. `beacon pack compile` is shipped. It writes offline CPO, SDR, OCR, and SCG JSON drafts (`beacon-20x-draft/v1`) and Markdown from sealed observations and the Class C/D method counts. Shortfalls are `package_gaps`. Official CR26 schemas are `not-fetched`. The field map is in [beacon/assurance/README.md](beacon/assurance/README.md). This is not a FedRAMP submission. A hosted trust center is design. `BEACON_TRUST_CENTER_EXPORT=1` copies packs and reports only.
 
 Package name: `beacon`. CLI name: `beacon`. Environment prefix: `BEACON_`. Data directory: `.beacon/`. MCP tools: `beacon_*`.
 
@@ -152,6 +170,8 @@ beacon pack compile --scope prod-commercial --class c
 
 ## Limits and sources
 
+- [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) — custody path from scope to seal to ledger
+- [docs/architecture/README.md](docs/architecture/README.md) — architecture note index
 - [LIMITS.md](LIMITS.md) — what Beacon does not claim
 - [docs/SOURCES.md](docs/SOURCES.md) — GRCEngClub inspectors and Paramify fetchers as shape references
 - [docs/STORAGE.md](docs/STORAGE.md) — S3 evidence lake, DynamoDB index, IAM

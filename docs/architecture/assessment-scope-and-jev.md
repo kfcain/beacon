@@ -3,7 +3,7 @@
 Status: design accepted. This change adds the schema stub only.
 Date: 2026-09-24.
 
-This track is parallel to the SCF catalog pin bump. This document does not change `beacon/scf/catalog/PIN.json`. A later pin change is a separate pull request. When that pin changes, an operator writes a new scope document. This design does not add SCF control ids. When a future pin renumbers a control, cite the legacy map that ships with that pin.
+This design sits on the SCF 2026.3 catalog pin. This document does not change `beacon/scf/catalog/PIN.json`. When a later pin renumbers a control, cite the legacy map that ships with that pin. Workbook Legacy SCF # maps the 2026.2 seed controls to these 2026.3 ids: IAC-01 (IAM) to IAC-02, CRY-05 (At Rest) to CRY-07, and GOV-01 (SCRP) to GOV-02. The 2026.3 ids IAC-01, CRY-05, and GOV-01 are different controls. Examples in this document use the remapped ids.
 
 ## Problem
 
@@ -48,7 +48,7 @@ Example (ids already used in this repository; the framework id is a pin pillar i
 {
   "schema_version": 1,
   "scope_id": "prod-commercial",
-  "catalog_pin_version": "2026.2",
+  "catalog_pin_version": "2026.3",
   "frameworks": ["general-nist-800-53-r5-2"],
   "data_classes": ["security-log"],
   "exclusions": [
@@ -94,7 +94,7 @@ A seal records collection. Collection statuses in current plugins stay `collecte
 
 The catalog plugin seals a pin check. That seal does not prove a control. `aws.lake.logs` already states that its finding does not assert that the control is met. Scope does not change that sentence.
 
-Control references in a later candidate list come from `FetcherSpec.scf_targets` and from controls the catalog slice already contains (`IAC-01`, `CRY-05`, and the catalog plugin target `GOV-01`). A control id that the catalog slice does not contain fails closed in offline mode. This design does not create control ids.
+Control references in a later candidate list come from `FetcherSpec.scf_targets` and from controls the catalog slice already contains (`IAC-02`, `CRY-07`, and the catalog plugin target `GOV-02`). Those ids are the 2026.3 names for the 2026.2 seed controls IAC-01 (IAM), CRY-05 (At Rest), and GOV-01 (SCRP). A control id that the catalog slice does not contain fails closed in offline mode. This design does not create control ids.
 
 ## Jev evidence router
 
@@ -198,7 +198,7 @@ This change does not add commands. The later CLI is:
 beacon scope init --id prod-commercial
 beacon scope show --id prod-commercial
 beacon scope hash --id prod-commercial
-beacon collect --scope prod-commercial --target IAC-01
+beacon collect --scope prod-commercial --target IAC-02
 beacon check --scope prod-commercial
 ```
 
@@ -213,7 +213,7 @@ This design leaves the following work out:
 - A full GRC workflow (assignments, an auditor portal, or upload to Paramify or another GRC product)
 - A successful seal that marks a control as met
 - New SCF control ids, legacy maps, or crosswalk rows
-- The SCF catalog pin bump from 2026.2 to a later pin
+- Another SCF catalog pin bump (the tree already carries the 2026.3 pin)
 - A live Jev network client
 - A witness `Record` version change
 - Writing scope files from `collect` in this change
@@ -225,7 +225,7 @@ This design leaves the following work out:
 | 0 | ADR, schema stub, round-trip tests, README and LIMITS pointer | Yes |
 | 1 | `beacon scope init`, `show`, and `hash`. Persist `.beacon/scopes/{scope_id}.json`. Unknown id fails closed. | No |
 | 2 | Bind. `collect` and `push` copy `scope_id` and `scope_sha256` into the observation payload when `--scope` is set. `check` recomputes the hash. Mismatch fails closed. `Record.v` stays 1. | No |
-| 3 | Candidate builder. Pure function over loaded plugins, catalog targets, and the scope. Tests use existing plugin ids and existing targets (`IAC-01`, `CRY-05`). A target absent from the offline slice fails closed. Resolve framework ids against the pin. Reject ids the pin lists in `not_a_framework_id`. | No |
+| 3 | Candidate builder. Pure function over loaded plugins, catalog targets, and the scope. Tests use existing plugin ids and existing targets (`IAC-02`, `CRY-07`). A target absent from the offline slice fails closed. Resolve framework ids against the pin. Reject ids the pin lists in `not_a_framework_id`. | No |
 | 4 | Jev adapter behind a small protocol: `choice`, `score`, `noul`. Tests use a local fake judge. No network. Write `JudgmentReceipt` files. Call `decide_claim` with `DEFAULT_SCORE_MIN` unless operator config sets a lower minimum. | No |
 | 5 | Lake objects and index fields for `SCOPE#` and `RECEIPT#`, plus optional fields on `EVIDENCE#`. Same SSE-KMS rules. Trust-center prefix stays closed to these objects. | No |
 | 6 | GUI, TUI, and MCP show the scope hash and the receipt id. A claim word appears only beside that receipt id when `decide_claim` permits it. | No |

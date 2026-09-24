@@ -419,11 +419,11 @@ It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouche
 - The official CR26 schema files are not vendored. The drafts are Beacon-shaped.
 - Repo stays private. No secrets.
 
-## 2026-09-24 — Cycle 16
+## 2026-09-24 — HOW_IT_WORKS first-look docs
 
 ### Why
 
-The README one-liner still said SCF 2026.1.1. The catalog pin is 2026.3. The live HackIDLE host max stays 2026.1.1 and is not the pin. A new reader had to open ADRs to see the custody path. This cycle adds `docs/HOW_IT_WORKS.md`, rewrites the README top, and adds `docs/architecture/README.md`. Docs only. No product logic. The catalog pin is not re-vendored. Draft PR #5 and draft PR #2 stay untouched.
+The README one-liner still said SCF 2026.1.1. The catalog pin is 2026.3. The live HackIDLE host max stays 2026.1.1 and is not the pin. A new reader had to open ADRs to see the custody path. This change adds `docs/HOW_IT_WORKS.md`, rewrites the README top, and adds `docs/architecture/README.md`. Docs only. No product logic. The catalog pin is not re-vendored. Draft PR #5 and draft PR #2 stay untouched.
 
 ### Next 3 items
 
@@ -433,5 +433,5 @@ The README one-liner still said SCF 2026.1.1. The catalog pin is 2026.3. The liv
 
 ### Blockers
 
-- No production AWS apply in this cycle.
+- No production AWS apply in this change.
 - Repo stays private. No secrets.

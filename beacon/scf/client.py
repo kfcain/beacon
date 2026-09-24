@@ -40,6 +40,7 @@ def _offline_control(control_id: str) -> dict[str, Any] | None:
 
 @lru_cache(maxsize=1)
 def offline_summary() -> dict[str, Any]:
+    """Return the seed index for the offline control slices. Not the catalog pin."""
     return json.loads((OFFLINE_DIR / "summary.json").read_text(encoding="utf-8"))
 
 

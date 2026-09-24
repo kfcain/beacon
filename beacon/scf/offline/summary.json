@@ -1,22 +1,23 @@
 {
-  "scf_version": "2026.1.1",
-  "total_controls": 1468,
-  "total_families": 33,
-  "source": "https://hackidle.github.io/scf-api/api/summary.json",
+  "role": "offline-seed-index",
+  "catalog_pin_version": "2026.3",
+  "source": "Offline seed index aligned to the vendored SCF 2026.3 catalog pin (beacon/scf/catalog/). Not a live HackIDLE summary. Not authoritative for the full catalog.",
+  "note": "This file indexes the offline control JSON slices only (IAC-02, CRY-07). It does not copy full-catalog totals. It does not set scf_version. That field is the engine and live-host release, not this seed index. Family control_count values are the 2026.3 pin totals for CRY and IAC from beacon/scf/catalog/families.json.",
   "offline_controls": [
     "IAC-02",
     "CRY-07"
   ],
+  "seed_control_count": 2,
   "families": [
     {
       "family_code": "CRY",
       "family_name": "Cryptographic Protections",
-      "control_count": 29
+      "control_count": 27
     },
     {
       "family_code": "IAC",
       "family_name": "Identification & Authentication",
-      "control_count": 114
+      "control_count": 123
     }
   ]
 }

@@ -186,6 +186,23 @@ Phase 8 reads those seals. `beacon ledger show` indexes the local chain or one p
 
 Phase 7 is the review surface for phases 8–11. Phases 3–6 of the assessment-scope ADR (candidate builder, Jev, lake index, claim-word display) stay in force. A KSI shortfall of 0 does not permit a claim word. `decide_claim` still does.
 
+Phase 9 compilers are `beacon pack compile`. They read the same ledger and the same Class C / Class D counters. They write JSON drafts for CPO, SDR, OCR, and SCG, plus Markdown rendered from those objects. `scope_id` and `scope_sha256` are stamped when the selected seals share one scope pair, or when `--scope` is set. A method shortfall is `package_gaps`. The official schema URLs are still not fetched. `official_schema` stays `not-fetched`. CMMC and Rev5 emitters stay out of this phase. `beacon push` is unchanged.
+
+## Appendix: Beacon draft field map
+
+The attached CR26 Class C schemas are not vendored in this repository. The compiler emits Beacon-shaped drafts (`format` `beacon-20x-draft/v1`). This table maps those fields to guide names already cited above. A row in this table is not a statement that a guide rule is met.
+
+| Beacon field | Guide relation | Compiler behavior |
+| --- | --- | --- |
+| `evidence[].sha256` | evidence pointer | Seal digest. Optional `s3_uri` and `git_sha` stay empty in this compiler. The observation body is omitted. |
+| `scope_id`, `scope_sha256` | Beacon custody stamp | Set together when one scope pair is present. |
+| `fedramp_id` | CDS-CSO-FID | Copied only when the operator passes `--fedramp-id`. |
+| `method_counts` | automated method count | Distinct automated methods. A manual method is listed and does not count. |
+| `package_gaps` | FRC-CSX-VVK for Class C; Class D minimum is the assurance-stack brief | Shortfall rows only. No schema status word. |
+| `unset_fields` | CPO, SDR, OCR, and SCG human fields listed in section E | Left unset, including OCR `reportableIncidents` and SCG `instructions_to_get_and_use`. |
+
+`keySecurityIndicators` stays in SDR `unset_fields`. Beacon does not write Implemented, Partially Implemented, or Not Implemented. The package gap lives in `package_gaps`.
+
 ## Non-goals
 
 This change leaves the following work out:

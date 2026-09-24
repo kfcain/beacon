@@ -1,4 +1,4 @@
-"""Beacon CLI: init, seed, collect, check, sync, pull, serve, tui, mcp."""
+"""Beacon CLI: init, seed, collect, check, scope, sync, pull, serve, tui, mcp."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from beacon.errors import BeaconError
 from beacon.plugins.loader import load_plugins
 from beacon.plugins.spec import CollectContext
 from beacon.scf.engine import collect_all, collect_named, collect_target
+from beacon.scope.store import init_scope, load_scope, scope_content_sha256
 from beacon.storage import pull_workspace, sync_workspace
 from beacon.workspace import freshness, init_workspace, seed_workspace, system_status, validation
 
@@ -82,6 +83,44 @@ def cmd_collect(target: str | None, plugin_name: str | None, live: bool | None) 
     except BeaconError as exc:
         _die(exc)
     _emit(result)
+
+
+@main.group("scope")
+def cmd_scope() -> None:
+    """Write and read the local assessment scope document."""
+
+
+@cmd_scope.command("init")
+@click.option("--id", "scope_id", required=True, help="Assessment scope id.")
+def cmd_scope_init(scope_id: str) -> None:
+    """Create ``.beacon/scopes/{scope_id}.json``. An unsafe id fails closed."""
+    try:
+        document = init_scope(_settings(), scope_id)
+    except BeaconError as exc:
+        _die(exc)
+    _emit(document.canonical_body())
+
+
+@cmd_scope.command("show")
+@click.option("--id", "scope_id", required=True, help="Assessment scope id.")
+def cmd_scope_show(scope_id: str) -> None:
+    """Print one scope document. A missing file fails closed."""
+    try:
+        document = load_scope(_settings(), scope_id)
+    except BeaconError as exc:
+        _die(exc)
+    _emit(document.canonical_body())
+
+
+@cmd_scope.command("hash")
+@click.option("--id", "scope_id", required=True, help="Assessment scope id.")
+def cmd_scope_hash(scope_id: str) -> None:
+    """Print ``ScopeDocument.content_sha256()``. A missing file fails closed."""
+    try:
+        digest = scope_content_sha256(_settings(), scope_id)
+    except BeaconError as exc:
+        _die(exc)
+    click.echo(digest)
 
 
 @main.command("check")

@@ -21,7 +21,7 @@ beacon tui
 
 `beacon serve` starts the GUI (Dashboard, Freshness, Validation, Push, System).
 
-`beacon tui` starts the Paramify-style terminal UI. The TUI adds a Collect screen.
+`beacon tui` starts the Paramify-style terminal UI. The TUI adds a Collect screen. The first launch in a workspace opens a walkthrough. Press `?` or `h`, or the Tour button, to open it again. `?` still opens the tour when the target field is focused. `h` types into that field. `beacon tui --no-tour` and `BEACON_NO_TOUR=1` skip the auto-start. Skip and Done write `.beacon/tui_tour_seen`. The walkthrough is guidance. It does not add assurance.
 
 ## Collect
 

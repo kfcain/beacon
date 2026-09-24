@@ -154,11 +154,16 @@ def cmd_serve(host: str, port: int) -> None:
 
 
 @main.command("tui")
-def cmd_tui() -> None:
+@click.option(
+    "--no-tour",
+    is_flag=True,
+    help="Do not auto-start the walkthrough. BEACON_NO_TOUR=1 does the same.",
+)
+def cmd_tui(no_tour: bool) -> None:
     """Start the Paramify-style terminal UI."""
     from beacon.tui.app import run_tui
 
-    run_tui()
+    run_tui(skip_tour=no_tour)
 
 
 @main.command("mcp")

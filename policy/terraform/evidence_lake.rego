@@ -386,7 +386,7 @@ object_lock_mode_ok(values) if {
 deny contains msg if {
 	some item in tf_variables
 	item.name == "object_lock_mode"
-	item.values.default != "GOVERNANCE"
+	item.values["default"] != "GOVERNANCE"
 	msg := "var.object_lock_mode default must be GOVERNANCE (COMPLIANCE is opt-in)"
 }
 
@@ -895,7 +895,7 @@ deny contains msg if {
 deny contains msg if {
 	some item in tf_variables
 	item.name == "aws_region"
-	not item.values.default in allowed_regions
+	not item.values["default"] in allowed_regions
 	msg := "var.aws_region default must be us-east-1 or us-gov-west-1"
 }
 
@@ -974,13 +974,13 @@ management_events_disabled(sel) if sel.include_management_events == "false"
 deny contains msg if {
 	some item in tf_variables
 	item.name == "enable_s3_access_logging"
-	item.values.default != true
+	item.values["default"] != true
 	msg := "var.enable_s3_access_logging default must be true"
 }
 
 deny contains msg if {
 	some item in tf_variables
 	item.name == "enable_cloudtrail_data_events"
-	item.values.default != true
+	item.values["default"] != true
 	msg := "var.enable_cloudtrail_data_events default must be true"
 }

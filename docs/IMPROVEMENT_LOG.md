@@ -264,3 +264,32 @@ Codex P1 and P2 on the claim gate are fixed here. `decide_claim` requires the se
 - PR #11 waits on human review.
 - No production AWS apply in this cycle.
 - Repo stays private. No secrets.
+
+## 2026-09-24 — Cycle 11
+
+### Why
+
+PR #11 merged to main (merge commit `4de2c37340b7b00807571a34fdfab2e363e00e55`).
+The assessment scope ADR and the schema stub are on main.
+`decide_claim` stays fail-closed. `DEFAULT_SCORE_MIN` stays `1.0`.
+This cycle adds phase 1 only: `beacon scope init`, `beacon scope show`, and `beacon scope hash`.
+`init` writes `.beacon/scopes/{scope_id}.json` as schema version 1.
+The catalog pin label on that file is `2026.3`. The command does not read or write `PIN.json`.
+The starter framework id is the pillar id `general-nist-800-53-r5-2`.
+The starter boundary system is `workspace`. The file has no credential.
+An unsafe id, a missing file, a second init, or a scope id that does not match the file fails closed.
+`hash` prints `ScopeDocument.content_sha256()`.
+This cycle does not bind collect or check, does not build candidates, does not call Jev, and does not add lake index fields.
+Conftest on current OPA rejects the field name `default` as a keyword. Policy rules now read `item.values["default"]`. The rule text is the same.
+Open PR #12, draft PR #5, and PR #2 stay untouched.
+
+### Next 3 items
+
+1. Human review of the phase-1 scope CLI.
+2. After that merge, phase 2 can bind `scope_id` and `scope_sha256` on collect and check. A missing file still fails closed.
+3. Do not revive draft PR #5 (obsolete 2026.2 pin) or superseded drafts. Do not start lake index fields or a Jev network client in the bind phase.
+
+### Blockers
+
+- No production AWS apply in this cycle.
+- Repo stays private. No secrets.

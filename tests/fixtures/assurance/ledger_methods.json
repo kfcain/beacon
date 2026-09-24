@@ -1,0 +1,52 @@
+{
+  "records": [
+    {
+      "scope_id": "prod-commercial",
+      "ksi_id": "fixture-ksi-1",
+      "method_id": "method-a",
+      "automated": true,
+      "evidence_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sealed_at": "2026-09-20T00:00:00Z"
+    },
+    {
+      "scope_id": "prod-commercial",
+      "ksi_id": "fixture-ksi-1",
+      "method_id": "method-a",
+      "automated": true,
+      "evidence_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sealed_at": "2026-09-21T00:00:00Z"
+    },
+    {
+      "scope_id": "prod-commercial",
+      "ksi_id": "fixture-ksi-1",
+      "method_id": "method-b",
+      "automated": true,
+      "evidence_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "sealed_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "scope_id": "prod-commercial",
+      "ksi_id": "fixture-ksi-2",
+      "method_id": "method-a",
+      "automated": true,
+      "evidence_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "sealed_at": "2026-09-01T00:00:00Z"
+    },
+    {
+      "scope_id": "prod-commercial",
+      "ksi_id": "fixture-ksi-2",
+      "method_id": "method-c",
+      "automated": false,
+      "evidence_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "sealed_at": "2026-09-22T00:00:00Z"
+    },
+    {
+      "scope_id": "prod-commercial",
+      "ksi_id": "fixture-ksi-2",
+      "method_id": "method-d",
+      "automated": true,
+      "evidence_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  ],
+  "required_ksi_ids": ["fixture-ksi-1", "fixture-ksi-2", "fixture-ksi-3"]
+}

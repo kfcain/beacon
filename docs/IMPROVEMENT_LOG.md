@@ -297,3 +297,31 @@ Draft PR #5 and draft PR #2 stay untouched.
 
 - No production AWS apply in this cycle.
 - Repo stays private. No secrets.
+
+## 2026-09-24 — Cycle 12
+
+### Why
+
+Phase 1 scope CLI is on main (PR #14).
+This cycle locks the assurance stack Kyle asked to proceed through.
+The design is `docs/architecture/beacon-assurance-stack.md`.
+It sequences five slices after the assessment-scope phases: workshop, tags, and framework context (phase 7); then existing phase 2 scope bind; then the ledger and KSI counters (phase 8); pack compilers (phase 9); the git policy bridge (phase 10); and trust center, SCN, and the security inbox (phase 11).
+Class C needs at least 2 automated methods per KSI. That figure is CR26 guide rule FRC-CSX-VVK.
+Class D needs at least 4. The attached guide is Class C only. This cycle does not invent a Class D rule id.
+The code sketches are a version 2 scope draft, a tag registry, `ksi_method_report`, and `compile_pack_draft`.
+`ScopeDocument` version 1 still round-trips. `load_scope` rejects a version 2 file.
+A method count is a package gap. `decide_claim` still gates claim words.
+This cycle does not fetch a FedRAMP schema, does not change `beacon push`, and does not send mail.
+Draft PR #5 and draft PR #2 stay untouched.
+
+### Next 3 items
+
+1. Human review of the assurance-stack ADR.
+2. After that review, phase 2 can bind `scope_id` and `scope_sha256` on collect and check. Phase 7 file writes for `.beacon/scopes/drafts/` stay behind that bind.
+3. Do not revive draft PR #5 or draft PR #2. Do not invent SCF control ids or a 20x crosswalk id.
+
+### Blockers
+
+- No production AWS apply in this cycle.
+- The 46 KSI ids are not in this repository. The ledger does not invent them.
+- Repo stays private. No secrets.

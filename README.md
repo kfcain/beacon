@@ -168,6 +168,13 @@ beacon ledger summary --scope prod-commercial --class c
 beacon pack compile --scope prod-commercial --class c
 ```
 
+`beacon policy show` addresses a git JSON policy by path and content hash. The tag is `evidence:policy`. Word and PDF files fail closed. `beacon ingest mapper` registers a grc-pdf-mapper JSON file as a candidate under `.beacon/ingest/mapper/`. The candidate has no claim word. `Record.v` stays 1. See [beacon/assurance/README.md](beacon/assurance/README.md).
+
+```bash
+beacon policy hash --path policies/access-control.json
+beacon ingest mapper --file maps/report.json
+```
+
 ## Limits and sources
 
 - [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) — custody path from scope to seal to ledger

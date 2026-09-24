@@ -36,3 +36,24 @@ OCR leaves `reportableIncidents` unset. An empty array is not written.
 SCG leaves `instructions_to_get_and_use` unset (guide citation SCG-CSO-AUP).
 
 See [docs/architecture/beacon-assurance-stack.md](../../docs/architecture/beacon-assurance-stack.md).
+
+## Git policy
+
+A policy file is JSON. The file names people, process, and technology. `beacon policy show` prints the relative path, the canonical content hash, and the raw file hash. `beacon policy hash` prints the content hash only.
+
+```bash
+beacon policy show --path policies/access-control.json
+beacon policy hash --path policies/access-control.json
+```
+
+`--expect-sha256` fails closed when the canonical hash differs. A Word file or a PDF file fails closed. `control_refs` accepts IAC-02, CRY-07, and GOV-02. The custody tag is `evidence:policy`. The role is `candidate`. This command does not append a witness record.
+
+## Mapper ingest
+
+`beacon ingest mapper` reads one JSON file from grc-pdf-mapper. The known shapes are a mapping report (`doc_id`, `snapshot_id`, `ingest`), a KSI catalog (`source`, `classes`, `domains`), and policy-code links (`links`). Any other shape fails closed.
+
+```bash
+beacon ingest mapper --file maps/report.json
+```
+
+The candidate file is `.beacon/ingest/mapper/{shape}-{hash}.json`. Pass `--out` to choose another directory. The candidate stores digests, statement ids, and mapper labels. It does not store statement prose. `legacy_bytes_are_source_of_truth` is false. `claim` is null. `Record.v` stays 1.

@@ -4,6 +4,8 @@ See docs/architecture/beacon-assurance-stack.md.
 """
 
 from beacon.assurance.compile import CompiledPack, compile_20x_drafts, write_compiled_packs
+from beacon.assurance.mapper_ingest import MapperCandidate, ingest_mapper_file
+from beacon.assurance.policy import PolicyCustody, PolicyObject, address_policy
 from beacon.assurance.index import (
     EvidenceIndexEntry,
     EvidenceLedger,
@@ -27,14 +29,19 @@ __all__ = [
     "EvidenceLedger",
     "KsiMethodCount",
     "LedgerGapReport",
+    "MapperCandidate",
     "MethodRecord",
+    "PolicyCustody",
+    "PolicyObject",
     "NAMESPACES",
     "PACK_KINDS",
     "EvidencePointer",
     "PackDraft",
     "Tag",
+    "address_policy",
     "compile_20x_drafts",
     "compile_pack_draft",
+    "ingest_mapper_file",
     "write_compiled_packs",
     "ksi_method_report",
     "ledger_method_report",

@@ -23,11 +23,13 @@ flowchart TD
   push["5 push<br/>shipped"]
   lake["6 optional S3 lake<br/>shipped when configured"]
   compile["7 pack compile<br/>shipped"]
-  later["Hosted trust center, git policy, Jev<br/>design"]
+  policy["8 policy hash / ingest mapper<br/>shipped, candidate only"]
+  later["Hosted trust center, policy seal, Jev<br/>design"]
 
   scope --> collect --> check --> ledger --> push --> lake
   ledger --> compile
-  compile -.-> later
+  compile --> policy
+  policy -.-> later
 ```
 
 1. **Scope (shipped).** `beacon scope init --id prod-commercial` writes `.beacon/scopes/{scope_id}.json`. The file names the boundary, the frameworks, the data classes, the exclusions, and the allowed evidence kinds. `beacon scope hash` prints the canonical SHA-256 (`content_sha256()`).
@@ -44,7 +46,9 @@ flowchart TD
 
 7. **Pack compile (shipped).** `beacon pack compile` writes offline CPO, SDR, OCR, and SCG JSON drafts (`beacon-20x-draft/v1`) and Markdown from sealed observations and the Class C/D method counts. Shortfalls are `package_gaps`. Official CR26 schemas are `not-fetched`. The draft does not set a schema status word. This is not a FedRAMP submission. The field map is in [beacon/assurance/README.md](../beacon/assurance/README.md).
 
-8. **Trust center and later work.** `BEACON_TRUST_CENTER_EXPORT=1` is shipped. It copies pack and report objects only to `public/trust-center/`. Raw observations are refused. A hosted trust center, significant-change mail, and the FedRAMP security inbox are design. A workshop UI, a live Jev client, and a git policy seal (`evidence:policy`) are design. CMMC views and Rev5 SSP, POA&M, and CVMP objects are not generated.
+8. **Git policy (shipped as custody metadata).** `beacon policy show` and `beacon policy hash` address a JSON policy by path and canonical content hash. The tag is `evidence:policy`. Word and PDF files fail closed. `beacon ingest mapper` writes a candidate under `.beacon/ingest/mapper/` for a known mapper JSON shape. An unknown shape fails closed. The candidate role is `candidate`. It has no claim word. A witness seal of the git tip is still later. `Record.v` stays 1.
+
+9. **Trust center and later work.** `BEACON_TRUST_CENTER_EXPORT=1` is shipped. It copies pack and report objects only to `public/trust-center/`. Raw observations are refused. A hosted trust center, significant-change mail, and the FedRAMP security inbox are design. A workshop UI, a live Jev client, and a witness seal of the policy tip are design. CMMC views and Rev5 SSP, POA&M, and CVMP objects are not generated.
 
 ```bash
 beacon scope init --id prod-commercial
@@ -53,6 +57,8 @@ beacon check --scope prod-commercial
 beacon ledger summary --scope prod-commercial --class c
 beacon push
 beacon pack compile --scope prod-commercial --class c
+beacon policy hash --path policies/access-control.json
+beacon ingest mapper --file maps/report.json
 ```
 
 ## Where data lives
@@ -68,6 +74,7 @@ The workspace directory is `.beacon/`. Set `BEACON_HOME` or `BEACON_DATA_DIR` to
 | `.beacon/evidence/` | Sealed observation files. |
 | `.beacon/scopes/{scope_id}.json` | Assessment scope document. |
 | `.beacon/export/` | Local packs and 20x draft output. |
+| `.beacon/ingest/mapper/` | Mapper candidate registrations. A candidate is not a witness seal. |
 | `.beacon/cache/` | SCF API cache. Never uploaded. |
 
 Packs include public keys only. `*.pem` private keys stay in `.beacon/keys/`. `BEACON_TENANT_ID` and `BEACON_WORKSPACE_ID` partition the lake. They are not the assessment `scope_id`.

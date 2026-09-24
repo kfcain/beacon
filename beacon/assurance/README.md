@@ -57,3 +57,38 @@ beacon ingest mapper --file maps/report.json
 ```
 
 The candidate file is `.beacon/ingest/mapper/{shape}-{hash}.json`. Pass `--out` to choose another directory. The candidate stores digests, statement ids, and mapper labels. It does not store statement prose. `legacy_bytes_are_source_of_truth` is false. `claim` is null. `Record.v` stays 1.
+
+## Trust center
+
+`beacon trust publish` writes the local tree `.beacon/export/trust-center/`. Set `BEACON_TRUST_CENTER_EXPORT=1`. The command fails closed when the flag is unset. The same flag copies pack and report objects to `public/trust-center/` when `BEACON_S3_BUCKET` is set. No public host is required for the local tree.
+
+Allowlisted relative keys:
+
+- `packs/{folder}/{id}/beacon-pack.json`
+- `packs/{folder}/{id}/report.md`
+- `activity-log/{id}.jsonl`
+- `ledger/{id}/summary.json`
+
+`{folder}` is `bundle`, `ongoing-certification-report`, `secure-configuration-guide`, `security-decision-record`, or the local draft folder `cpo`. `cpo` is not a `BEACON_PACK_TYPE`. An observations path, a scope file, or any other relative key fails closed.
+
+```bash
+BEACON_TRUST_CENTER_EXPORT=1 beacon trust publish --ledger
+BEACON_TRUST_CENTER_EXPORT=1 beacon trust publish --file cpo.json --relative packs/cpo/v1/beacon-pack.json
+```
+
+## SCN draft
+
+`beacon scn draft` builds `beacon-scn-draft/v1` from sealed observation pointers and package gaps. `--changes` reads a local JSON file of operator rows. `--dry-run` prints the object and does not write a file. `mailed` is false. `delivery` is `not-sent`. The command does not send mail.
+
+```bash
+beacon scn draft --dry-run
+beacon scn draft --class c --changes changes.json
+```
+
+## Security inbox
+
+`beacon inbox intake` reads one local JSON file. Known shapes are `evidence_candidate` and `ticket_candidate`. Each message becomes a digest and a candidate under `.beacon/ingest/inbox/`. An unknown shape or a credential field fails closed. The command does not open a mailbox.
+
+```bash
+beacon inbox intake --file inbox.json
+```

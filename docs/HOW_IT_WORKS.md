@@ -24,12 +24,14 @@ flowchart TD
   lake["6 optional S3 lake<br/>shipped when configured"]
   compile["7 pack compile<br/>shipped"]
   policy["8 policy hash / ingest mapper<br/>shipped, candidate only"]
-  later["Hosted trust center, policy seal, Jev<br/>design"]
+  trust["9 trust publish / scn draft / inbox intake<br/>shipped, local only"]
+  later["Hosted trust center, SCN mail, live inbox, Jev<br/>design"]
 
   scope --> collect --> check --> ledger --> push --> lake
   ledger --> compile
   compile --> policy
-  policy -.-> later
+  policy --> trust
+  trust -.-> later
 ```
 
 1. **Scope (shipped).** `beacon scope init --id prod-commercial` writes `.beacon/scopes/{scope_id}.json`. The file names the boundary, the frameworks, the data classes, the exclusions, and the allowed evidence kinds. `beacon scope hash` prints the canonical SHA-256 (`content_sha256()`).
@@ -48,7 +50,7 @@ flowchart TD
 
 8. **Git policy (shipped as custody metadata).** `beacon policy show` and `beacon policy hash` address a JSON policy by path and canonical content hash. The tag is `evidence:policy`. Word and PDF files fail closed. `beacon ingest mapper` writes a candidate under `.beacon/ingest/mapper/` for a known mapper JSON shape. An unknown shape fails closed. The candidate role is `candidate`. It has no claim word. A witness seal of the git tip is still later. `Record.v` stays 1.
 
-9. **Trust center and later work.** `BEACON_TRUST_CENTER_EXPORT=1` is shipped. It copies pack and report objects only to `public/trust-center/`. Raw observations are refused. A hosted trust center, significant-change mail, and the FedRAMP security inbox are design. A workshop UI, a live Jev client, and a witness seal of the policy tip are design. CMMC views and Rev5 SSP, POA&M, and CVMP objects are not generated.
+9. **Trust center, SCN, and inbox (shipped as local custody).** `beacon trust publish` writes allowlisted pack and report copies under `.beacon/export/trust-center/`. Set `BEACON_TRUST_CENTER_EXPORT=1` or the command fails closed. The same flag still copies pack and report objects to the lake prefix `public/trust-center/` when `BEACON_S3_BUCKET` is set. Raw observations, scope files, and paths outside the allowlist fail closed. No public host is required. `beacon scn draft` writes a significant-change object from seals and package gaps. `--dry-run` prints the object and does not write a file. The object is not mailed. `beacon inbox intake` reads a local JSON file, digests each known message, and writes a candidate under `.beacon/ingest/inbox/`. An unknown shape fails closed. Beacon does not open a mailbox and does not read mailbox credentials. A hosted trust center, SCN mail, and a live inbox poll stay design. A workshop UI, a live Jev client, and a witness seal of the policy tip stay design.
 
 ```bash
 beacon scope init --id prod-commercial
@@ -59,6 +61,9 @@ beacon push
 beacon pack compile --scope prod-commercial --class c
 beacon policy hash --path policies/access-control.json
 beacon ingest mapper --file maps/report.json
+BEACON_TRUST_CENTER_EXPORT=1 beacon trust publish --ledger
+beacon scn draft --dry-run
+beacon inbox intake --file inbox.json
 ```
 
 ## Where data lives
@@ -73,8 +78,9 @@ The workspace directory is `.beacon/`. Set `BEACON_HOME` or `BEACON_DATA_DIR` to
 | `.beacon/chain/checkpoints.jsonl` | Merkle roots and RFC 3161 tokens. |
 | `.beacon/evidence/` | Sealed observation files. |
 | `.beacon/scopes/{scope_id}.json` | Assessment scope document. |
-| `.beacon/export/` | Local packs and 20x draft output. |
+| `.beacon/export/` | Local packs, 20x drafts, the trust-center tree, and SCN drafts. |
 | `.beacon/ingest/mapper/` | Mapper candidate registrations. A candidate is not a witness seal. |
+| `.beacon/ingest/inbox/` | Local security-inbox candidates. A candidate is not a mailbox reply. |
 | `.beacon/cache/` | SCF API cache. Never uploaded. |
 
 Packs include public keys only. `*.pem` private keys stay in `.beacon/keys/`. `BEACON_TENANT_ID` and `BEACON_WORKSPACE_ID` partition the lake. They are not the assessment `scope_id`.

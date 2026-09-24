@@ -467,3 +467,39 @@ It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouche
 - No production AWS apply in this cycle.
 - The 46 KSI ids are not in this repository. The mapper bridge stores indicator ids from the input file. It does not author them.
 - Repo stays private. No secrets.
+
+## 2026-09-24 — Cycle 18
+
+### Why
+
+PR #20 merged to main (merge commit `02e7047a`).
+That change is Cycle 17 (git policy spine and mapper bridge).
+PR #19 is the HOW_IT_WORKS page. The log keeps that page off the Cycle 16 number so Cycle 15 stays the pack compilers.
+This cycle is phase 11.
+`beacon trust publish` writes allowlisted pack and report copies under `.beacon/export/trust-center/`.
+`BEACON_TRUST_CENTER_EXPORT=1` is required. The same flag still copies pack and report objects to `public/trust-center/` when a lake bucket is set.
+A path outside the allowlist fails closed. Raw observations stay off that tree.
+No public host is required.
+`beacon scn draft` builds a significant-change object from sealed observation pointers and package gaps.
+`--dry-run` prints the object and does not write a file.
+The object is custody metadata. The command does not send mail.
+`beacon inbox intake` reads a local JSON file.
+Known shapes are `evidence_candidate` and `ticket_candidate`.
+Each message becomes a digest and a candidate under `.beacon/ingest/inbox/`.
+An unknown shape or a credential field fails closed.
+The command does not open a mailbox.
+`Record.v` stays 1. The witness record fields are unchanged.
+Example control ids stay IAC-02, CRY-07, and GOV-02.
+This cycle does not add a workshop UI, a Jev client, or a lake `SCOPE#` index.
+It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouched.
+
+### Next 3 items
+
+1. Human review of the local trust-center export, the SCN draft, and the inbox intake.
+2. After that review, a later phase can host the trust center and keep access logs. Do not send SCN mail in that phase.
+3. Do not revive draft PR #5 or draft PR #2. Do not invent SCF control ids or a 20x crosswalk id.
+
+### Blockers
+
+- No production AWS apply in this cycle.
+- Repo stays private. No secrets.

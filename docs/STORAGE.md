@@ -130,7 +130,7 @@ Table name: `BEACON_DDB_TABLE` (default `beacon-artifact-index`). Encryption use
 | `BEACON_WORKSPACE_ID` | Required when a bucket is set. |
 | `BEACON_REQUIRE_REMOTE` | If true, fail closed (`E_REMOTE`) when the remote seal is missing. |
 | `BEACON_PACK_TYPE` | `bundle` (default), `ongoing-certification-report`, `secure-configuration-guide`, or `security-decision-record`. |
-| `BEACON_TRUST_CENTER_EXPORT` | If true, copy pack/report exports to `public/trust-center/`. Never copies raw observations. |
+| `BEACON_TRUST_CENTER_EXPORT` | If true, `beacon trust publish` writes the local tree `.beacon/export/trust-center/`, and a configured lake copies pack/report exports to `public/trust-center/`. Never copies raw observations. Paths outside the allowlist fail closed. |
 
 Credentials use the default AWS chain (STS assumed role, instance profile, env). Do not put long-lived keys in Beacon-specific variables. Never upload `*.sec` or files under `.beacon/keys`.
 

@@ -149,7 +149,7 @@ Policy-as-code lockstep between policy and Terraform stays a mapper and Nomos co
 
 ## G. Trust center, SCN, and the FedRAMP security inbox
 
-`public/trust-center/` already accepts pack and report copies and refuses raw observations. Scope documents and judgment receipts stay off that prefix. This change does not host a trust center and does not upload a new object class.
+`public/trust-center/` already accepts pack and report copies and refuses raw observations. Scope documents and judgment receipts stay off that prefix. `beacon trust publish` writes the same allowlist on a local tree. This change does not host a trust center and does not upload a new object class.
 
 Later trust-center work, cited from the guide and not built here:
 
@@ -178,7 +178,7 @@ Phases 0–6 remain the assessment-scope plan. Do them as that document says. Th
 | 3 | 8 | Evidence ledger and KSI counters. Class C at least 2 automated methods. Class D at least 4. Gap view. Index by scope, control, KSI, assessment objective, tags, and freshness. | Pure `ksi_method_report` and fixture tests. No lake index. No list of 46 KSI ids. |
 | 4 | 9 | Pack compilers. Schema-valid CPO, SDR, OCR, and SCG, plus Markdown from the same objects. Then CMMC assessment-objective views and Rev5 SSP, POA&M, CVMP, and body-of-evidence objects. | `compile_pack_draft` emits pointer drafts and `unset_fields`. No schema fetch. No `beacon push` change. No CMMC or Rev5 emitter. |
 | 5 | 10 | Git policy ingest bridge. Mapper proposes commits. A human commits. Beacon seals the tip SHA as `evidence:policy`. | Design only. |
-| 6 | 11 | Trust-center publish of packs and reports, SCN draft from significant-change objects, security-inbox runbook. Just-in-time access, access logs, programmatic API docs, FedRAMP ID on artifacts. | Design only. The current trust-center refusal of raw observations stays as it is. No mail send. |
+| 6 | 11 | Trust-center publish of packs and reports, SCN draft from significant-change objects, security-inbox runbook. Just-in-time access, access logs, programmatic API docs, FedRAMP ID on artifacts. | Local `beacon trust publish`, `beacon scn draft`, and `beacon inbox intake`. No host, no mail, no live inbox. |
 
 Phase 2 scope bind is implemented. `collect` and `push` copy `scope_id` and `scope_sha256` when `--scope` is set. `check` recomputes the hash.
 
@@ -189,6 +189,8 @@ Phase 7 is the review surface for phases 8–11. Phases 3–6 of the assessment-
 Phase 9 compilers are `beacon pack compile`. They read the same ledger and the same Class C / Class D counters. They write JSON drafts for CPO, SDR, OCR, and SCG, plus Markdown rendered from those objects. `scope_id` and `scope_sha256` are stamped when the selected seals share one scope pair, or when `--scope` is set. A method shortfall is `package_gaps`. The official schema URLs are still not fetched. `official_schema` stays `not-fetched`. CMMC and Rev5 emitters stay out of this phase. `beacon push` is unchanged.
 
 Phase 10 is a git policy spine and a mapper ingest bridge. A policy file is JSON under a relative path. `beacon policy show` and `beacon policy hash` address that file by path and canonical content hash. The custody tag is `evidence:policy`. Word and PDF files fail closed. `beacon ingest mapper` reads a grc-pdf-mapper JSON file (mapping report, KSI catalog, or policy-code links) and writes a candidate under `.beacon/ingest/mapper/`. An unknown or ambiguous shape fails closed. The candidate role is `candidate`. The command does not copy statement prose and does not append a witness record. `Record.v` stays 1. A human commit still puts the policy into git. This phase does not call grc-pdf-mapper and does not read a PDF.
+
+Phase 11 writes local custody objects. `beacon trust publish` copies allowlisted packs and ledger summaries into `.beacon/export/trust-center/` when `BEACON_TRUST_CENTER_EXPORT=1`. The lake copy of pack and report objects uses that same flag and still refuses raw observations. `beacon scn draft` builds a significant-change object from seal pointers and package gaps. `--dry-run` does not write a file. The object is not mailed. `beacon inbox intake` digests a local JSON file into candidates. An unknown shape fails closed. This phase does not host a trust center, send mail, or open a mailbox. Just-in-time access, access logs, and programmatic API docs stay later.
 
 ## Appendix: Beacon draft field map
 

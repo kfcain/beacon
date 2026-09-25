@@ -134,3 +134,11 @@ def test_real_boto_paginator_preserves_partial_failure(initialized, monkeypatch,
         row,_=result(settings,scope)
         assert row["status"] == ("ineligible" if failure else "supporting_pass")
         identity.assert_no_pending_responses();inventory.assert_no_pending_responses()
+
+
+def test_receipt_listing_ignores_records_that_only_borrow_the_evaluator_name(initialized):
+    settings=load_settings(); scope=scoped(settings)
+    forged=bind_observation_payload({"format":"beacon.evaluation/v2","control_satisfied":True}, scope)
+    seal_payload(settings, plugin="beacon.evaluator", mode="live", scf_targets=["CRY-07"], payload=forged)
+    create_checkpoint(settings)
+    assert list_receipts(settings, scope_id=scope.scope_id) == []

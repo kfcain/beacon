@@ -49,6 +49,11 @@ def iter_plugin_files(plugin_path: tuple[Path, ...]) -> Iterable[Path]:
             yield from sorted(root.glob("*.py"))
 
 
+# Sources that only Beacon code seals (policy capture and evaluation receipts).
+# A drop-in that used one of these names could seal forged policy evidence or receipts.
+RESERVED_SOURCES = frozenset({"git.policy", "beacon.evaluator"})
+
+
 def load_plugins(settings: Settings) -> dict[str, Plugin]:
     found: dict[str, Plugin] = {}
     for plugin in (*builtin_plugins(), LAKE_LOG_PLUGIN, SCF_CATALOG_PLUGIN, EBS_PLUGIN):
@@ -57,8 +62,8 @@ def load_plugins(settings: Settings) -> dict[str, Plugin]:
         if path.name.startswith("_"):
             continue
         plugin = _plugin_from_path(path)
-        if plugin.spec.name in found:
-            fail(E_UNKNOWN_PLUGIN, "drop-in plugin must not replace a registered collector")
+        if plugin.spec.name in found or plugin.spec.name in RESERVED_SOURCES:
+            fail(E_UNKNOWN_PLUGIN, "drop-in plugin must not replace a registered collector or reserved source")
         found[plugin.spec.name] = plugin
     return found
 

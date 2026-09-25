@@ -200,5 +200,6 @@ def list_receipts(settings, *, scope_id: str | None = None) -> list[dict]:
     snapshot = verified_snapshot(settings)
     return [{"evidence_id": record.evidence_id, "payload_sha256": record.payload_sha256,
              "historical": True, "receipt": snapshot.payloads[record.evidence_id]}
-            for record in snapshot.records if record.plugin == "beacon.evaluator"
+            for record in snapshot.records if record.plugin == "beacon.evaluator" and record.mode == "evaluation"
+            and snapshot.payloads[record.evidence_id].get("format") == "beacon.evaluation/v2"
             and (scope_id is None or snapshot.payloads[record.evidence_id].get("scope_id") == scope_id)]

@@ -18,6 +18,7 @@ from beacon.assurance.index import assert_no_claim_words, ledger_method_report
 from beacon.canonical import dumps, sha256_bytes
 from beacon.config import PACK_TYPES, Settings
 from beacon.crypto.witness import CHAIN_VERSION
+from beacon.locking import locked
 from beacon.errors import E_TRUST, BeaconError, fail
 from beacon.scope.document import SCOPE_ID_RE
 from beacon.storage.s3 import (
@@ -168,6 +169,8 @@ def _public_json(body: bytes) -> bytes:
     public["trust_center"] = True
     public["hosted"] = False
     public["record_v"] = CHAIN_VERSION
+    public["assurance_claim"] = False
+    public["content_verification"] = "operator_supplied_draft"
     try:
         assert_no_claim_words(public)
     except BeaconError as exc:
@@ -193,6 +196,7 @@ def _public_markdown(body: bytes) -> bytes:
     return text.encode("utf-8")
 
 
+@locked
 def publish_bytes(
     settings: Settings,
     *,
@@ -202,6 +206,8 @@ def publish_bytes(
 ) -> TrustExport:
     """Write one allowlisted object under ``out_dir``. A bad relative key fails closed."""
     _require_export_flag(settings)
+    from beacon.assurance.admission import verified_snapshot
+    verified_snapshot(settings)
     kind = classify_relative(relative)
     if kind == "pack" or relative.endswith(".json"):
         export_body = _public_json(body)

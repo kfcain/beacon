@@ -38,20 +38,21 @@ def tool_beacon_seed(_args: dict[str, Any]) -> dict[str, Any]:
 
 
 def tool_beacon_check(_args: dict[str, Any]) -> dict[str, Any]:
-    return check_chain(load_settings())
+    return check_chain(load_settings(), scope_id=_args.get("scope_id"))
 
 
 def tool_beacon_collect(args: dict[str, Any]) -> dict[str, Any]:
     settings = load_settings()
     target = args.get("target")
     plugin = args.get("plugin")
-    live = args.get("live")
+    live = args.get("live", False)
+    scope_id = args.get("scope_id")
     ctx = CollectContext(target=target, live=live)
     if plugin:
-        return collect_named(settings, str(plugin), ctx, checkpoint=True)
+        return collect_named(settings, str(plugin), ctx, checkpoint=True, scope_id=scope_id)
     if target:
-        return collect_target(settings, str(target), ctx, checkpoint=True)
-    return collect_all(settings, ctx, checkpoint=True)
+        return collect_target(settings, str(target), ctx, checkpoint=True, scope_id=scope_id)
+    return collect_all(settings, ctx, checkpoint=True, scope_id=scope_id)
 
 
 def tool_beacon_plugins(_args: dict[str, Any]) -> dict[str, Any]:
@@ -127,6 +128,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], ToolFn]] = {
                 "target": {"type": "string", "description": "SCF control id such as IAC-02 or CRY-07"},
                 "plugin": {"type": "string", "description": "Plugin name such as aws.inspector"},
                 "live": {"type": "boolean"},
+                "scope_id": {"type": "string"},
             },
         },
         tool_beacon_collect,
@@ -165,6 +167,42 @@ TOOLS: dict[str, tuple[str, dict[str, Any], ToolFn]] = {
 }
 
 
+# The same verified engine serves the CLI, GUI, TUI, and MCP. No path-reading
+# or arbitrary shell capability is exposed to a model.
+from beacon.assurance.evaluation import evaluate_control, list_receipts, rules_for
+from beacon.assurance.index import load_evidence_ledger
+from beacon.assurance.bedrock import make_judge
+from beacon.scf.objective_catalog import objectives
+from beacon.scope.store import list_scopes, load_scope
+
+
+def tool_beacon_evaluate(args):
+    settings = load_settings()
+    scope = load_scope(settings, args["scope_id"])
+    return evaluate_control(settings, scope_id=scope.scope_id, control_ref=args["control_ref"].upper(),
+                            judge=make_judge(args.get("judge", "none"), scope))
+
+
+TOOLS["beacon_check"][1]["properties"]["scope_id"] = {"type": "string"}
+TOOLS.update({
+    "beacon_scopes": ("List enrolled assessment scopes.", {"type":"object", "properties":{}},
+                       lambda args: {"scopes": list_scopes(load_settings())}),
+    "beacon_objectives": ("Read pinned SCF objectives and supporting rules.",
+        {"type":"object", "properties":{"control_ref":{"type":"string"}}, "required":["control_ref"]},
+        lambda args: {"objectives":objectives(args["control_ref"].upper()), "rules":rules_for(args["control_ref"].upper())}),
+    "beacon_ledger": ("Read verified evidence eligibility and exclusion reasons.",
+        {"type":"object", "properties":{"scope_id":{"type":"string"}}},
+        lambda args: load_evidence_ledger(load_settings(), scope_id=args.get("scope_id")).model_dump(mode="json")),
+    "beacon_receipts": ("Read verified historical evaluation receipts. These are not current claims.",
+        {"type":"object", "properties":{"scope_id":{"type":"string"}}},
+        lambda args: {"receipts":list_receipts(load_settings(), scope_id=args.get("scope_id"))}),
+    "beacon_evaluate": ("Evaluate scoped supporting assertions and seal a receipt. Model calls require explicit scope and operator configuration.",
+        {"type":"object", "properties":{"scope_id":{"type":"string"}, "control_ref":{"type":"string"},
+         "judge":{"type":"string", "enum":["none", "jev", "bedrock"]}}, "required":["scope_id", "control_ref"]},
+        tool_beacon_evaluate),
+})
+
+
 def list_tools() -> list[dict[str, Any]]:
     return [
         {"name": name, "description": desc, "inputSchema": schema}
@@ -177,7 +215,17 @@ def call_tool(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
         return {"ok": False, "error": f"unknown tool {name}"}
     _desc, _schema, fn = TOOLS[name]
     try:
-        return fn(arguments or {})
+        args = arguments or {}
+        if not isinstance(args, dict) or set(args) - set(_schema.get("properties", {})):
+            return {"ok": False, "code": "E_ARGUMENT", "error": "unknown or malformed arguments"}
+        for key in _schema.get("required", []):
+            if key not in args:
+                return {"ok": False, "code": "E_ARGUMENT", "error": f"missing {key}"}
+        for key, value in args.items():
+            expected = _schema["properties"][key].get("type")
+            if (expected == "string" and not isinstance(value, str)) or (expected == "boolean" and type(value) is not bool):
+                return {"ok": False, "code": "E_ARGUMENT", "error": f"invalid {key}"}
+        return fn(args)
     except BeaconError as exc:
         return _tool_error(exc)
     except Exception as exc:

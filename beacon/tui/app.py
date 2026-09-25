@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, assert_never
 
+import json
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -15,7 +16,8 @@ from beacon.config import load_settings
 from beacon.errors import BeaconError
 from beacon.plugins.spec import CollectContext
 from beacon.push import write_pack
-from beacon.scf.engine import collect_all, collect_target
+from beacon.scf.engine import collect_all, collect_target, collect_named
+from beacon.assurance.evaluation import evaluate_control
 from beacon.tui.tour import (
     TourCursor,
     mark_tour_seen,
@@ -192,7 +194,8 @@ class BeaconTUI(App[None]):
     CSS = """
     Screen { background: #1a1b26; }
     #tabs { height: 3; dock: top; }
-    #actions { height: 3; }
+    #actions, #scope-actions { height: 3; }
+    #scope, #plugin { width: 1fr; }
     #tabs Button, #actions Button {
         margin: 0 0 0 1;
         min-width: 0;
@@ -231,6 +234,10 @@ class BeaconTUI(App[None]):
             yield Button("Tour", id="do-tour")
         with VerticalScroll(id="body"):
             yield Pane(id="pane")
+        with Horizontal(id="scope-actions"):
+            yield Input(placeholder="Enrolled scope id", id="scope")
+            yield Input(placeholder="Plugin (optional, e.g. aws.ebs.encryption)", id="plugin")
+            yield Button("Evaluate target", id="do-evaluate")
         with Horizontal(id="actions"):
             yield TargetInput(
                 placeholder="SCF target (IAC-02 / CRY-07) or empty for all",
@@ -276,6 +283,15 @@ class BeaconTUI(App[None]):
             if name in SCREENS:
                 self.current = name  # type: ignore[assignment]
             self.refresh_pane()
+            return
+        if bid == "do-evaluate":
+            scope_id = self.query_one("#scope", Input).value.strip()
+            target = self.query_one("#target", Input).value.strip().upper()
+            try:
+                result = evaluate_control(load_settings(), scope_id=scope_id, control_ref=target)
+                self.query_one("#pane", Pane).update(Text(json.dumps(result, indent=2)))
+            except BeaconError as exc:
+                self.notify(str(exc), severity="error")
             return
         if bid == "do-collect":
             self._collect()
@@ -359,12 +375,16 @@ class BeaconTUI(App[None]):
     def _collect(self) -> None:
         target = self.query_one("#target", Input).value.strip() or None
         settings = load_settings()
-        ctx = CollectContext(target=target)
+        ctx = CollectContext(target=target, live=False)
+        scope_id = self.query_one("#scope", Input).value.strip() or None
+        plugin = self.query_one("#plugin", Input).value.strip()
         try:
-            if target:
-                result = collect_target(settings, target, ctx, checkpoint=True)
+            if plugin:
+                result = collect_named(settings, plugin, ctx, scope_id=scope_id)
+            elif target:
+                result = collect_target(settings, target, ctx, checkpoint=True, scope_id=scope_id)
             else:
-                result = collect_all(settings, ctx, checkpoint=True)
+                result = collect_all(settings, ctx, checkpoint=True, scope_id=scope_id)
             self.notify(f"collected plugins={result.get('plugins') or [r.get('plugin') for r in result.get('runs', [])]}")
         except BeaconError as exc:
             self.notify(f"{exc.code}: {exc.message}", severity="error")

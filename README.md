@@ -2,22 +2,25 @@
 
 Beacon is a custody-first local evidence engine. You run the CLI or the TUI on your machine. An optional AWS lake stores sealed copies. Beacon is not a SaaS GRC product.
 
-The control hub is the offline Secure Controls Framework (SCF) **2026.3** pin. A seal records collected bytes on a signed witness chain. A seal does not mean a control is met. The words compliant, evidenced, and proven need a linked judgment receipt and a passing `decide_claim` check.
+The control hub is the offline Secure Controls Framework (SCF) **2026.3** pin. A seal records collected bytes on a signed witness chain. A seal does not mean a control is met. Objective evaluation reports supporting assertions and remaining gaps. It does not declare complete objectives or controls satisfied; legacy `decide_claim` receipts cannot authorize claims.
+
+**Verified workflow:** [docs/VERIFIED_WORKFLOW.md](docs/VERIFIED_WORKFLOW.md) · **Bedrock and capability roadmap:** [AWS agentic evaluation](docs/architecture/aws-agentic-evaluation.md)
 
 **How it works:** [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md)
 
 ```mermaid
-flowchart LR
-  scope["scope init"] --> collect["collect --scope"] --> check["check"] --> ledger["ledger"] --> push["push"] --> lake["optional S3"]
-  ledger --> compile["pack compile shipped"]
-  compile --> trust["trust / scn / inbox local"]
-  trust -.-> later["hosted trust center: design"]
+flowchart TD
+  Scope["Approved scope"] --> Collect["Collect observations"]
+  Collect --> Verify["Verify custody and eligibility"]
+  Verify --> Evaluate["Evaluate supporting rules"]
+  Evaluate --> Receipts["Signed findings and gaps"]
+  Verify --> Export["Verified packs and draft reports"]
 ```
 
-1. `beacon scope init` writes the assessment boundary.
+1. `beacon scope init` writes a local starter scope; `beacon scope import` enrolls an operator-reviewed cloud boundary and approved rule hashes.
 2. `beacon collect --scope` seals evidence and copies `scope_id` and `scope_sha256` into each payload.
-3. `beacon check` fails closed on a missing checkpoint or a scope hash mismatch.
-4. `beacon ledger summary` counts methods. Class C (at least 2) and Class D (at least 4) shortfalls are package gaps. They are not an authorization.
+3. `beacon check` verifies signer pins, retained history, signatures, checkpoints, and scope hashes. Export and evaluation paths require the same checks.
+4. `beacon ledger summary` counts only eligible evidence methods. Fixtures, failures, stale evidence, unbound observations, and catalog references are excluded. Class C (at least 2) and Class D (at least 4) shortfalls are package gaps. They are not an authorization.
 5. `beacon push` writes a local pack. With `BEACON_S3_BUCKET`, the lake stores sealed copies. Private keys stay in `.beacon/keys`.
 6. `beacon pack compile` is shipped. It writes offline CPO, SDR, OCR, and SCG JSON drafts (`beacon-20x-draft/v1`) and Markdown from sealed observations and the Class C/D method counts. Shortfalls are `package_gaps`. Official CR26 schemas are `not-fetched`. The field map is in [beacon/assurance/README.md](beacon/assurance/README.md). This is not a FedRAMP submission. `beacon trust publish`, `beacon scn draft`, and `beacon inbox intake` are local. A hosted trust center is design. `BEACON_TRUST_CENTER_EXPORT=1` is required for the local trust-center tree and for the lake copy of packs and reports.
 
@@ -25,7 +28,7 @@ Package name: `beacon`. CLI name: `beacon`. Environment prefix: `BEACON_`. Data 
 
 ## Run
 
-Python 3.10 or later is required.
+Python 3.11 or later is required.
 
 ```bash
 python -m venv .venv
@@ -38,7 +41,7 @@ beacon serve
 beacon tui
 ```
 
-`beacon serve` starts the GUI (Dashboard, Freshness, Validation, Push, System).
+`beacon serve` starts the GUI (Dashboard, Assessment, Freshness, Validation, Push, System).
 
 `beacon tui` starts the Paramify-style terminal UI. The TUI adds a Collect screen. The first launch in a workspace opens a walkthrough. Press `?` or `h`, or the Tour button, to open it again. `?` still opens the tour when the target field is focused. `h` types into that field. `beacon tui --no-tour` and `BEACON_NO_TOUR=1` skip the auto-start. Skip and Done write `.beacon/tui_tour_seen`. The walkthrough is guidance. It does not add assurance.
 
@@ -55,6 +58,26 @@ beacon collect --plugin aws.lake.logs --live
 ```
 
 `--target IAC-02` and `--target CRY-07` select every loaded fetcher whose `FetcherSpec.scf_targets` overlap that control, then seal the results.
+
+## Scoped objective evaluation
+
+The verified SCF source includes all 6,446 assessment objectives, preserving their
+People, Process, Technology, Data, and Facility classifications. Only a small set
+of supporting rules is implemented; missing rules remain visible.
+
+```bash
+beacon objectives --control CRY-07
+beacon rules --control CRY-07
+beacon scope import --file approved-scope.json
+beacon collect --plugin aws.ebs.encryption --scope aws-ebs-review --live
+beacon evaluate --scope aws-ebs-review --control CRY-07
+beacon receipts --scope aws-ebs-review
+```
+
+See the [scope example](examples/scopes/aws-ebs.example.json) and
+[operator guide](docs/VERIFIED_WORKFLOW.md). Bedrock advisory review and Jev are
+explicitly enabled providers; neither is required for deterministic AWS checks.
+The default evaluation makes no model calls.
 
 ## AWS evidence lake
 
@@ -193,3 +216,18 @@ beacon inbox intake --file inbox.json
 - [docs/STORAGE.md](docs/STORAGE.md) — S3 evidence lake, DynamoDB index, IAM
 - [docs/CRA_ART14.md](docs/CRA_ART14.md) — CRA Article 14 early-warning packer (signal vs exploitation)
 - [docs/IMPROVEMENT_LOG.md](docs/IMPROVEMENT_LOG.md) — cycle log
+
+## Agent memory and workspaces
+
+The proposed [Hindsight memory and execution workspace integration](docs/architecture/agent-memory-and-workspaces.md) keeps historical context, temporary working files, and authoritative evidence separate. Cloudflare Computer is a preview prototype option. No memory service or autonomous agent runtime is deployed by this change.
+
+## Reproducible checks
+
+`uv sync --frozen --all-extras` installs the development lockfile. GitHub Actions
+runs Python 3.11–3.13 and checksum-pinned Conftest 0.56.0. CI fails if Conftest is
+missing. `Required checks` is the aggregate status to require in branch protection.
+
+```bash
+uv run --frozen pytest -ra
+uv pip check
+```

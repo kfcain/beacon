@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import json
+import datetime as dt
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from beacon.assurance.index import CLAIM_WORDS
+from beacon.canonical import dumps
 from beacon.cli import main
 from beacon.config import load_settings
-from beacon.crypto.witness import CHAIN_VERSION, load_records, seal_payload
+from beacon.crypto.witness import CHAIN_VERSION, load_records, seal_payload, create_checkpoint
 from beacon.errors import E_LEDGER
 from beacon.scope.document import ScopeDocument
 from beacon.scope.store import init_scope
@@ -29,7 +31,10 @@ def _invoke(args: list[str]):
 def _document() -> ScopeDocument:
     init_scope(load_settings(), SCOPE_ID)
     path = load_settings().home / "scopes" / f"{SCOPE_ID}.json"
-    return ScopeDocument.model_validate_json(path.read_text(encoding="utf-8"))
+    body = json.loads(path.read_text())
+    body["boundary"] = {"accounts":["123456789012"], "regions":["us-east-1"], "systems":["workspace"]}
+    path.write_bytes(dumps(body))
+    return ScopeDocument.model_validate(body)
 
 
 def _seal(
@@ -44,10 +49,14 @@ def _seal(
     seal_payload(
         load_settings(),
         plugin=plugin,
-        mode="fixture",
+        mode="live",
         scf_targets=targets,
         payload={
             "source": plugin,
+            "mode":"live", "ok":True, "collection_complete":True,
+            "observed_at":dt.datetime.now(dt.timezone.utc).isoformat(),
+            "cloud":"aws", "regions":["us-east-1"],
+            "identity":{"account_id":"123456789012", "arn":"arn:aws:iam::123456789012:role/test", "partition":"aws"},
             "scf": scf,
             "tags": tags,
             "ksi_id": ksi_id,
@@ -55,6 +64,7 @@ def _seal(
             "scope_sha256": document.content_sha256(),
         },
     )
+    create_checkpoint(load_settings())
 
 
 def _seed(document: ScopeDocument) -> None:
@@ -122,7 +132,7 @@ def test_compile_writes_four_drafts_and_reports_gaps(initialized: Path):
     assert summary["scope_sha256"] == document.content_sha256()
     assert summary["kinds"] == ["cpo", "sdr", "ocr", "scg"]
     assert summary["package_gaps"][0]["ksi_id"] == KSI_GAP
-    assert summary["package_gaps"][0]["shortfall"] == 1
+    assert summary["package_gaps"][0]["shortfall"] == 2
     assert KSI_OK not in {row["ksi_id"] for row in summary["package_gaps"]}
     for word in FORBIDDEN:
         assert word not in result.output
@@ -140,14 +150,14 @@ def test_compile_writes_four_drafts_and_reports_gaps(initialized: Path):
         assert body["minimum_automated_methods"] == 2
         assert body["emits_schema_status_words"] is False
         assert body["control_refs"] == ["CRY-07", "GOV-02", "IAC-02"]
-        assert len(body["evidence"]) == 4
+        assert len(body["evidence"]) == 3
         assert "payload" not in json.dumps(body["evidence"])
         by_ksi = {row["ksi_id"]: row for row in body["method_counts"]}
         assert by_ksi[KSI_OK]["automated_method_count"] == 2
         assert by_ksi[KSI_OK]["shortfall"] == 0
-        assert by_ksi[KSI_GAP]["automated_method_count"] == 1
+        assert by_ksi[KSI_GAP]["automated_method_count"] == 0
         assert by_ksi[KSI_GAP]["manual_method_ids"] == ["policy"]
-        assert by_ksi[KSI_GAP]["shortfall"] == 1
+        assert by_ksi[KSI_GAP]["shortfall"] == 2
         assert body["below_minimum"] == [KSI_GAP]
         unset = set(body["unset_fields"])
         mapped = {row["guide_field"] for row in body["field_map"] if row["filled"] is False}
@@ -156,7 +166,7 @@ def test_compile_writes_four_drafts_and_reports_gaps(initialized: Path):
         for word in FORBIDDEN:
             assert word not in text
         assert f"sha256: {body['evidence'][0]['sha256']}" in markdown
-        assert f"{KSI_GAP}: shortfall 1" in markdown
+        assert f"{KSI_GAP}: shortfall 2" in markdown
     ocr = json.loads((out / "ocr.json").read_text(encoding="utf-8"))
     assert "reportableIncidents" in ocr["unset_fields"]
     assert "reportableIncidents" not in ocr
@@ -183,7 +193,7 @@ def test_class_d_shortfall_and_scope_stamp_without_flag(initialized: Path):
     assert body["fedramp_id"] is None
     by_ksi = {row["ksi_id"]: row for row in body["method_counts"]}
     assert by_ksi[KSI_OK]["shortfall"] == 2
-    assert by_ksi[KSI_GAP]["shortfall"] == 3
+    assert by_ksi[KSI_GAP]["shortfall"] == 4
     assert set(body["below_minimum"]) == {KSI_OK, KSI_GAP}
     assert not (out / "cpo.json").exists()
 

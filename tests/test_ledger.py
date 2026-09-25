@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import datetime as dt
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -11,7 +12,7 @@ from beacon.assurance.index import CLAIM_WORDS, ledger_method_report
 from beacon.canonical import dumps
 from beacon.cli import main
 from beacon.config import load_settings
-from beacon.crypto.witness import CHAIN_VERSION, load_records, seal_payload
+from beacon.crypto.witness import CHAIN_VERSION, load_records, seal_payload, create_checkpoint
 from beacon.errors import E_LEDGER, E_SCOPE, E_UNKNOWN_SCOPE
 from beacon.push import write_pack
 from beacon.scope.document import ScopeDocument
@@ -44,7 +45,10 @@ def _invoke(args: list[str]):
 def _document() -> ScopeDocument:
     init_scope(load_settings(), SCOPE_ID)
     path = load_settings().home / "scopes" / f"{SCOPE_ID}.json"
-    return ScopeDocument.model_validate_json(path.read_text(encoding="utf-8"))
+    body = json.loads(path.read_text())
+    body["boundary"] = {"accounts":["123456789012"], "regions":["us-east-1"], "systems":["workspace"]}
+    path.write_bytes(dumps(body))
+    return ScopeDocument.model_validate(body)
 
 
 def _seal(
@@ -59,6 +63,10 @@ def _seal(
 ) -> None:
     payload: dict[str, object] = {
         "source": plugin,
+            "mode":"live", "ok":True, "collection_complete":True,
+            "observed_at":dt.datetime.now(dt.timezone.utc).isoformat(),
+            "cloud":"aws", "regions":["us-east-1"],
+            "identity":{"account_id":"123456789012", "arn":"arn:aws:iam::123456789012:role/test", "partition":"aws"},
         "tags": tags,
         "ksi_id": ksi_id,
         "scope_id": document.scope_id,
@@ -71,10 +79,11 @@ def _seal(
     seal_payload(
         load_settings(),
         plugin=plugin,
-        mode="fixture",
+        mode="live",
         scf_targets=targets,
         payload=payload,
     )
+    create_checkpoint(load_settings())
 
 
 def test_ledger_show_indexes_scope_scf_tags_and_seal(initialized: Path):
@@ -172,7 +181,7 @@ def test_class_c_pass_and_class_d_shortfall_under_scope(initialized: Path):
         assert word not in json.dumps(wide.model_dump(mode="json"))
 
 
-def test_duplicate_method_counts_once_and_class_d_pass(initialized: Path):
+def test_duplicate_method_counts_once_and_catalog_never_counts(initialized: Path):
     document = _document()
     methods = (
         ("aws.inspector", "cloud_inspector", "IAC-02"),
@@ -198,12 +207,11 @@ def test_duplicate_method_counts_once_and_class_d_pass(initialized: Path):
         scf="IAC-02",
     )
     report = ledger_method_report(load_settings(), package_class="d", scope_id=SCOPE_ID)
-    assert report.counts[0].automated_method_count == 4
-    assert report.counts[0].shortfall == 0
+    assert report.counts[0].automated_method_count == 3
+    assert report.counts[0].shortfall == 1
     assert report.counts[0].automated_method_ids == (
         "cloud_inspector",
         "lake_log_extract",
-        "catalog_pin",
         "drop_in",
     )
 
@@ -238,10 +246,11 @@ def test_unknown_control_tag_fails_closed(initialized: Path):
     seal_payload(
         load_settings(),
         plugin="aws.inspector",
-        mode="fixture",
+        mode="live",
         scf_targets=["IAC-02"],
         payload=payload,
     )
+    create_checkpoint(load_settings())
     refused = _invoke(["ledger", "summary", "--scope", SCOPE_ID, "--class", "c"])
     assert refused.exit_code == 2
     assert E_LEDGER in refused.output

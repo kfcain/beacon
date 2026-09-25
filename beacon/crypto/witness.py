@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import json
+import os
 from dataclasses import dataclass
 from typing import Any, Iterator
 from uuid import uuid4
@@ -27,6 +28,8 @@ from beacon.errors import (
 )
 from beacon.scope.bind import verify_payload_scope
 from beacon.scope.store import load_scope
+from beacon.locking import locked
+from beacon.crypto.trust import read_trust, assert_signers, assert_continuity, advance_head, atomic_write
 
 CHAIN_VERSION = 1
 GENESIS_PREV = "0" * 64
@@ -155,17 +158,25 @@ def iter_jsonl(path) -> Iterator[dict[str, Any]]:
 
 
 def load_records(settings: Settings) -> list[Record]:
-    return [Record.from_dict(row) for row in iter_jsonl(settings.chain_path)]
+    try:
+        return [Record.from_dict(row) for row in iter_jsonl(settings.chain_path)]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        fail(E_BAD_CHAIN, f"malformed witness chain: {exc}")
 
 
 def load_checkpoints(settings: Settings) -> list[Checkpoint]:
-    return [Checkpoint.from_dict(row) for row in iter_jsonl(settings.checkpoints_path)]
+    try:
+        return [Checkpoint.from_dict(row) for row in iter_jsonl(settings.checkpoints_path)]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        fail(E_BAD_CHAIN, f"malformed checkpoints: {exc}")
 
 
 def _append_jsonl(path, obj: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(dumps(obj).decode("utf-8") + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
 
 
 def _recorder_message(body: dict[str, Any]) -> bytes:
@@ -176,6 +187,7 @@ def _witness_message(body: dict[str, Any], recorder_sig: str) -> bytes:
     return dumps({"body": body, "recorder_sig": recorder_sig})
 
 
+@locked
 def seal_payload(
     settings: Settings,
     *,
@@ -191,6 +203,10 @@ def seal_payload(
     if recorder.public_raw() == witness.public_raw():
         fail(E_KEY_COLLISION, "recorder and witness public keys must be distinct")
     records = load_records(settings)
+    trust = read_trust(settings)
+    assert_continuity(settings, records, trust)
+    if recorder.fingerprint() != trust["recorder"] or witness.fingerprint() != trust["witness"]:
+        fail("E_UNTRUSTED_SIGNER", "signing keys do not match the registered identities")
     seq = (records[-1].seq + 1) if records else 1
     prev = sha256_obj(records[-1].to_dict()) if records else GENESIS_PREV
     evidence_id = str(uuid4())
@@ -214,8 +230,9 @@ def seal_payload(
     record.recorder_sig = recorder.sign(_recorder_message(body))
     record.witness_sig = witness.sign(_witness_message(body, record.recorder_sig))
     evidence_path = settings.evidence_dir / f"{evidence_id}.json"
-    evidence_path.write_bytes(dumps(payload))
+    atomic_write(evidence_path, dumps(payload))
     _append_jsonl(settings.chain_path, record.to_dict())
+    advance_head(settings, [*records, record])
     _dual_write_seal(settings, record)
     return record
 
@@ -227,6 +244,7 @@ def _dual_write_seal(settings: Settings, record: Record) -> None:
     publish_sealed_record(settings, record)
 
 
+@locked
 def create_checkpoint(
     settings: Settings,
     *,
@@ -234,6 +252,7 @@ def create_checkpoint(
     to_seq: int | None = None,
 ) -> Checkpoint:
     records = load_records(settings)
+    assert_continuity(settings, records)
     if not records:
         fail(E_NO_CHECKPOINT, "no records to checkpoint")
     start = from_seq if from_seq is not None else 1
@@ -298,6 +317,7 @@ def verify_record(record: Record, prev_hash: str) -> None:
         fail(E_BAD_SIGNATURE, f"seq {record.seq} recorder and witness keys are not distinct")
 
 
+@locked
 def check_chain(settings: Settings, *, scope_id: str | None = None) -> dict[str, Any]:
     if not settings.keys_dir.exists():
         fail(E_NOT_INITIALIZED, "run `beacon init` first")
@@ -306,13 +326,20 @@ def check_chain(settings: Settings, *, scope_id: str | None = None) -> dict[str,
     requested = load_scope(settings, scope_id) if scope_id is not None else None
     records = load_records(settings)
     checkpoints = load_checkpoints(settings)
+    trust = read_trust(settings)
+    assert_continuity(settings, records, trust)
     prev = GENESIS_PREV
     expected_seq = 1
     for record in records:
+        if record.v != CHAIN_VERSION:
+            fail(E_BAD_CHAIN, "unsupported record version")
+        assert_signers(record, trust)
         if record.seq != expected_seq:
             fail(E_BAD_CHAIN, f"expected seq {expected_seq}, found {record.seq}")
         verify_record(record, prev)
-        evidence_path = settings.evidence_dir / f"{record.evidence_id}.json"
+        evidence_path = (settings.evidence_dir / f"{record.evidence_id}.json").resolve()
+        if evidence_path.parent != settings.evidence_dir.resolve():
+            fail(E_BAD_CHAIN, "evidence path escapes workspace")
         if not evidence_path.exists():
             fail(E_BAD_CHAIN, f"seq {record.seq} missing evidence file")
         payload_bytes = evidence_path.read_bytes()
@@ -326,8 +353,11 @@ def check_chain(settings: Settings, *, scope_id: str | None = None) -> dict[str,
             E_NO_CHECKPOINT,
             "records exist but no Merkle/TSA checkpoint covers the chain",
         )
-    covered_seqs = _covered_seqs(checkpoints)
     head = records[-1].seq if records else 0
+    for checkpoint in checkpoints:
+        if checkpoint.v != 1 or not 1 <= checkpoint.from_seq <= checkpoint.to_seq <= head:
+            fail(E_BAD_CHAIN, "invalid checkpoint version or range")
+    covered_seqs = _covered_seqs(checkpoints)
     required = set(range(1, head + 1))
     if records and covered_seqs != required:
         fail(
@@ -338,6 +368,8 @@ def check_chain(settings: Settings, *, scope_id: str | None = None) -> dict[str,
     if checkpoints and not tsa_cert.exists():
         fail(E_TSA, "missing TSA certificate; cannot verify checkpoints")
     cert_pem = tsa_cert.read_bytes() if tsa_cert.exists() else b""
+    if cert_pem and sha256_bytes(cert_pem) != trust["tsa_sha256"]:
+        fail(E_TSA, "TSA certificate differs from the trusted pin")
     for checkpoint in checkpoints:
         window = [row for row in records if checkpoint.from_seq <= row.seq <= checkpoint.to_seq]
         if checkpoint.leaf_count != len(window):
@@ -354,6 +386,8 @@ def check_chain(settings: Settings, *, scope_id: str | None = None) -> dict[str,
         "checkpoints": len(checkpoints),
         "covered_through": _covered_through(checkpoints),
         "head_seq": records[-1].seq if records else 0,
+        "signers_registered": True,
+        "continuity": "external_and_local" if settings.anchor_dir else "local_only",
     }
 
 

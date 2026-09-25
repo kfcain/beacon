@@ -1,5 +1,12 @@
 # AO rules and the Foreman-shaped Jev adapter
 
+> Historical design note. The implemented contract and migration path are in
+> [the verified workflow](../VERIFIED_WORKFLOW.md). Version-1 claim receipts are
+> non-authoritative; version-2 evaluations cover supporting assertions only.
+> Objective source taxonomy also includes Data and Facility. The SDK returns a
+> numeric Noul probability and rubric-indexed Score, not the former stub enums.
+
+
 Status: design accepted. This change adds this note only.
 Date: 2026-09-24.
 

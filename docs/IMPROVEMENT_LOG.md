@@ -503,3 +503,23 @@ It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouche
 
 - No production AWS apply in this cycle.
 - Repo stays private. No secrets.
+
+## Verified scoped evaluation and AWS provider seam — 2026-09-25
+
+- Closed independent output paths with one custody verifier; added explicit signer
+  pins, retained heads, external-anchor enrollment, and process-safe append/checkpoint
+  locking. Legacy trust migration requires operator-supplied public pins and head.
+- Added evidence eligibility and exclusions to ledgers/compilers; fixture, stale,
+  failed, unbound, and catalog-only observations do not satisfy method counts.
+- Imported 6,446 original SCF 2026.3 objective rows, with workbook digest and attribution.
+- Added approved version-2 scopes, paginated read-only EBS collection, exact-commit
+  Git policy capture, objective-specific supporting checks, and signed historical
+  receipts. Complete objective/control claims remain disabled.
+- Added optional pinned Jev SDK and Bedrock Converse advisory adapters, scoped
+  CLI/GUI/TUI/MCP flows, web request protections, and HTML escaping.
+- Pinned S3 observation/finding versions in the index, added conditional digest
+  updates, and delayed verified index status until complete checkpoint verification.
+- Added locked dependencies, a Python 3.11–3.13 CI matrix, mandatory Conftest policy
+  checks, and fixes for Terraform region validation and lifecycle class tags.
+- Documented the AWS capability roadmap, Hindsight source-linked memory design,
+  and Cloudflare Computer preview boundary. These deployments remain future work.

@@ -12,6 +12,9 @@ from beacon.scf.client import fetch_control
 from beacon.scope.bind import bind_observation_payload, collect_scope
 from beacon.scope.document import ScopeDocument
 from beacon.storage import publish_collect_run
+from beacon.scope.enforce import validate_plugin_scope, boundary_reasons
+from beacon.errors import fail
+from beacon.locking import locked
 
 
 def collect_plugin(
@@ -39,6 +42,11 @@ def seal_result(
         targets = list(result.scf_targets)
     payload = result.payload
     if scope is not None:
+        validate_plugin_scope(scope, plugin.spec.name)
+        if result.ok and result.mode == "live":
+            reasons = boundary_reasons(scope, payload)
+            if reasons:
+                fail("E_SCOPE", ",".join(reasons))
         payload = bind_observation_payload(payload, scope)
     record = seal_payload(
         settings,
@@ -58,6 +66,7 @@ def seal_result(
     }
 
 
+@locked
 def collect_named(
     settings: Settings,
     name: str,
@@ -68,6 +77,9 @@ def collect_named(
 ) -> dict[str, Any]:
     scope = collect_scope(settings, scope_id)
     plugin = get_plugin(settings, name)
+    if scope is not None:
+        validate_plugin_scope(scope, plugin.spec.name)
+        ctx = CollectContext(target=ctx.target, live=ctx.live, extra={**ctx.extra, "scope": scope.canonical_body()})
     result = collect_plugin(settings, plugin, ctx)
     sealed = seal_result(settings, plugin, result, scope=scope)
     cp = None
@@ -80,6 +92,7 @@ def collect_named(
     return sealed
 
 
+@locked
 def collect_target(
     settings: Settings,
     target: str,
@@ -92,6 +105,10 @@ def collect_target(
     control = fetch_control(settings, target)
     bound = CollectContext(target=target, live=(ctx.live if ctx else None), extra=dict(ctx.extra) if ctx else {})
     selected = plugins_for_target(settings, target)
+    if scope is not None:
+        for plugin in selected:
+            validate_plugin_scope(scope, plugin.spec.name)
+        bound.extra["scope"] = scope.canonical_body()
     runs = []
     for plugin in selected:
         result = collect_plugin(settings, plugin, bound)
@@ -122,6 +139,7 @@ def collect_target(
     return out
 
 
+@locked
 def collect_all(
     settings: Settings,
     ctx: CollectContext | None = None,
@@ -131,8 +149,14 @@ def collect_all(
 ) -> dict[str, Any]:
     scope = collect_scope(settings, scope_id)
     ctx = ctx or CollectContext()
+    if scope is not None:
+        ctx = CollectContext(target=ctx.target, live=ctx.live, extra={**ctx.extra, "scope": scope.canonical_body()})
+    plugins = list(load_plugins(settings).values())
+    for plugin in plugins:
+        if scope is not None:
+            validate_plugin_scope(scope, plugin.spec.name)
     runs = []
-    for plugin in load_plugins(settings).values():
+    for plugin in plugins:
         result = collect_plugin(settings, plugin, ctx)
         runs.append(seal_result(settings, plugin, result, scope=scope))
     out: dict[str, Any] = {"ok": all(item["ok"] for item in runs) if runs else True, "runs": runs}

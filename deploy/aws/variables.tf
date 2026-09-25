@@ -2,6 +2,11 @@ variable "aws_region" {
   description = "AWS region for the evidence lake. Supported deploy targets: us-east-1 (commercial) and us-gov-west-1 (GovCloud). Keep this parameterized; do not hard-code the region in module resources."
   type        = string
   default     = "us-east-1"
+
+  validation {
+    condition     = contains(["us-east-1", "us-gov-west-1"], var.aws_region)
+    error_message = "aws_region must be us-east-1 or us-gov-west-1 for this evidence-lake module."
+  }
 }
 
 variable "bucket_name" {

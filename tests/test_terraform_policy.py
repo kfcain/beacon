@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -16,6 +17,8 @@ TIMEOUT_S = 60
 def _conftest() -> str:
     path = shutil.which("conftest")
     if path is None:
+        if os.environ.get("BEACON_REQUIRE_POLICY_TESTS") == "1":
+            pytest.fail("Conftest is required in CI")
         pytest.skip("conftest not installed; run make policy after installing Conftest")
     return path
 

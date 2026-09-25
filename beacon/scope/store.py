@@ -16,6 +16,8 @@ from beacon.config import Settings
 from beacon.errors import E_SCOPE, E_UNKNOWN_SCOPE, E_UNSAFE_SCOPE_ID, fail
 from beacon.scope.document import SCOPE_ID_RE, EVIDENCE_KINDS, Boundary, ScopeDocument
 from beacon.scf.catalog_pin import PINNED_PILLAR_FRAMEWORK_IDS, PINNED_SCF_VERSION
+from beacon.scope.v2 import parse_scope
+from beacon.locking import locked
 
 # Pillar framework id already on the 2026.3 pin. Not an SCF control id.
 STARTER_FRAMEWORK = "general-nist-800-53-r5-2"
@@ -64,6 +66,7 @@ def new_scope_document(scope_id: str) -> ScopeDocument:
     )
 
 
+@locked
 def init_scope(settings: Settings, scope_id: str) -> ScopeDocument:
     """Create the scope file. An existing file is left unchanged."""
     path = scope_path(settings, scope_id)
@@ -85,6 +88,38 @@ def init_scope(settings: Settings, scope_id: str) -> ScopeDocument:
     return document
 
 
+@locked
+def import_scope(settings: Settings, raw: str) -> ScopeDocument:
+    """Explicit operator enrollment; sealed scopes are immutable by id."""
+    try:
+        document = parse_scope(raw)
+    except (ValueError, ValidationError) as exc:
+        fail(E_SCOPE, f"invalid scope: {exc}")
+    from beacon.scf.catalog_pin import PINNED_SCF_VERSION
+    from beacon.assurance.pin_ids import framework_id_on_pin
+    if document.catalog_pin_version != PINNED_SCF_VERSION or any(
+        not framework_id_on_pin(item) for item in document.frameworks
+    ):
+        fail(E_SCOPE, "catalog or framework is outside the reviewed pin")
+    path = scope_path(settings, document.scope_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("xb") as handle:
+            handle.write(dumps(document.canonical_body()) + b"\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except FileExistsError:
+        fail(E_SCOPE, "scope already exists; use a new id for revisions")
+    return document
+
+
+def list_scopes(settings: Settings) -> list[dict]:
+    return [{"scope_id": document.scope_id, "scope_sha256": document.content_sha256(),
+             "schema_version": document.schema_version, "boundary": document.boundary.model_dump(mode="json")}
+            for path in sorted(scopes_dir(settings).glob("*.json"))
+            for document in [load_scope(settings, path.stem)]]
+
+
 def load_scope(settings: Settings, scope_id: str) -> ScopeDocument:
     """Load one scope file. A missing or mismatched file fails closed."""
     path = scope_path(settings, scope_id)
@@ -95,8 +130,8 @@ def load_scope(settings: Settings, scope_id: str) -> ScopeDocument:
     except OSError as exc:
         fail(E_SCOPE, f"scope file cannot be read: {exc}")
     try:
-        document = ScopeDocument.model_validate_json(raw)
-    except ValidationError:
+        document = parse_scope(raw)
+    except (ValidationError, ValueError):
         fail(E_SCOPE, "scope file is not a valid scope document")
     if document.scope_id != scope_id:
         fail(E_SCOPE, "scope id in the file does not match the requested id")

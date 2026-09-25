@@ -117,8 +117,15 @@ def _calculate(settings, snapshot, scope, spec, now):
         if problems:
             row["status"] = "ineligible"
         else:
-            row["expires_at"] = (parse_iso8601(payload["observed_at"])
-                                     + dt.timedelta(seconds=criterion.max_age_seconds)).isoformat()
+            observed = parse_iso8601(payload["observed_at"])
+            row["expires_at"] = (observed + dt.timedelta(seconds=criterion.max_age_seconds)).isoformat()
+            period = scope.parameters.get("assessment_period")
+            # The receipt carries the declared period, so evidence from outside it
+            # must not read as a pass for that period.
+            if period and not parse_iso8601(period["start"]) <= observed <= parse_iso8601(period["end"]):
+                row["gaps"].append("observation_outside_assessment_period")
+                if row["status"] in {"supporting_pass", "needs_review"}:
+                    row["status"] = "insufficient"
         if spec.time_basis == "period":
             row["gaps"].append("operating_period_not_demonstrated")
             if row["status"] in {"supporting_pass", "needs_review"}:

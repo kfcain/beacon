@@ -483,3 +483,18 @@ def test_operator_identity_without_a_passwd_entry_keeps_the_uid(monkeypatch):
     identity = assessments.operator_identity()
     assert identity == {"actor_id": f"uid:{os.geteuid()}", "account_name": None,
                         "authentication": "local_os_account"}
+
+
+@pytest.mark.parametrize("period,status", [
+    ({"start": "2024-01-01T00:00:00Z", "end": "2024-12-31T23:59:59Z"}, "insufficient"),
+    ({"start": "2020-01-01T00:00:00Z", "end": "2099-12-31T23:59:59Z"}, "supporting_pass"),
+])
+def test_point_in_time_evidence_must_fall_inside_the_declared_period(initialized, period, status):
+    settings = load_settings()
+    scope, digest = enroll(settings, assessment_period=period)
+    seal(settings, scope, ebs_payload())  # observed now
+    receipt = assess(settings, scope, digest)
+    assert receipt["assessment_period"] == period
+    assert receipt["status"] == status
+    outside = [gap for gap in receipt["gaps"] if gap.endswith("observation_outside_assessment_period")]
+    assert bool(outside) is (status == "insufficient")

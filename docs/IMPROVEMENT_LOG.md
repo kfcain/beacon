@@ -537,3 +537,17 @@ The workbook SHA-256 is `5a89bf2d3c106a9a87d4b6e3d62dd3e147d0e960d4c07473045a10a
 The objective file SHA-256 is `85bd32502899ff908bb55fee3b1c79f56864565702446bb77fbaf10875725162` (6446 rows).
 The target is green Required checks for Python 3.11, 3.12, and 3.13.
 This entry is not a new assurance-stack cycle. No production AWS apply. No secrets.
+
+## 2026-09-25 — Dark TUI with royal blue accents
+
+- Added the `beacon-dark` default theme with dark navy surfaces and royal blue
+  (`#4169E1`) primary actions, active tabs, input selection, and focus borders.
+- Shared the palette across Textual widgets and Rich content; lighter blue
+  headings and readable muted text replace the previous cyan/purple styling.
+- Applied the theme to the walkthrough and retained distinct success, warning,
+  and error colors. Existing status labels remain visible.
+- Validation: all 8 existing TUI tests passed. A headless render checked the
+  walkthrough and all 6 screens, including exactly one royal blue active tab.
+  `git diff --check` passed.
+- This changes presentation only; document connectors, hosted agents, memory,
+  and scheduled workflows remain proposed work.

@@ -18,6 +18,7 @@ from beacon.plugins.spec import CollectContext
 from beacon.push import write_pack
 from beacon.scf.engine import collect_all, collect_target, collect_named
 from beacon.assurance.evaluation import evaluate_control
+from beacon.tui.theme import BEACON_DARK, BLUE_TEXT, FAIL, MUTED, OK
 from beacon.tui.tour import (
     TourCursor,
     mark_tour_seen,
@@ -36,17 +37,10 @@ SCREENS: tuple[ScreenName, ...] = (
     "collect",
 )
 
-OK = "#9ECE6A"
-FAIL = "#F7768E"
-MUTED = "#565F89"
-CYAN = "#7DCFFF"
-PURPLE = "#BB9AF7"
-
-
 def _status_line() -> Text:
     data = validation(load_settings())
     text = Text()
-    text.append("Beacon  ", style=f"bold {PURPLE}")
+    text.append("Beacon  ", style=f"bold {BLUE_TEXT}")
     if data.get("ok"):
         text.append("VALIDATION OK", style=f"bold {OK}")
     else:
@@ -57,11 +51,11 @@ def _status_line() -> Text:
 
 
 def _kv(label: str, value: Any) -> str:
-    return f"[cyan]{label}[/]\n{value}\n"
+    return f"[bold {BLUE_TEXT}]{label}[/]\n{value}\n"
 
 
 class Pane(Static):
-    DEFAULT_CSS = "Pane { width: 1fr; height: 1fr; padding: 1 2; background: #16161e; }"
+    DEFAULT_CSS = "Pane { width: 1fr; height: 1fr; padding: 1 2; background: $surface; }"
 
 
 class TargetInput(Input):
@@ -77,24 +71,24 @@ class TourScreen(ModalScreen[None]):
     """Next / Back / Skip / Done walkthrough. Points at the live tab behind it."""
 
     DEFAULT_CSS = """
-    TourScreen { align: center middle; background: #1a1b2680; }
+    TourScreen { align: center middle; background: $background 80%; }
     #tour-dialog {
         width: 68;
         height: auto;
         max-height: 18;
-        background: #16161e;
-        border: tall #7DCFFF;
+        background: $surface;
+        border: tall $primary;
         padding: 1 2;
     }
-    #tour-kicker { color: #BB9AF7; text-style: bold; }
-    #tour-title { color: #7DCFFF; text-style: bold; }
-    #tour-step { color: #565F89; }
+    #tour-kicker { color: $primary-lighten-2; text-style: bold; }
+    #tour-title { color: $primary-lighten-2; text-style: bold; }
+    #tour-step { color: $text-muted; }
     #tour-scroll {
         height: 6;
         margin: 1 0 0 0;
-        background: #16161e;
+        background: $surface;
     }
-    #tour-body { color: #c0caf5; height: auto; }
+    #tour-body { color: $foreground; height: auto; }
     #tour-actions { height: 3; margin-top: 1; }
     #tour-actions Button {
         margin: 0 1 0 0;
@@ -192,7 +186,10 @@ class BeaconTUI(App[None]):
 
     TITLE = "Beacon"
     CSS = """
-    Screen { background: #1a1b26; }
+    Screen { background: $background; color: $foreground; }
+    Header, Footer { background: $panel; }
+    Button:focus { border: tall $primary; }
+    Input:focus { border: tall $primary; }
     #tabs { height: 3; dock: top; }
     #actions, #scope-actions { height: 3; }
     #scope, #plugin { width: 1fr; }
@@ -219,6 +216,8 @@ class BeaconTUI(App[None]):
 
     def __init__(self, *, skip_tour: bool = False) -> None:
         super().__init__()
+        self.register_theme(BEACON_DARK)
+        self.theme = BEACON_DARK.name
         self.current: ScreenName = "dashboard"
         self.skip_tour = skip_tour
 
@@ -251,7 +250,6 @@ class BeaconTUI(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.theme = "tokyo-night"
         self.refresh_pane()
         if should_auto_start_tour(load_settings().home, skip=self.skip_tour):
             self.call_after_refresh(self.start_tour)
@@ -312,6 +310,10 @@ class BeaconTUI(App[None]):
         pane = self.query_one("#pane", Pane)
         settings = load_settings()
         current = self.current
+        for name in SCREENS:
+            self.query_one(f"#tab-{name}", Button).variant = (
+                "primary" if name == current else "default"
+            )
         match current:
             case "dashboard":
                 pane.update(self._dashboard(settings))
@@ -320,12 +322,12 @@ class BeaconTUI(App[None]):
             case "validation":
                 pane.update(self._validation())
             case "push":
-                pane.update("[cyan]Push[/]\nExport a sealed pack with public keys only.\nPress Push pack.")
+                pane.update(f"[bold {BLUE_TEXT}]Push[/]\nExport a sealed pack with public keys only.\nPress Push pack.")
             case "system":
                 pane.update(self._system(settings))
             case "collect":
                 pane.update(
-                    "[cyan]Collect[/]\n"
+                    f"[bold {BLUE_TEXT}]Collect[/]\n"
                     "Enter an SCF id (IAC-02, CRY-07) or leave empty to run every overlapping fetcher.\n"
                     "Results are sealed on the witness chain. A Merkle/TSA checkpoint is written."
                 )
@@ -341,19 +343,19 @@ class BeaconTUI(App[None]):
             for p in status.get("plugins") or []
         )
         return (
-            "[cyan]Dashboard[/]\n"
+            f"[bold {BLUE_TEXT}]Dashboard[/]\n"
             f"records={status.get('records')}  checkpoints={status.get('checkpoints')}  "
             f"covered={chain.get('covered_through')}\n"
             f"SCF {status.get('scf_version')}  offline={status.get('scf_offline')}\n"
             "Press ? for the walkthrough.\n\n"
-            f"[cyan]Plugins[/]\n{plugins or '  (none)'}"
+            f"[bold {BLUE_TEXT}]Plugins[/]\n{plugins or '  (none)'}"
         )
 
     def _freshness(self) -> str:
         rows = freshness(load_settings())
         if not rows:
-            return "[cyan]Freshness[/]\nNo sealed evidence. Run seed or collect."
-        lines = ["[cyan]Freshness[/]"]
+            return f"[bold {BLUE_TEXT}]Freshness[/]\nNo sealed evidence. Run seed or collect."
+        lines = [f"[bold {BLUE_TEXT}]Freshness[/]"]
         for item in rows:
             lines.append(f"  {item['plugin']:18}  {item['mode']:12}  seq={item['seq']}  {item['ts']}")
         return "\n".join(lines)
@@ -361,12 +363,12 @@ class BeaconTUI(App[None]):
     def _validation(self) -> str:
         data = validation(load_settings())
         mark = "OK" if data.get("ok") else str(data.get("code"))
-        return f"[cyan]Validation[/]\n{mark}\n{data}"
+        return f"[bold {BLUE_TEXT}]Validation[/]\n{mark}\n{data}"
 
     def _system(self, settings) -> str:
         status = system_status(settings)
         return (
-            "[cyan]System[/]\n"
+            f"[bold {BLUE_TEXT}]System[/]\n"
             + _kv("home", status.get("home"))
             + _kv("recorder", status.get("recorder_fingerprint"))
             + _kv("witness", status.get("witness_fingerprint"))

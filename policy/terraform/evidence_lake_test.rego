@@ -450,8 +450,8 @@ test_live_module_has_no_deny if {
 	count(deny) == 0 with input as cfg
 }
 
-test_live_module_warns_on_known_gaps if {
+test_live_module_has_no_known_gaps if {
 	cfg := parse_combined_config_files(_live_files)
-	count({m | some m in warn; contains(m, "var.aws_region")}) == 1 with input as cfg
-	count({m | some m in warn; contains(m, "cold_classes")}) == 1 with input as cfg
+	count({m | some m in warn; contains(m, "var.aws_region")}) == 0 with input as cfg
+	count({m | some m in warn; contains(m, "cold_classes")}) == 0 with input as cfg
 }

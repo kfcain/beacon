@@ -60,6 +60,7 @@ ClaimReason = Literal[
     "noul_insufficient",
     "score_below_min",
     "thresholds_met",
+    "legacy_receipt_not_authoritative",
 ]
 
 
@@ -320,11 +321,10 @@ def decide_claim(
     expected_evidence_sha256: str | None = None,
     expected_receipt_id: str | None = None,
 ) -> ClaimDecision:
-    """Return whether code may attach a positive claim to this receipt.
+    """Validate legacy receipt links without authorizing a positive claim.
 
-    The caller must pass the scope hash, the evidence hash, and the receipt id
-    from the seal. This function does not emit claim words. A later phase may
-    emit those words only when permitted is true and the caller also shows receipt_id.
+    Version 1 lacks a rule, objective, candidate, time, and trusted-chain binding.
+    Use the verified objective evaluation engine for version 2 supporting results.
     """
     minimum = _check_score_min(score_min)
     if receipt is None:
@@ -375,4 +375,4 @@ def decide_claim(
         or float(coverage) < minimum
     ):
         return ClaimDecision(permitted=False, receipt_id=receipt_id, reason="score_below_min")
-    return ClaimDecision(permitted=True, receipt_id=receipt_id, reason="thresholds_met")
+    return ClaimDecision(permitted=False, receipt_id=receipt_id, reason="legacy_receipt_not_authoritative")

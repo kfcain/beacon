@@ -8,6 +8,8 @@ from beacon import __version__
 from beacon.config import Settings, ensure_layout, observation_expires_at, observation_is_expired
 from beacon.crypto.keys import generate_distinct_roles, load_roles
 from beacon.crypto.tsa import generate_tsa
+from beacon.crypto.trust import initialize_trust
+from beacon.locking import locked
 from beacon.crypto.witness import check_chain, checkpoint_status, load_checkpoints, load_records
 from beacon.errors import E_ALREADY_INITIALIZED, BeaconError, fail
 from beacon.plugins.loader import load_plugins
@@ -17,12 +19,14 @@ from beacon.scf.engine import collect_all
 from beacon.storage.s3 import remote_ready
 
 
+@locked
 def init_workspace(settings: Settings) -> dict:
     ensure_layout(settings)
     if (settings.keys_dir / "recorder.pem").exists():
         fail(E_ALREADY_INITIALIZED, "workspace already initialized; remove .beacon/keys to recreate")
     recorder, witness = generate_distinct_roles(settings.keys_dir)
     generate_tsa(settings.keys_dir)
+    initialize_trust(settings, recorder.fingerprint(), witness.fingerprint())
     meta = {
         "version": __version__,
         "recorder_fingerprint": recorder.fingerprint(),

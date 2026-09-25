@@ -1,0 +1,30 @@
+{
+  "schema_version": 2,
+  "scope_id": "aws-ebs-review",
+  "catalog_pin_version": "2026.3",
+  "frameworks": [
+    "general-nist-800-53-r5-2"
+  ],
+  "data_classes": [],
+  "exclusions": [],
+  "allowed_evidence_kinds": [
+    "cloud_inspector"
+  ],
+  "boundary": {
+    "accounts": [
+      "123456789012"
+    ],
+    "regions": [
+      "us-east-1"
+    ]
+  },
+  "parameters": {
+    "approved_rule_sha256": [
+      "4e6c0dca320f5f7d822f6da35bc9912a307e8f98317b4997c77fc0d653cb7c9a"
+    ],
+    "expected_ebs_volumes": [
+      "us-east-1/vol-0123456789abcdef0"
+    ],
+    "allow_external_judgment": false
+  }
+}

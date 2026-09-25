@@ -503,3 +503,37 @@ It does not re-vendor the catalog pin. Draft PR #5 and draft PR #2 stay untouche
 
 - No production AWS apply in this cycle.
 - Repo stays private. No secrets.
+
+## Verified scoped evaluation and AWS provider seam — 2026-09-25
+
+- Closed independent output paths with one custody verifier; added explicit signer
+  pins, retained heads, external-anchor enrollment, and process-safe append/checkpoint
+  locking. Legacy trust migration requires operator-supplied public pins and head.
+- Added evidence eligibility and exclusions to ledgers/compilers; fixture, stale,
+  failed, unbound, and catalog-only observations do not satisfy method counts.
+- Imported 6,446 original SCF 2026.3 objective rows, with workbook digest and attribution.
+- Added approved version-2 scopes, paginated read-only EBS collection, exact-commit
+  Git policy capture, objective-specific supporting checks, and signed historical
+  receipts. Complete objective/control claims remain disabled.
+- Added optional pinned Jev SDK and Bedrock Converse advisory adapters, scoped
+  CLI/GUI/TUI/MCP flows, web request protections, and HTML escaping.
+- Pinned S3 observation/finding versions in the index, added conditional digest
+  updates, and delayed verified index status until complete checkpoint verification.
+- Added locked dependencies, a Python 3.11–3.13 CI matrix, mandatory Conftest policy
+  checks, and fixes for Terraform region validation and lifecycle class tags.
+- Documented the AWS capability roadmap, Hindsight source-linked memory design,
+  and Cloudflare Computer preview boundary. These deployments remain future work.
+
+## 2026-09-25 — CI harden PR #24
+
+### Why
+
+PR https://github.com/kfcain/beacon/pull/24 Required checks failed on head `cfb8dfcae6b557db326a47acc48fa616031aaa3e`.
+The committed `uv.lock` began with tool truncation text, so `uv sync --frozen` could not parse the file.
+`beacon/scf/objectives/rows.json` had the same truncation, so the objective digest did not match the reviewed pin.
+This change regenerates `uv.lock` with `uv lock` (uv 0.12.17).
+This change restores `rows.json` with `scripts/vendor_scf_objectives.py` and the pinned SCF 2026.3 workbook.
+The workbook SHA-256 is `5a89bf2d3c106a9a87d4b6e3d62dd3e147d0e960d4c07473045a10aa8a7df697`.
+The objective file SHA-256 is `85bd32502899ff908bb55fee3b1c79f56864565702446bb77fbaf10875725162` (6446 rows).
+The target is green Required checks for Python 3.11, 3.12, and 3.13.
+This entry is not a new assurance-stack cycle. No production AWS apply. No secrets.

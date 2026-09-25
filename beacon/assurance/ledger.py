@@ -82,6 +82,7 @@ class LedgerGapReport(BaseModel):
     below_minimum: tuple[str, ...]
     excluded_stale: tuple[str, ...] = ()
     excluded_undated: tuple[str, ...] = ()
+    excluded_ineligible: tuple[str, ...] = ()
 
 
 def _instant(value: str, *, label: str):

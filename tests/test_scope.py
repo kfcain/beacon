@@ -164,7 +164,7 @@ def test_decide_claim_fail_closed_reasons():
     assert DEFAULT_SCORE_MIN == 1.0
 
 
-def test_decide_claim_permits_only_a_linked_passing_receipt():
+def test_legacy_receipt_never_authorizes_a_claim():
     scope = _scope()
     receipt = _receipt(scope)
     decision = decide_claim(
@@ -184,9 +184,9 @@ def test_decide_claim_permits_only_a_linked_passing_receipt():
         expected_scope_sha256=scope.content_sha256(),
         expected_evidence_sha256=EVIDENCE_HASH,
     )
-    assert decision.permitted is True
+    assert decision.permitted is False
     assert decision.receipt_id == "receipt-1"
-    assert decision.reason == "thresholds_met"
+    assert decision.reason == "legacy_receipt_not_authoritative"
     assert decision.reason not in {"compliant", "evidenced", "proven"}
     assert mismatch.permitted is False
     assert mismatch.reason == "receipt_id_mismatch"

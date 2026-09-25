@@ -17,6 +17,8 @@ from beacon.errors import E_LEDGER, E_SCOPE, BeaconError, fail
 from beacon.scope.bind import scope_pair_from_payload
 from beacon.scope.document import SCOPE_ID_RE, ScopeDocument
 from beacon.scope.store import load_scope
+from beacon.locking import locked
+from beacon.assurance.admission import verified_snapshot, eligibility
 
 SourceKind = Literal["chain", "pack"]
 
@@ -38,6 +40,8 @@ class EvidenceIndexEntry(BaseModel):
     tags: tuple[str, ...] = ()
     seal_sha256: str
     sealed_at: str
+    eligible: bool = False
+    exclusion_reasons: tuple[str, ...] = ()
 
 
 class EvidenceLedger(BaseModel):
@@ -222,6 +226,7 @@ def _scope_document(settings: Settings, scope_id: str | None) -> ScopeDocument |
     return load_scope(settings, scope_id)
 
 
+@locked
 def load_evidence_ledger(
     settings: Settings,
     *,
@@ -235,13 +240,16 @@ def load_evidence_ledger(
     document = _scope_document(settings, scope_id)
     expected_hash = document.content_sha256() if document is not None else None
     source: SourceKind = "pack" if pack_path is not None else "chain"
-    bodies = _pack_bodies(pack_path) if pack_path is not None else _chain_bodies(settings)
+    snapshot = verified_snapshot(settings, pack_path=pack_path)
+    bodies = [(record, snapshot.payloads[record.evidence_id]) for record in snapshot.records]
     entries: list[EvidenceIndexEntry] = []
     for record, body in bodies:
         if record.v != 1:
             _ledger_fail("record version must stay 1")
-        payload = _load_payload(body, record)
+        payload = body
         entry, _tags = _entry_from_payload(record, payload)
+        reasons = eligibility(settings, record, payload)
+        entry = entry.model_copy(update={"eligible": not reasons, "exclusion_reasons": reasons})
         if document is not None:
             if entry.scope_id is None:
                 continue
@@ -273,6 +281,8 @@ def method_records_for_entries(
     """
     records: list[MethodRecord] = []
     for entry in entries:
+        if not entry.eligible:
+            continue
         payload = payloads.get(entry.evidence_id)
         if payload is None:
             _ledger_fail(f"seq {entry.seq} observation payload is missing")
@@ -286,6 +296,10 @@ def method_records_for_entries(
         if entry.scope_id is None or entry.scope_sha256 is None:
             _ledger_fail(f"seq {entry.seq} method bind requires a scope pair")
         ksi_id = payload.get("ksi_id")
+        if ksi_id is None:
+            # A supporting observation without an approved crosswalk is still
+            # evidence, but does not invent a KSI relationship.
+            continue
         if not isinstance(ksi_id, str) or not SCOPE_ID_RE.fullmatch(ksi_id):
             _ledger_fail(f"seq {entry.seq} ksi id must match the safe id pattern")
         automated = automation[0].value == "automated"
@@ -325,6 +339,7 @@ def _payloads_for(
     return found
 
 
+@locked
 def ledger_method_report(
     settings: Settings,
     *,
@@ -344,17 +359,23 @@ def ledger_method_report(
     )
     payloads = _payloads_for(settings, pack_path=pack_path, entries=ledger.entries)
     records = method_records_for_entries(ledger.entries, payloads)
+    seen_ksi_ids = sorted({p["ksi_id"] for p in payloads.values()
+                           if isinstance(p.get("ksi_id"), str) and SCOPE_ID_RE.fullmatch(p["ksi_id"])})
+    supplied = required_ksi_ids is not None
     if scf_id is not None:
         records = [row for row in records if row.control_ref == scf_id]
     try:
         report = ksi_method_report(
             records,
             package_class=package_class,
-            required_ksi_ids=required_ksi_ids,
+            required_ksi_ids=required_ksi_ids if supplied else (seen_ksi_ids or None),
             not_before=not_before,
         )
     except ValueError as exc:
         _ledger_fail(str(exc))
         raise AssertionError("unreachable")
+    report = report.model_copy(update={"required_list_supplied": supplied,
+        "excluded_ineligible": tuple(f"{entry.evidence_id}:{','.join(entry.exclusion_reasons)}"
+                                     for entry in ledger.entries if not entry.eligible)})
     assert_no_claim_words(report.model_dump(mode="json"))
     return report

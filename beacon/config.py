@@ -101,6 +101,9 @@ class Settings:
     pack_type: str = DEFAULT_PACK_TYPE
     trust_center_export: bool = False
     require_scope: bool = False
+    trust_file: Path | None = None
+    anchor_dir: Path | None = None
+    require_external_anchor: bool = False
 
     @property
     def keys_dir(self) -> Path:
@@ -171,6 +174,9 @@ def load_settings(cwd: Path | None = None) -> Settings:
         pack_type=pack_type,
         trust_center_export=_truthy(env("TRUST_CENTER_EXPORT")),
         require_scope=_truthy(env("REQUIRE_SCOPE")),
+        trust_file=Path(env("TRUST_FILE")).expanduser().resolve() if env("TRUST_FILE") else None,
+        anchor_dir=Path(env("ANCHOR_DIR")).expanduser().resolve() if env("ANCHOR_DIR") else None,
+        require_external_anchor=_truthy(env("REQUIRE_EXTERNAL_ANCHOR")),
     )
 
 

@@ -48,6 +48,8 @@ from beacon.crypto.witness import (
     load_checkpoints,
     load_records,
 )
+from beacon.locking import locked
+from beacon.crypto.trust import read_trust, trust_path, local_head, advance_head
 from beacon.errors import E_REMOTE, BeaconError, fail
 
 ArtifactKind = Literal[
@@ -438,6 +440,7 @@ class ArtifactLake:
         self.tenant_id = settings.tenant_id
         self.workspace_id = settings.workspace_id
         self.prefix = settings.s3_prefix
+        self.object_versions: dict[str, str] = {}
         session = boto3.session.Session()
         self.s3 = session.client("s3")
         self.ddb = session.resource("dynamodb").Table(self.table_name)
@@ -490,15 +493,26 @@ class ArtifactLake:
             extra["ObjectLockMode"] = self.settings.object_lock_mode
             extra["ObjectLockRetainUntilDate"] = retain
         try:
-            self.s3.put_object(**extra)
+            response = self.s3.put_object(**extra)
         except ClientError as exc:
             fail(E_REMOTE, f"S3 PutObject failed for {key}: {exc}")
-        return s3_uri(self.bucket, key)
+        uri = s3_uri(self.bucket, key)
+        if response.get("VersionId") and response["VersionId"] != "null":
+            self.object_versions[uri] = response["VersionId"]
+        return uri
 
     def _index_put(self, sk: str, fields: dict[str, Any]) -> None:
         item = {**fields, "pk": self.pk, "sk": sk}
+        for field, value in fields.items():
+            if field.endswith("s3_uri") and value in self.object_versions:
+                item[field.removesuffix("uri") + "version_id"] = self.object_versions[value]
+        condition = {}
+        if sk.startswith(("EVIDENCE#", "CP#")) and fields.get("sha256"):
+            condition = {"ConditionExpression": "attribute_not_exists(pk) OR #digest = :digest",
+                         "ExpressionAttributeNames": {"#digest": "sha256"},
+                         "ExpressionAttributeValues": {":digest": fields["sha256"]}}
         try:
-            self.ddb.put_item(Item=item)
+            self.ddb.put_item(Item=item, **condition)
         except ClientError as exc:
             fail(E_REMOTE, f"DynamoDB PutItem failed for {sk}: {exc}")
 
@@ -609,7 +623,7 @@ class ArtifactLake:
         merkle_root: str = "",
         pack_id: str = "",
         sync_jsonl: bool = True,
-        verified: bool = True,
+        verified: bool = False,
     ) -> list[dict[str, Any]]:
         assert_upload_allowed(self.settings, evidence_path)
         payload = evidence_path.read_bytes()
@@ -1048,10 +1062,11 @@ class ArtifactLake:
             fail(E_REMOTE, f"s3 uri invalid: {uri}")
         return bucket, key
 
-    def _get_object(self, uri: str) -> bytes:
+    def _get_object(self, uri: str, version_id: str | None = None) -> bytes:
         bucket, key = self._assert_lake_uri(uri)
         try:
-            resp = self.s3.get_object(Bucket=bucket, Key=key)
+            extra = {"VersionId": version_id} if version_id else {}
+            resp = self.s3.get_object(Bucket=bucket, Key=key, **extra)
             return resp["Body"].read()
         except ClientError as exc:
             fail(E_REMOTE, f"S3 GetObject failed for {uri}: {exc}")
@@ -1076,6 +1091,7 @@ class ArtifactLake:
                     merkle_root=merkle_root,
                     pack_id=pack_id,
                     sync_jsonl=False,
+                    verified=True,
                 )
             )
         if records or self.settings.chain_path.exists():
@@ -1115,7 +1131,7 @@ def publish_sealed_record(settings: Settings, record: Record) -> dict[str, Any] 
     if lake is None:
         return None
     path = settings.evidence_dir / f"{record.evidence_id}.json"
-    objects = lake.put_record_and_evidence(record, path, sync_jsonl=True, verified=True)
+    objects = lake.put_record_and_evidence(record, path, sync_jsonl=True, verified=False)
     return {"ok": True, "objects": objects}
 
 
@@ -1146,6 +1162,13 @@ def publish_collect_run(
     lake = remote_ready(settings)
     if lake is None:
         return None
+    if checkpoint is not None:
+        from beacon.assurance.admission import verified_snapshot
+        snapshot = verified_snapshot(settings)
+        for record in snapshot.records:
+            if record.evidence_id in evidence_ids:
+                lake.put_record_and_evidence(record, settings.evidence_dir / f"{record.evidence_id}.json",
+                    verified=True, merkle_root=checkpoint.merkle_root, sync_jsonl=False)
     objects: list[dict[str, Any]] = []
     for eid in evidence_ids:
         item = lake._index_get(f"EVIDENCE#{eid}")
@@ -1189,6 +1212,7 @@ def publish_collect_run(
     return {"ok": True, "bucket": lake.bucket, "objects": objects}
 
 
+@locked
 def publish_pack(
     settings: Settings,
     path: Path,
@@ -1201,6 +1225,8 @@ def publish_pack(
     lake = remote_ready(settings)
     if lake is None:
         return None
+    from beacon.assurance.admission import verified_snapshot
+    verified_snapshot(settings, pack_path=path)
     uploaded = lake.put_pack(
         path,
         stamp=stamp,
@@ -1222,6 +1248,7 @@ def publish_pack(
                     merkle_root=merkle,
                     pack_id=uploaded["pack_id"],
                     sync_jsonl=False,
+                    verified=True,
                 )
             )
     if records:
@@ -1235,7 +1262,10 @@ def publish_pack(
     }
 
 
+@locked
 def sync_workspace(settings: Settings) -> dict[str, Any]:
+    from beacon.assurance.admission import verified_snapshot
+    verified_snapshot(settings)
     lake = remote_ready(settings, command=True)
     assert lake is not None
     records = load_records(settings)
@@ -1245,11 +1275,13 @@ def sync_workspace(settings: Settings) -> dict[str, Any]:
     packs = []
     for path in sorted(settings.export_dir.glob("beacon-pack-*.json")):
         assert_upload_allowed(settings, path)
+        verified_snapshot(settings, pack_path=path)
         packs.append(lake.put_pack(path))
     result["packs"] = packs
     return result
 
 
+@locked
 def pull_workspace(settings: Settings) -> dict[str, Any]:
     lake = remote_ready(settings, command=True)
     assert lake is not None
@@ -1331,7 +1363,7 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
         dest = (settings.evidence_dir / f"{evidence_id}.json").resolve()
         if not dest.is_relative_to(settings.evidence_dir.resolve()):
             fail(E_REMOTE, f"refusing evidence path outside evidence dir: {evidence_id}")
-        body = lake._get_object(uri)
+        body = lake._get_object(uri, item.get("s3_version_id") or item.get("observation_s3_version_id"))
         digest = sha256_bytes(body)
         if digest != expected:
             fail(E_REMOTE, f"altered artifact: sha256 mismatch for {uri}")
@@ -1348,7 +1380,7 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
             fail(E_REMOTE, f"altered artifact: linked audit hash mismatch for {evidence_id}")
         if str(record.get("payload_sha256")) != digest:
             fail(E_REMOTE, f"evidence does not match record payload_sha256 for {evidence_id}")
-        finding_body = lake._get_object(finding_uri)
+        finding_body = lake._get_object(finding_uri, item.get("finding_s3_version_id"))
         finding_digest = sha256_bytes(finding_body)
         if finding_digest != finding_expected:
             fail(E_REMOTE, f"altered artifact: finding sha256 mismatch for {finding_uri}")
@@ -1413,6 +1445,7 @@ def pull_workspace(settings: Settings) -> dict[str, Any]:
         incoming_records=incoming_records,
         incoming_checkpoints=incoming_checkpoints,
     )
+    advance_head(settings, load_records(settings))
     return {
         "ok": True,
         "pulled": pulled,
@@ -1505,6 +1538,11 @@ def _validate_staged_chain(
     with tempfile.TemporaryDirectory() as tmp:
         staged_settings = replace(settings, home=Path(tmp) / ".beacon")
         ensure_layout(staged_settings)
+        # Keep verifier-owned pins and retained history, never downloaded trust.
+        (staged_settings.home / "trust.json").write_bytes(dumps(read_trust(settings)))
+        (staged_settings.home / "retained-head.json").write_bytes(local_head(settings).read_bytes())
+        if (settings.home / "scopes").exists():
+            shutil.copytree(settings.home / "scopes", staged_settings.home / "scopes")
         if settings.keys_dir.exists():
             shutil.copytree(settings.keys_dir, staged_settings.keys_dir, dirs_exist_ok=True)
         for evidence_id, body in staged_evidence.items():
@@ -1551,4 +1589,3 @@ def _promote_pull(
         _install_files_atomically(replacements)
     except OSError as exc:
         fail(E_REMOTE, f"failed to install pulled workspace: {exc}")
-

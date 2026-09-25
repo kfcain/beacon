@@ -66,7 +66,7 @@ def test_scope_commands_reject_unsafe_id(beacon_home: Path, scope_id: str):
         result = _invoke(["scope", command, "--id", scope_id])
         assert result.exit_code == 2
         assert E_UNSAFE_SCOPE_ID in result.output
-    assert list(beacon_home.rglob("*")) == []
+    assert [path for path in beacon_home.rglob("*") if path.name != ".workspace.lock"] == []
     outside = beacon_home.parent / "escape.json"
     assert not outside.exists()
 

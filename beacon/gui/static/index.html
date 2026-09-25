@@ -17,8 +17,10 @@
     </div>
     <div id="badge" class="badge muted">loading</div>
   </header>
+  <div class="connection"><label>API token (remote access) <input id="apiToken" type="password" autocomplete="off" /></label> <button id="connectBtn">Connect / refresh</button></div>
   <nav class="tabs" role="tablist">
     <button data-page="dashboard" class="active">Dashboard</button>
+    <button data-page="assessment">Assessment</button>
     <button data-page="freshness">Freshness</button>
     <button data-page="validation">Validation</button>
     <button data-page="push">Push</button>
@@ -26,6 +28,20 @@
   </nav>
   <main>
     <section id="dashboard" class="page active"></section>
+    <section id="assessment" class="page">
+      <div class="card"><h2>Assessment workspace</h2>
+      <p>Review a scoped observation, supporting assertions, and remaining objective gaps. Fixture evidence never supports an assertion. Receipts record historical results.</p>
+      <label>Scope <select id="scopeSelect"></select></label>
+      <label>Control <select id="controlSelect"><option>CRY-07</option><option>IAC-02</option><option>GOV-02</option></select></label>
+      <label>Policy reviewer <select id="judgeSelect"><option value="none">Disabled</option><option value="bedrock">Bedrock (advisory)</option><option value="jev">Jev</option></select></label>
+      <p><label><input type="checkbox" id="liveCheck" /> Collect live AWS evidence using this scope</label></p>
+      <button data-assessment="objectives">Objectives and rules</button>
+      <button data-assessment="collect">Collect EBS inventory</button>
+      <button data-assessment="ledger">Evidence eligibility</button>
+      <button data-assessment="evaluate">Evaluate and seal receipt</button>
+      <button data-assessment="receipts">Historical receipts</button>
+      <pre id="assessmentOut">Select an imported scope to start.</pre></div>
+    </section>
     <section id="freshness" class="page"></section>
     <section id="validation" class="page"></section>
     <section id="push" class="page"></section>

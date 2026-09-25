@@ -207,7 +207,7 @@ def test_push_copies_pair_and_does_not_rewrite_a_different_scope(initialized: Pa
         assert "scope_sha256" not in record
 
 
-def test_push_sets_manifest_pair_when_every_bind_matches(initialized: Path):
+def test_push_keeps_scope_on_rows_when_some_records_are_unbound(initialized: Path):
     settings = load_settings()
     document = init_scope(settings, SAFE_ID)
     seal_payload(
@@ -220,8 +220,8 @@ def test_push_sets_manifest_pair_when_every_bind_matches(initialized: Path):
     collect_named(settings, "aws.inspector", CollectContext(live=False), scope_id=SAFE_ID)
     written = write_pack(settings, initialized / "export" / "one.json")
     pack = json.loads(written.path.read_text(encoding="utf-8"))
-    assert pack["scope_id"] == SAFE_ID
-    assert pack["scope_sha256"] == document.content_sha256()
+    assert "scope_id" not in pack
+    assert "scope_sha256" not in pack
     unbound = [row for row in pack["evidence"] if "scope_id" not in row]
     bound = [row for row in pack["evidence"] if "scope_id" in row]
     assert len(unbound) == 1

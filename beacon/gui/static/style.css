@@ -40,3 +40,9 @@ th, td { text-align: left; padding: 0.45rem 0.4rem; border-bottom: 1px solid var
 button.act { background: var(--purple); color: #1a1b26; border: 0; padding: 0.5rem 0.9rem; border-radius: 0.4rem; font-weight: 700; cursor: pointer; }
 pre { background: var(--bg-2); padding: 0.8rem; border-radius: 0.5rem; overflow: auto; font-size: 0.78rem; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; word-break: break-all; }
+
+.connection { padding: 1rem 2rem; }
+select,input { background: #16161e; color: #c0caf5; padding: .5rem; border: 1px solid #565f89; border-radius: .4rem; }
+#assessment button { margin: .3rem; padding: .7rem; }
+#assessment label { display: inline-block; margin: .5rem; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }

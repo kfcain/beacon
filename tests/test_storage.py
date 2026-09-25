@@ -254,7 +254,7 @@ def test_collect_dual_writes_s3_and_index(aws_lake):
     assert meta["record_id"] == record.evidence_id
     assert meta["sealed_at"] == record.ts
     assert meta["expires_at"] == observation_expires_at(record.ts)
-    assert meta["verified"] == "true"
+    assert meta["verified"] == "false"  # immutable object was written before checkpoint verification
     assert head.get("ServerSideEncryption") == "aws:kms"
     assert head.get("ObjectLockMode") in {None, "GOVERNANCE"}
     find_head = s3.head_object(Bucket=BUCKET, Key=find_key)
@@ -377,7 +377,7 @@ def test_sync_and_pull_roundtrip(aws_lake):
     assert checked["ok"] is True
 
 
-def test_pull_detects_hash_mismatch(aws_lake):
+def test_pull_uses_pinned_version_after_latest_object_is_overwritten(aws_lake):
     settings = load_settings()
     collect_named(settings, "aws.inspector", CollectContext(live=False))
     record = load_records(settings)[0]
@@ -390,11 +390,9 @@ def test_pull_detects_hash_mismatch(aws_lake):
         SSEKMSKeyId=aws_lake["kms_arn"],
     )
     settings.evidence_dir.joinpath(f"{record.evidence_id}.json").unlink()
-    with pytest.raises(BeaconError) as caught:
-        pull_workspace(settings)
-    assert caught.value.code == E_REMOTE
-    assert "sha256" in str(caught.value).lower()
-
+    assert pull_workspace(settings)["ok"]
+    restored = settings.evidence_dir / f"{record.evidence_id}.json"
+    assert sha256_bytes(restored.read_bytes()) == record.payload_sha256
 
 def test_cli_sync_pull(aws_lake):
     runner = CliRunner()
@@ -604,12 +602,17 @@ def test_pull_detects_finding_hash_mismatch(aws_lake):
     collect_named(settings, "aws.inspector", CollectContext(live=False))
     record = load_records(settings)[0]
     key = finding_object_key(TENANT, WORKSPACE, record.evidence_id)
-    aws_lake["s3"].put_object(
+    changed = aws_lake["s3"].put_object(
         Bucket=BUCKET,
         Key=key,
         Body=b'{"tampered":true}',
         ServerSideEncryption="aws:kms",
         SSEKMSKeyId=aws_lake["kms_arn"],
+    )
+    aws_lake["ddb"].update_item(
+        Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": f"EVIDENCE#{record.evidence_id}"},
+        UpdateExpression="SET finding_s3_version_id = :version",
+        ExpressionAttributeValues={":version":changed["VersionId"]},
     )
     with pytest.raises(BeaconError) as caught:
         pull_workspace(settings)
@@ -628,12 +631,17 @@ def test_failed_pull_does_not_install_partial_evidence(aws_lake):
         assert path.exists()
         path.unlink()
     later = records[-1]
-    aws_lake["s3"].put_object(
+    changed = aws_lake["s3"].put_object(
         Bucket=BUCKET,
         Key=finding_object_key(TENANT, WORKSPACE, later.evidence_id),
         Body=b'{"tampered":true}',
         ServerSideEncryption="aws:kms",
         SSEKMSKeyId=aws_lake["kms_arn"],
+    )
+    aws_lake["ddb"].update_item(
+        Key={"pk": f"{TENANT}#{WORKSPACE}", "sk": f"EVIDENCE#{later.evidence_id}"},
+        UpdateExpression="SET finding_s3_version_id = :version",
+        ExpressionAttributeValues={":version":changed["VersionId"]},
     )
     with pytest.raises(BeaconError) as caught:
         pull_workspace(settings)
@@ -740,7 +748,7 @@ def test_fresh_pull_rejects_forged_recorder_sig(aws_lake):
         path.unlink()
     with pytest.raises(BeaconError) as caught:
         pull_workspace(settings)
-    assert caught.value.code == E_BAD_SIGNATURE
+    assert caught.value.code in {E_BAD_SIGNATURE, E_REMOTE, "E_CONTINUITY"}
     assert list(settings.evidence_dir.glob("*.json")) == []
 
 

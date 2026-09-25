@@ -16,7 +16,7 @@ def test_tui_screens_include_collect():
 
 def test_gui_pages(initialized):
     seed_workspace(load_settings())
-    client = TestClient(create_app())
+    client = TestClient(create_app(), headers={"X-Beacon-Request":"1"})
     home = client.get("/")
     assert home.status_code == 200
     html = home.text
@@ -25,7 +25,7 @@ def test_gui_pages(initialized):
     dash = client.get("/api/dashboard")
     assert dash.status_code == 200
     pages = dash.json()["pages"]
-    assert pages == ["dashboard", "freshness", "validation", "push", "system"]
+    assert pages == ["dashboard", "assessment", "freshness", "validation", "push", "system"]
     fresh = client.get("/api/freshness")
     assert fresh.status_code == 200
     valid = client.get("/api/validation")

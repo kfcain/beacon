@@ -15,6 +15,7 @@ from beacon.crypto.witness import load_checkpoints, load_records
 from beacon.errors import E_NOT_INITIALIZED, E_REMOTE, E_SCOPE, fail
 from beacon.scope.bind import SCOPE_HASH_FIELD, SCOPE_ID_FIELD, scope_pair_from_payload
 from beacon.storage import publish_pack
+from beacon.locking import locked
 
 
 @dataclass
@@ -69,6 +70,7 @@ def _pair_from_evidence_body(body: str | None) -> tuple[str, str] | None:
     return scope_pair_from_payload(parsed)
 
 
+@locked
 def write_pack(
     settings: Settings,
     out_path: Path | None = None,
@@ -76,6 +78,8 @@ def write_pack(
     pack_type: str | None = None,
     draft: bool | None = None,
 ) -> PackWrite:
+    from beacon.assurance.admission import verified_snapshot
+    snapshot = verified_snapshot(settings)
     rec_pub = settings.keys_dir / "recorder.pub"
     wit_pub = settings.keys_dir / "witness.pub"
     tsa_crt = settings.keys_dir / "tsa.crt"
@@ -115,10 +119,12 @@ def write_pack(
         "records": [row.to_dict() for row in records],
         "checkpoints": [row.to_dict() for row in checkpoints],
         "evidence": evidence,
+        "verification": snapshot.verification,
+        "assurance_claim": False,
     }
     # One shared pair can sit on the pack. Mixed pairs stay on each evidence
     # row so push does not replace one sealed scope with another.
-    if len(set(bound_pairs)) == 1:
+    if len(bound_pairs) == len(records) and len(set(bound_pairs)) == 1:
         scope_id, scope_sha256 = bound_pairs[0]
         pack[SCOPE_ID_FIELD] = scope_id
         pack[SCOPE_HASH_FIELD] = scope_sha256

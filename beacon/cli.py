@@ -121,6 +121,76 @@ def cmd_scope_show(scope_id: str) -> None:
     _emit(document.canonical_body())
 
 
+@cmd_scope.command("import")
+@click.option("--file", "source", required=True, type=click.Path(path_type=Path, exists=True, dir_okay=False))
+def cmd_scope_import(source: Path) -> None:
+    """Enroll an operator-reviewed scope. Existing ids are never overwritten."""
+    from beacon.scope.store import import_scope
+    try:
+        scope = import_scope(_settings(), source.read_text(encoding="utf-8"))
+    except BeaconError as exc:
+        _die(exc)
+    _emit({"scope_id": scope.scope_id, "scope_sha256": scope.content_sha256()})
+
+
+@cmd_scope.command("list")
+def cmd_scope_list() -> None:
+    from beacon.scope.store import list_scopes
+    try:
+        _emit({"scopes": list_scopes(_settings())})
+    except BeaconError as exc:
+        _die(exc)
+
+
+@main.command("objectives")
+@click.option("--control", required=True)
+def cmd_objectives(control: str) -> None:
+    """Show unchanged assessment objective rows from the pinned SCF workbook."""
+    from beacon.scf.objective_catalog import objectives
+    try:
+        _emit({"objectives": objectives(control.upper())})
+    except BeaconError as exc:
+        _die(exc)
+
+
+@main.command("rules")
+@click.option("--control", required=True)
+def cmd_rules(control: str) -> None:
+    """Show supporting rules and their hashes for operator scope approval."""
+    from beacon.assurance.evaluation import rules_for
+    try:
+        _emit({"rules": rules_for(control.upper())})
+    except BeaconError as exc:
+        _die(exc)
+
+
+@main.command("evaluate")
+@click.option("--scope", "scope_id", required=True)
+@click.option("--control", required=True)
+@click.option("--judge", type=click.Choice(["none", "jev", "bedrock"]), default="none", show_default=True)
+def cmd_evaluate(scope_id: str, control: str, judge: str) -> None:
+    """Evaluate scoped supporting assertions and seal a historical receipt."""
+    from beacon.assurance.evaluation import evaluate_control
+    from beacon.assurance.bedrock import make_judge
+    settings = _settings()
+    try:
+        evaluator = make_judge(judge, load_scope(settings, scope_id))
+        _emit(evaluate_control(settings, scope_id=scope_id, control_ref=control.upper(), judge=evaluator))
+    except BeaconError as exc:
+        _die(exc)
+
+
+@main.command("receipts")
+@click.option("--scope", "scope_id", default=None)
+def cmd_receipts(scope_id: str | None) -> None:
+    """Read verified historical evaluations; re-evaluate for a current result."""
+    from beacon.assurance.evaluation import list_receipts
+    try:
+        _emit({"receipts": list_receipts(_settings(), scope_id=scope_id)})
+    except BeaconError as exc:
+        _die(exc)
+
+
 @cmd_scope.command("hash")
 @click.option("--id", "scope_id", required=True, help="Assessment scope id.")
 def cmd_scope_hash(scope_id: str) -> None:
@@ -442,6 +512,20 @@ def cmd_policy_hash(policy_path: str, root: Path | None) -> None:
     click.echo(custody.content_sha256)
 
 
+@cmd_policy.command("seal")
+@click.option("--scope", "scope_id", required=True)
+@click.option("--root", required=True, type=click.Path(path_type=Path, exists=True, file_okay=False))
+@click.option("--path", required=True)
+@click.option("--commit", required=True)
+def cmd_policy_seal(scope_id: str, root: Path, path: str, commit: str) -> None:
+    """Seal the approved Git commit's policy bytes, ignoring working-tree edits."""
+    from beacon.assurance.policy_capture import capture_policy
+    try:
+        _emit(capture_policy(_settings(), scope_id=scope_id, root=root, path=path, commit=commit))
+    except BeaconError as exc:
+        _die(exc)
+
+
 @main.group("ingest")
 def cmd_ingest() -> None:
     """Register an external file as a candidate. A candidate is not a witness seal."""
@@ -494,6 +578,37 @@ def cmd_status() -> None:
     _emit(system_status(_settings()))
 
 
+@main.group("custody")
+def cmd_custody() -> None:
+    """Explicit trust enrollment and continuity setup."""
+
+
+@cmd_custody.command("enroll")
+@click.option("--recorder", required=True)
+@click.option("--witness", required=True)
+@click.option("--tsa-sha256", required=True)
+@click.option("--workspace-id", required=True)
+@click.option("--expected-seq", required=True, type=click.IntRange(min=0))
+@click.option("--expected-head", required=True)
+def cmd_enroll(**kwargs) -> None:
+    """Migrate legacy history using public pins and a previously retained head."""
+    from beacon.crypto.enrollment import enroll
+    try:
+        _emit(enroll(_settings(), **kwargs))
+    except BeaconError as exc:
+        _die(exc)
+
+
+@cmd_custody.command("anchor")
+def cmd_anchor() -> None:
+    """Enroll BEACON_ANCHOR_DIR at the currently verified head; never reset it."""
+    from beacon.crypto.enrollment import enroll_anchor
+    try:
+        _emit(enroll_anchor(_settings()))
+    except BeaconError as exc:
+        _die(exc)
+
+
 @main.command("plugins")
 def cmd_plugins() -> None:
     """List builtin and drop-in plugins."""
@@ -543,6 +658,10 @@ def cmd_serve(host: str, port: int) -> None:
     import uvicorn
 
     from beacon.gui.app import create_app
+
+    import os
+    if host not in {"127.0.0.1", "localhost", "::1"} and not os.environ.get("BEACON_API_TOKEN"):
+        _die(BeaconError("E_AUTH", "non-loopback serving requires BEACON_API_TOKEN and a TLS reverse proxy"))
 
     uvicorn.run(create_app(), host=host, port=port, log_level="info")
 

@@ -31,6 +31,7 @@ from beacon.canonical import dumps
 from beacon.config import Settings
 from beacon.errors import E_LEDGER, BeaconError, fail
 from beacon.scope.document import SCOPE_ID_RE, SHA256_RE
+from beacon.locking import locked
 
 DRAFT_FORMAT = "beacon-20x-draft/v1"
 OfficialSchema = Literal["not-fetched"]
@@ -159,6 +160,7 @@ class CompiledPack(BaseModel):
     below_minimum: tuple[str, ...] = ()
     excluded_stale: tuple[str, ...] = ()
     excluded_undated: tuple[str, ...] = ()
+    excluded_ineligible: tuple[str, ...] = ()
     unset_fields: tuple[str, ...] = Field(min_length=1)
     field_map: tuple[FieldMapRow, ...] = Field(min_length=1)
     official_schema: OfficialSchema = "not-fetched"
@@ -378,6 +380,7 @@ def _gaps(counts: tuple[KsiMethodCount, ...]) -> tuple[PackageGap, ...]:
     return tuple(rows)
 
 
+@locked
 def compile_20x_drafts(
     settings: Settings,
     *,
@@ -425,7 +428,7 @@ def compile_20x_drafts(
         bound_scope_id=ledger.scope_id,
         bound_scope_sha256=ledger.scope_sha256,
     )
-    pointers = _pointers(ledger.entries)
+    pointers = _pointers(tuple(entry for entry in ledger.entries if entry.eligible))
     refs = _control_refs(ledger.entries)
     gaps = _gaps(report.counts)
     packs: list[CompiledPack] = []
@@ -450,6 +453,7 @@ def compile_20x_drafts(
                 below_minimum=report.below_minimum,
                 excluded_stale=report.excluded_stale,
                 excluded_undated=report.excluded_undated,
+                excluded_ineligible=report.excluded_ineligible,
                 unset_fields=UNSET_FIELDS[kind],
                 field_map=field_map_for(kind),
             )

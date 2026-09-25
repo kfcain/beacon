@@ -191,6 +191,118 @@ def cmd_receipts(scope_id: str | None) -> None:
         _die(exc)
 
 
+@main.command("assessment-specs")
+@click.option("--scope", "scope_id", default=None)
+def cmd_assessment_specs(scope_id: str | None) -> None:
+    """List immutable assessment specifications and scope approval state."""
+    from beacon.assurance.specs import list_specs
+    try:
+        _emit({"specs": list_specs(_settings(), scope_id=scope_id)})
+    except BeaconError as exc:
+        _die(exc)
+
+
+@main.command("assessment-spec-draft")
+@click.option("--policy-path", default="policies/encryption.json", show_default=True)
+@click.option("--time-basis", type=click.Choice(["point_in_time", "period"]), default="point_in_time",
+              show_default=True)
+def cmd_assessment_spec_draft(policy_path: str, time_basis: str) -> None:
+    """Print a reviewable EBS specification draft. This does not import or approve it."""
+    from beacon.assurance.specs import draft_ebs_spec
+    try:
+        _emit(draft_ebs_spec(policy_path=policy_path, time_basis=time_basis))
+    except (BeaconError, ValueError) as exc:
+        _die(exc)
+
+
+@main.command("assessment-spec-import")
+@click.option("--file", "source", required=True, type=click.Path(path_type=Path, exists=True, dir_okay=False))
+def cmd_assessment_spec_import(source: Path) -> None:
+    """Store a reviewed specification by digest. The scope must still approve that digest."""
+    from beacon.assurance.specs import import_spec
+    try:
+        if source.stat().st_size > 65536:
+            raise BeaconError("E_SPEC", "assessment specification exceeds 64 KiB")
+        _emit(import_spec(_settings(), source.read_text(encoding="utf-8")))
+    except (BeaconError, OSError, UnicodeError) as exc:
+        _die(exc)
+
+
+@main.command("assess")
+@click.option("--scope", "scope_id", required=True)
+@click.option("--spec", "spec_sha256", required=True)
+def cmd_assess(scope_id: str, spec_sha256: str) -> None:
+    """Evaluate one approved evidence-set specification and seal a receipt."""
+    from beacon.assurance.assessments import evaluate_assessment
+    try:
+        _emit(evaluate_assessment(_settings(), scope_id=scope_id, spec_sha256=spec_sha256))
+    except BeaconError as exc:
+        _die(exc)
+
+
+@main.command("assessments")
+@click.option("--scope", "scope_id", default=None)
+def cmd_assessments(scope_id: str | None) -> None:
+    """List current assessment receipts, gaps, invalidation, and review state."""
+    from beacon.assurance.assessments import list_assessments
+    try:
+        _emit({"assessments": list_assessments(_settings(), scope_id=scope_id)})
+    except BeaconError as exc:
+        _die(exc)
+
+
+@main.command("assessment-refresh")
+@click.option("--scope", "scope_id", required=True)
+@click.option("--collect-missing", is_flag=True, help="Run only scope-authorized, bounded live collectors.")
+def cmd_assessment_refresh(scope_id: str, collect_missing: bool) -> None:
+    """Reevaluate changed evidence; live collection is explicit and scope-gated."""
+    from beacon.assurance.assessments import refresh_assessments
+    try:
+        _emit(refresh_assessments(_settings(), scope_id=scope_id, collect_missing=collect_missing))
+    except BeaconError as exc:
+        _die(exc)
+
+
+@main.command("review-queue")
+@click.option("--scope", "scope_id", default=None)
+def cmd_review_queue(scope_id: str | None) -> None:
+    """Show assessments requiring evidence, reevaluation, or review."""
+    from beacon.assurance.assessments import review_queue
+    try:
+        _emit({"assessments": review_queue(_settings(), scope_id=scope_id)})
+    except BeaconError as exc:
+        _die(exc)
+
+
+def _interactive_terminal() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+@main.command("review-assessment")
+@click.option("--receipt", "receipt_evidence_id", required=True)
+@click.option("--decision", type=click.Choice(["accept", "reject"]), required=True)
+@click.option("--rationale", required=True)
+def cmd_review_assessment(receipt_evidence_id: str, decision: str, rationale: str) -> None:
+    """Record a local OS-attributed supporting review; never sets compliance claims.
+
+    The record names an OS account, not a person. The terminal check and typed
+    confirmation stop plain scripts and agent tool calls; they do not stop a
+    process that fakes a terminal. Approve a reviewer account that no agent,
+    MCP server, or automation runs as.
+    """
+    from beacon.assurance.assessments import record_review
+    if not _interactive_terminal():
+        _die(BeaconError("E_REVIEW", "operator review needs an interactive terminal; scripts cannot record reviews"))
+    typed = click.prompt("Type the receipt evidence id to confirm this review", default="", show_default=False)
+    if typed.strip() != receipt_evidence_id:
+        _die(BeaconError("E_REVIEW", "confirmation did not match the receipt evidence id; no review recorded"))
+    try:
+        _emit(record_review(_settings(), receipt_evidence_id=receipt_evidence_id,
+                            decision=decision, rationale=rationale))
+    except BeaconError as exc:
+        _die(exc)
+
+
 @cmd_scope.command("hash")
 @click.option("--id", "scope_id", required=True, help="Assessment scope id.")
 def cmd_scope_hash(scope_id: str) -> None:

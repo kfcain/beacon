@@ -17,6 +17,15 @@ def evidence_kind(plugin: str) -> str:
     return "drop_in"
 
 
+def excluded_frameworks(document) -> set[str]:
+    return {item.value for item in document.exclusions if item.kind == "framework"}
+
+
+def reject_framework_conflict(document) -> None:
+    if excluded_frameworks(document) & set(document.frameworks):
+        fail("E_SCOPE", "scope both names and excludes the same framework")
+
+
 def validate_plugin_scope(document, plugin: str) -> None:
     from beacon.assurance.pin_ids import framework_id_on_pin
     kind = evidence_kind(plugin)
@@ -24,6 +33,7 @@ def validate_plugin_scope(document, plugin: str) -> None:
         fail("E_SCOPE", "scope catalog version differs from the pinned catalog")
     if any(not framework_id_on_pin(item) for item in document.frameworks):
         fail("E_SCOPE", "scope names a framework outside the pinned catalog")
+    reject_framework_conflict(document)
     if kind not in document.allowed_evidence_kinds:
         fail("E_SCOPE", f"scope does not allow evidence kind {kind}")
     if any(item.kind == "evidence_kind" and item.value == kind for item in document.exclusions):
@@ -73,9 +83,14 @@ def boundary_reasons(document, payload: dict) -> list[str]:
             reasons.append("region_boundary_missing")
         elif any(not isinstance(region, str) or region not in boundary.regions for region in regions):
             reasons.append("region_out_of_boundary")
+    tags = payload.get("tags")
+    tagged_frameworks = {tag.split(":", 1)[1] for tag in tags if isinstance(tag, str) and tag.startswith("framework:")} \
+        if isinstance(tags, list) else set()
     for exclusion in document.exclusions:
         if exclusion.kind in actual and actual[exclusion.kind] == exclusion.value:
             reasons.append(f"excluded_{exclusion.kind}")
         elif exclusion.kind == "region" and isinstance(regions, list) and exclusion.value in regions:
             reasons.append("excluded_region")
+        elif exclusion.kind == "framework" and exclusion.value in tagged_frameworks:
+            reasons.append("excluded_framework")
     return sorted(set(reasons))

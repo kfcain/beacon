@@ -138,3 +138,48 @@ create_checkpoint(s)
     settings = load_settings(); create_checkpoint(settings)
     assert [row.seq for row in load_records(settings)] == list(range(1,10))
     assert check_chain(settings)["ok"]
+
+
+@pytest.mark.parametrize("tamper", [
+    lambda row: row.update(seq=str(row["seq"])),
+    lambda row: row.update(v=True),
+    lambda row: row.update(note="not signed"),
+    lambda row: row.update(scf_targets="CRY-07"),
+])
+def test_chain_records_are_parsed_exactly(initialized, tamper):
+    settings = load_settings()
+    observation(settings)
+    create_checkpoint(settings)
+    row = json.loads(settings.chain_path.read_text().splitlines()[0])
+    tamper(row)
+    settings.chain_path.write_text(json.dumps(row) + "\n")
+    with pytest.raises(BeaconError, match="malformed witness chain"):
+        check_chain(settings)
+
+
+def test_framework_exclusions_are_enforced(initialized):
+    import datetime as dt
+    from beacon.assurance.admission import eligibility
+    from beacon.scope.bind import bind_observation_payload
+    from beacon.scope.store import import_scope, new_scope_document
+    settings = load_settings()
+    body = new_scope_document("framework-scope").canonical_body()
+    conflict = dict(body, exclusions=[{"kind": "framework", "value": body["frameworks"][0], "reason": "not-assessed"}])
+    with pytest.raises(BeaconError, match="excludes"):
+        import_scope(settings, json.dumps(conflict))
+    body.update(schema_version=2, allowed_evidence_kinds=["cloud_inspector"],
+                boundary={"accounts": ["123456789012"], "regions": ["us-east-1"]},
+                exclusions=[{"kind": "framework", "value": "americas-bra-lgpd-2018", "reason": "not-assessed"}])
+    scope = import_scope(settings, json.dumps(body))
+
+    def sealed(tags):
+        payload = bind_observation_payload({"format": "beacon.aws-ebs/v1", "source": "aws.ebs.encryption",
+            "cloud": "aws", "mode": "live", "ok": True, "collection_complete": True,
+            "observed_at": dt.datetime.now(dt.timezone.utc).isoformat(), "regions": ["us-east-1"],
+            "identity": {"account_id": "123456789012", "partition": "aws",
+                         "arn": "arn:aws:iam::123456789012:role/collector"}, "tags": tags}, scope)
+        record = seal_payload(settings, plugin="aws.ebs.encryption", mode="live", scf_targets=["CRY-07"], payload=payload)
+        return eligibility(settings, record, payload)
+
+    assert "excluded_framework" in sealed(["framework:americas-bra-lgpd-2018"])
+    assert sealed(["control:CRY-07"]) == ()

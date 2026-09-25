@@ -101,6 +101,8 @@ def import_scope(settings: Settings, raw: str) -> ScopeDocument:
         not framework_id_on_pin(item) for item in document.frameworks
     ):
         fail(E_SCOPE, "catalog or framework is outside the reviewed pin")
+    from beacon.scope.enforce import reject_framework_conflict
+    reject_framework_conflict(document)
     path = scope_path(settings, document.scope_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     try:

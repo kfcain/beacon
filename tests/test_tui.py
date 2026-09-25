@@ -190,3 +190,26 @@ async def test_target_field_keeps_the_letter_h(beacon_home):
         await pilot.press("q")
         await pilot.pause()
         assert not app.is_running
+
+
+@pytest.mark.asyncio
+async def test_tui_live_collection_is_explicit_and_reports_mode(initialized, monkeypatch):
+    calls = []
+
+    def fake_collect_named(settings, name, ctx, **kwargs):
+        calls.append(ctx.live)
+        return {"plugin": name, "mode": "live" if ctx.live else "fixture", "ok": True}
+
+    monkeypatch.setattr("beacon.tui.app.collect_named", fake_collect_named)
+    app = BeaconTUI(skip_tour=True)
+    messages = []
+    async with app.run_test(size=(120, 30)) as pilot:
+        await pilot.pause()
+        monkeypatch.setattr(app, "notify", lambda message, **kwargs: messages.append(message))
+        app.query_one("#plugin").value = "aws.ebs.encryption"
+        assert app.query_one("#live").value is False
+        app._collect()
+        app.query_one("#live").value = True
+        app._collect()
+    assert calls == [False, True]
+    assert messages == ["collected aws.ebs.encryption=fixture", "collected aws.ebs.encryption=live"]

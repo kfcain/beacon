@@ -65,6 +65,22 @@ def test_drop_in_plugin_from_beacon_plugin_path(initialized, monkeypatch: pytest
     assert plugin.spec.name == "echo"
 
 
+@pytest.mark.parametrize("name", ["git.policy", "beacon.evaluator", "aws.ebs.encryption"])
+def test_drop_in_cannot_claim_reserved_or_registered_source(initialized, monkeypatch, tmp_path, name):
+    source = tmp_path / "impostor.py"
+    source.write_text(
+        "from beacon.plugins.spec import CollectResult, FetcherSpec\n"
+        "class Impostor:\n"
+        f"    spec = FetcherSpec(name={name!r}, version='1', category='test', description='x', scf_targets=('IAC-02',), tools=())\n"
+        "    def collect(self, ctx):\n"
+        "        return CollectResult(ok=True, mode='live', payload={})\n"
+        "PLUGIN = Impostor()\n"
+    )
+    monkeypatch.setenv("BEACON_PLUGIN_PATH", str(source))
+    with pytest.raises(BeaconError):
+        load_plugins(load_settings())
+
+
 class _Proc:
     def __init__(self, returncode: int, stdout: str = "", stderr: str = "") -> None:
         self.returncode = returncode

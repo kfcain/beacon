@@ -47,6 +47,12 @@ def tool_beacon_collect(args: dict[str, Any]) -> dict[str, Any]:
     plugin = args.get("plugin")
     live = args.get("live", False)
     scope_id = args.get("scope_id")
+    if live:
+        # A model gets only the scope-approved, cooldown-bounded collector.
+        if not plugin or not scope_id or target:
+            raise BeaconError("E_SCOPE", "live collection needs one approved plugin and a scope_id")
+        from beacon.assurance.assessments import bounded_live_collection
+        return bounded_live_collection(settings, scope_id=str(scope_id), plugin=str(plugin))
     ctx = CollectContext(target=target, live=live)
     if plugin:
         return collect_named(settings, str(plugin), ctx, checkpoint=True, scope_id=scope_id)
@@ -121,13 +127,14 @@ TOOLS: dict[str, tuple[str, dict[str, Any], ToolFn]] = {
         tool_beacon_check,
     ),
     f"{MCP_TOOL_PREFIX}collect": (
-        "Collect evidence for a plugin or SCF target and seal a checkpoint.",
+        "Collect evidence for a plugin or SCF target and seal a checkpoint. Live collection needs a "
+        "plugin and scope_id; the scope must approve the collector, and a cooldown limits attempts.",
         {
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "SCF control id such as IAC-02 or CRY-07"},
                 "plugin": {"type": "string", "description": "Plugin name such as aws.inspector"},
-                "live": {"type": "boolean"},
+                "live": {"type": "boolean", "description": "Scope-approved collectors only; cooldown applies"},
                 "scope_id": {"type": "string"},
             },
         },
@@ -170,6 +177,8 @@ TOOLS: dict[str, tuple[str, dict[str, Any], ToolFn]] = {
 # The same verified engine serves the CLI, GUI, TUI, and MCP. No path-reading
 # or arbitrary shell capability is exposed to a model.
 from beacon.assurance.evaluation import evaluate_control, list_receipts, rules_for
+from beacon.assurance.assessments import evaluate_assessment, list_assessments, refresh_assessments, review_queue
+from beacon.assurance.specs import list_specs
 from beacon.assurance.index import load_evidence_ledger
 from beacon.assurance.bedrock import make_judge
 from beacon.scf.objective_catalog import objectives
@@ -185,6 +194,22 @@ def tool_beacon_evaluate(args):
 
 TOOLS["beacon_check"][1]["properties"]["scope_id"] = {"type": "string"}
 TOOLS.update({
+    "beacon_assessment_specs": ("List assessment specifications and their approval state for a scope.",
+        {"type": "object", "properties": {"scope_id": {"type": "string"}}, "additionalProperties": False},
+        lambda args: {"specs": list_specs(load_settings(), scope_id=args.get("scope_id"))}),
+    "beacon_assessments": ("Read latest assessment receipts, invalidation reasons, gaps, and recorded reviews. These do not establish control satisfaction.",
+        {"type": "object", "properties": {"scope_id": {"type": "string"}}, "additionalProperties": False},
+        lambda args: {"assessments": list_assessments(load_settings(), scope_id=args.get("scope_id"))}),
+    "beacon_review_queue": ("Read assessment work requiring collection, reevaluation, or operator review under an approved local OS account. This tool cannot approve results.",
+        {"type": "object", "properties": {"scope_id": {"type": "string"}}, "additionalProperties": False},
+        lambda args: {"assessments": review_queue(load_settings(), scope_id=args.get("scope_id"))}),
+    "beacon_assess": ("Evaluate an approved assessment specification against sealed scoped evidence and seal a receipt. Does not collect evidence or approve a requirement.",
+        {"type": "object", "properties": {"scope_id": {"type": "string"}, "spec_sha256": {"type": "string"}},
+         "required": ["scope_id", "spec_sha256"], "additionalProperties": False},
+        lambda args: evaluate_assessment(load_settings(), scope_id=args["scope_id"], spec_sha256=args["spec_sha256"])),
+    "beacon_refresh_assessments": ("Reevaluate changed or expired approved assessments using existing sealed evidence. No live collection or human approval is available through this tool.",
+        {"type": "object", "properties": {"scope_id": {"type": "string"}}, "required": ["scope_id"], "additionalProperties": False},
+        lambda args: refresh_assessments(load_settings(), scope_id=args["scope_id"], collect_missing=False)),
     "beacon_scopes": ("List enrolled assessment scopes.", {"type":"object", "properties":{}},
                        lambda args: {"scopes": list_scopes(load_settings())}),
     "beacon_objectives": ("Read pinned SCF objectives and supporting rules.",

@@ -26,6 +26,7 @@ from beacon.scope.store import list_scopes, load_scope
 from beacon.workspace import freshness, system_status, validation
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]", "::1", "testserver"})
 
 
 class CollectBody(BaseModel):
@@ -47,12 +48,15 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Beacon", version="0.1.0")
     token = os.environ.get("BEACON_API_TOKEN", "")
     hosts = [host.strip() for host in os.environ.get("BEACON_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1],testserver").split(",") if host.strip()]
+    # `beacon serve` checks the bind address; this also covers an app started by another ASGI server.
+    if not token and any(host not in LOOPBACK_HOSTS for host in hosts):
+        raise BeaconError("E_AUTH", "a non-loopback BEACON_ALLOWED_HOSTS entry requires BEACON_API_TOKEN")
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
 
     @app.middleware("http")
     async def protect(request: Request, call_next):
         if request.url.path.startswith("/api/"):
-            if token and not hmac.compare_digest(request.headers.get("authorization", ""), f"Bearer {token}"):
+            if token and not hmac.compare_digest(request.headers.get("authorization", "").encode(), f"Bearer {token}".encode()):
                 return JSONResponse({"ok": False, "code": "E_AUTH", "error": "Bearer token required"}, status_code=401)
             origin = request.headers.get("origin")
             if origin and urlsplit(origin).netloc != request.headers.get("host"):

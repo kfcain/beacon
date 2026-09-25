@@ -119,14 +119,18 @@ available. SDK failures record error classes, not credentials or request headers
 CLI, GUI, TUI, and MCP call the same verification/evaluation functions. The web
 Assessment tab selects scope, collector mode, control, and optional reviewer;
 it shows objective rows, evidence exclusions, and historical receipts. The TUI
-accepts a scope and plugin and evaluates a selected target without model calls.
+accepts a scope and plugin, has an explicit **Live** toggle (off by default, as in
+the web console and MCP), reports each run's mode, and evaluates a selected target
+without model calls.
 MCP exposes `beacon_scopes`, `beacon_objectives`, `beacon_ledger`,
 `beacon_evaluate`, and `beacon_receipts`, with typed arguments and no arbitrary
 file-reading or shell tool.
 
 The web console binds to loopback by default. A non-loopback CLI bind requires
 `BEACON_API_TOKEN`; use TLS termination and explicit `BEACON_ALLOWED_HOSTS` for
-remote use. API reads and writes require that bearer token when configured.
+remote use. API reads and writes require that bearer token when configured. The app
+factory also refuses a non-loopback `BEACON_ALLOWED_HOSTS` entry without a token, so an
+app started by another ASGI server cannot serve an open remote API.
 Mutation requests need `X-Beacon-Request: 1`; cross-origin requests and unapproved
 Host headers are rejected. The UI keeps a supplied token only in memory and
 escapes evidence-derived HTML. This is an operator console, not multitenant

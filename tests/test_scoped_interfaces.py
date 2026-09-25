@@ -1,9 +1,12 @@
 import json
+
+import pytest
 from fastapi.testclient import TestClient
 from click.testing import CliRunner
 
 from beacon.cli import main
 from beacon.config import load_settings
+from beacon.errors import BeaconError
 from beacon.gui.app import create_app
 from beacon.mcp.server import call_tool
 from beacon.scope.store import init_scope
@@ -24,6 +27,22 @@ def test_configured_api_token_protects_reads_and_writes(initialized, monkeypatch
     assert client.get('/api/system').status_code==401
     assert client.get('/api/system',headers={'Authorization':'Bearer operator-test-secret'}).status_code==200
     assert client.post('/api/push',headers={'X-Beacon-Request':'1'}).status_code==401
+
+
+def test_remote_allowed_host_requires_a_token(initialized, monkeypatch):
+    monkeypatch.setenv('BEACON_ALLOWED_HOSTS','beacon.example.com')
+    monkeypatch.delenv('BEACON_API_TOKEN',raising=False)
+    with pytest.raises(BeaconError, match='BEACON_API_TOKEN'):
+        create_app()
+    monkeypatch.setenv('BEACON_API_TOKEN','operator-test-secret')
+    client=TestClient(create_app(),base_url='http://beacon.example.com')
+    assert client.get('/api/system').status_code==401
+
+
+def test_non_ascii_authorization_is_rejected_not_an_error(initialized, monkeypatch):
+    monkeypatch.setenv('BEACON_API_TOKEN','operator-test-secret')
+    client=TestClient(create_app())
+    assert client.get('/api/system',headers={'Authorization':'Bearer caf\u00e9'.encode('latin-1')}).status_code==401
 
 
 def test_cli_web_and_mcp_share_scopes_and_objectives(initialized):

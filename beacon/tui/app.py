@@ -10,7 +10,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Footer, Header, Input, Static
+from textual.widgets import Button, Checkbox, Footer, Header, Input, Static
 
 from beacon.config import load_settings
 from beacon.errors import BeaconError
@@ -237,6 +237,8 @@ class BeaconTUI(App[None]):
         with Horizontal(id="scope-actions"):
             yield Input(placeholder="Enrolled scope id", id="scope")
             yield Input(placeholder="Plugin (optional, e.g. aws.ebs.encryption)", id="plugin")
+            # Explicit opt-in, as in the web console and MCP. Off means fixture evidence.
+            yield Checkbox("Live", id="live")
             yield Button("Evaluate target", id="do-evaluate")
         with Horizontal(id="actions"):
             yield TargetInput(
@@ -375,7 +377,7 @@ class BeaconTUI(App[None]):
     def _collect(self) -> None:
         target = self.query_one("#target", Input).value.strip() or None
         settings = load_settings()
-        ctx = CollectContext(target=target, live=False)
+        ctx = CollectContext(target=target, live=self.query_one("#live", Checkbox).value)
         scope_id = self.query_one("#scope", Input).value.strip() or None
         plugin = self.query_one("#plugin", Input).value.strip()
         try:
@@ -385,7 +387,9 @@ class BeaconTUI(App[None]):
                 result = collect_target(settings, target, ctx, checkpoint=True, scope_id=scope_id)
             else:
                 result = collect_all(settings, ctx, checkpoint=True, scope_id=scope_id)
-            self.notify(f"collected plugins={result.get('plugins') or [r.get('plugin') for r in result.get('runs', [])]}")
+            # Show each run's mode so a fixture or failed live run is never read as live evidence.
+            runs = result.get("runs") if "runs" in result else [result]
+            self.notify("collected " + (", ".join(f"{run.get('plugin')}={run.get('mode')}" for run in runs) or "nothing"))
         except BeaconError as exc:
             self.notify(f"{exc.code}: {exc.message}", severity="error")
         self.current = "dashboard"

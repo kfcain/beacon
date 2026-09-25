@@ -14,7 +14,7 @@ from beacon.assurance.specs import load_spec
 from beacon.assurance.validators import run_validator, validator_definition, validator_digest
 from beacon.canonical import sha256_obj
 from beacon.config import parse_iso8601
-from beacon.crypto.witness import seal_payload, create_checkpoint
+from beacon.crypto.witness import create_checkpoint, load_records, seal_payload
 from beacon.errors import BeaconError, fail
 from beacon.locking import locked
 from beacon.plugins.spec import CollectContext
@@ -289,6 +289,50 @@ def _run_record(settings, scope, **fields):
 
 
 @locked
+def bounded_live_collection(settings, *, scope_id: str, plugin: str) -> dict:
+    """The one live-collection path for refresh, the web API, and MCP.
+
+    The scope must approve the collector. One attempt per scope and collector is
+    allowed per cooldown, and the start record is sealed before network access.
+    The local CLI and TUI keep direct operator collection.
+    """
+    scope = _scope(settings, scope_id)
+    if plugin not in set(scope.parameters.get("allowed_assessment_collectors", [])) & RECOLLECTABLE:
+        fail("E_SCOPE", "live collection through this interface requires a scope-approved assessment collector")
+    validate_plugin_scope(scope, plugin)
+    snapshot = verified_snapshot(settings)
+    attempts = [body for _, body in _records(snapshot, source=RUNNER, mode="assessment_run",
+        format="beacon.assessment-run/v1") if body.get("scope_id") == scope_id
+        and body.get("action") == "collection_started" and body.get("plugin") == plugin]
+    cooldown = scope.parameters.get("assessment_recollection_seconds", 3600)
+    if attempts and (utcnow() - parse_iso8601(attempts[-1]["recorded_at"])).total_seconds() < cooldown:
+        return {"plugin": plugin, "status": "cooldown", "cooldown_seconds": cooldown}
+    # Persist before network access so crashes cannot cause a tight retry loop.
+    started = _run_record(settings, scope, action="collection_started", plugin=plugin)
+    sealed_before = len(load_records(settings))
+    try:
+        output = collect_named(settings, plugin, CollectContext(target="CRY-07", live=True), scope_id=scope_id)
+        outcome = {"plugin": plugin, "status": "completed" if output.get("ok") else "failed", "result": output}
+    except Exception as exc:
+        if any(record.plugin == plugin for record in load_records(settings)[sealed_before:]):
+            # The collector already sealed its own result (for example, a later
+            # publish step failed). That record stands; do not hide it.
+            outcome = {"plugin": plugin, "status": "failed_after_seal", "code": type(exc).__name__}
+        else:
+            # A failed new attempt supersedes old success even when a connector raised before sealing.
+            failure = bind_observation_payload({"source": plugin, "mode": "live_failed", "ok": False,
+                "format": "beacon.aws-ebs/v1", "cloud": "aws", "collection_complete": False,
+                "observed_at": utcnow().isoformat(), "identity": {}, "regions": list(scope.boundary.regions),
+                "errors": [{"code": type(exc).__name__}], "volumes": [], "region_runs": []}, scope)
+            seal_payload(settings, plugin=plugin, mode="live_failed", scf_targets=["CRY-07"], payload=failure)
+            create_checkpoint(settings)
+            outcome = {"plugin": plugin, "status": "failed", "code": type(exc).__name__}
+    _run_record(settings, scope, action="collection_finished", plugin=plugin,
+                started_evidence_id=started["receipt_evidence_id"], status=outcome["status"])
+    return outcome
+
+
+@locked
 def refresh_assessments(settings, *, scope_id: str, collect_missing: bool = False) -> dict:
     """One reconciliation pass; at most one EBS recollection, with a durable cooldown.
 
@@ -304,34 +348,8 @@ def refresh_assessments(settings, *, scope_id: str, collect_missing: bool = Fals
         # Recompute the plan inside the same serialized scope; never execute a supplied plan.
         plan = collection_plan(settings, scope_id=scope_id)
         for action in plan["actions"][:1]:
-            plugin = action["plugin"]
-            if plugin not in allowed:
-                continue
-            validate_plugin_scope(scope, plugin)
-            snapshot = verified_snapshot(settings)
-            attempts = [body for _, body in _records(snapshot, source=RUNNER, mode="assessment_run",
-                format="beacon.assessment-run/v1") if body.get("scope_id") == scope_id
-                and body.get("action") == "collection_started" and body.get("plugin") == plugin]
-            cooldown = scope.parameters.get("assessment_recollection_seconds", 3600)
-            if attempts and (utcnow() - parse_iso8601(attempts[-1]["recorded_at"])).total_seconds() < cooldown:
-                collections.append({"plugin": plugin, "status": "cooldown", "cooldown_seconds": cooldown})
-                continue
-            # Persist before network access so crashes cannot cause a tight retry loop.
-            started = _run_record(settings, scope, action="collection_started", plugin=plugin)
-            try:
-                output = collect_named(settings, plugin, CollectContext(target="CRY-07", live=True), scope_id=scope_id)
-                collections.append({"plugin": plugin, "status": "completed" if output.get("ok") else "failed", "result": output})
-            except Exception as exc:
-                # A failed new attempt supersedes old success even when a connector raised before sealing.
-                failure = bind_observation_payload({"source": plugin, "mode": "live_failed", "ok": False,
-                    "format": "beacon.aws-ebs/v1", "cloud": "aws", "collection_complete": False,
-                    "observed_at": utcnow().isoformat(), "identity": {}, "regions": list(scope.boundary.regions),
-                    "errors": [{"code": type(exc).__name__}], "volumes": [], "region_runs": []}, scope)
-                seal_payload(settings, plugin=plugin, mode="live_failed", scf_targets=["CRY-07"], payload=failure)
-                create_checkpoint(settings)
-                collections.append({"plugin": plugin, "status": "failed", "code": type(exc).__name__})
-            _run_record(settings, scope, action="collection_finished", plugin=plugin,
-                        started_evidence_id=started["receipt_evidence_id"], status=collections[-1]["status"])
+            if action["plugin"] in allowed:
+                collections.append(bounded_live_collection(settings, scope_id=scope_id, plugin=action["plugin"]))
     snapshot, now = verified_snapshot(settings), utcnow()
     latest = _latest_assessments(snapshot, scope_id)
     evaluations, unchanged = [], 0

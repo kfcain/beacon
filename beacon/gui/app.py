@@ -14,7 +14,8 @@ from pydantic import BaseModel, ConfigDict
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from beacon.assurance.bedrock import make_judge
-from beacon.assurance.assessments import evaluate_assessment, list_assessments, refresh_assessments, review_queue
+from beacon.assurance.assessments import (bounded_live_collection, evaluate_assessment, list_assessments,
+                                         refresh_assessments, review_queue)
 from beacon.assurance.specs import list_specs
 from beacon.assurance.evaluation import evaluate_control, list_receipts, rules_for
 from beacon.assurance.index import load_evidence_ledger
@@ -151,8 +152,8 @@ def create_app() -> FastAPI:
 
     @app.post("/api/assessments/refresh")
     def api_refresh_assessments(payload: RefreshAssessmentsBody):
-        # Remote/API callers may reevaluate sealed evidence, but cannot authorize
-        # live collection, import specifications, or impersonate a reviewer.
+        # Reevaluation only. Live collection is /api/collect, which the scope must
+        # approve and a cooldown bounds. No specification import or review here.
         return refresh_assessments(load_settings(), scope_id=payload.scope_id, collect_missing=False)
 
     @app.post("/api/push")
@@ -163,6 +164,11 @@ def create_app() -> FastAPI:
     @app.post("/api/collect")
     def api_collect(payload: CollectBody):
         settings = load_settings()
+        if payload.live:
+            # Remote callers get only the scope-approved, cooldown-bounded collector.
+            if not payload.plugin or not payload.scope_id or payload.target:
+                raise BeaconError("E_SCOPE", "live collection needs one approved plugin and a scope_id")
+            return bounded_live_collection(settings, scope_id=payload.scope_id, plugin=payload.plugin)
         ctx = CollectContext(target=payload.target, live=payload.live)
         if payload.plugin:
             return collect_named(settings, payload.plugin, ctx, scope_id=payload.scope_id)

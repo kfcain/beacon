@@ -47,6 +47,12 @@ def tool_beacon_collect(args: dict[str, Any]) -> dict[str, Any]:
     plugin = args.get("plugin")
     live = args.get("live", False)
     scope_id = args.get("scope_id")
+    if live:
+        # A model gets only the scope-approved, cooldown-bounded collector.
+        if not plugin or not scope_id or target:
+            raise BeaconError("E_SCOPE", "live collection needs one approved plugin and a scope_id")
+        from beacon.assurance.assessments import bounded_live_collection
+        return bounded_live_collection(settings, scope_id=str(scope_id), plugin=str(plugin))
     ctx = CollectContext(target=target, live=live)
     if plugin:
         return collect_named(settings, str(plugin), ctx, checkpoint=True, scope_id=scope_id)
@@ -121,13 +127,14 @@ TOOLS: dict[str, tuple[str, dict[str, Any], ToolFn]] = {
         tool_beacon_check,
     ),
     f"{MCP_TOOL_PREFIX}collect": (
-        "Collect evidence for a plugin or SCF target and seal a checkpoint.",
+        "Collect evidence for a plugin or SCF target and seal a checkpoint. Live collection needs a "
+        "plugin and scope_id; the scope must approve the collector, and a cooldown limits attempts.",
         {
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "SCF control id such as IAC-02 or CRY-07"},
                 "plugin": {"type": "string", "description": "Plugin name such as aws.inspector"},
-                "live": {"type": "boolean"},
+                "live": {"type": "boolean", "description": "Scope-approved collectors only; cooldown applies"},
                 "scope_id": {"type": "string"},
             },
         },

@@ -567,8 +567,10 @@ This entry is not a new assurance-stack cycle. No production AWS apply. No secre
   historical and require reevaluation. All objective/control/assurance claim
   fields remain false.
 - Added bounded, scope-authorized recollection planning for the read-only EBS
-  collector. Recollection is not exposed through web or MCP, has a durable
-  cooldown, and records failures before network access to prevent retry loops.
+  collector. Refresh, web `/api/collect`, and MCP `beacon_collect` share one live
+  path: the scope must approve the collector, one attempt per cooldown, and the
+  start record is sealed before network access. The local CLI and TUI keep
+  direct operator collection.
 - Added a local review queue and operator-attested supporting reviews. The
   reviewer identity is derived from the OS effective UID and is explicitly an
   account attribution, not proof of human presence. Acceptance is blocked for

@@ -10,7 +10,7 @@ import pytest
 
 from beacon.assurance import assessments
 from beacon.assurance.assessments import (
-    collection_plan, evaluate_assessment, list_assessments, record_review,
+    bounded_live_collection, collection_plan, evaluate_assessment, list_assessments, record_review,
     refresh_assessments, review_queue,
 )
 from beacon.assurance.policy import PolicyObject
@@ -385,3 +385,61 @@ def test_collection_failure_is_durable_and_cooldown_survives_new_settings(initia
     third = refresh_assessments(load_settings(), scope_id=scope.scope_id, collect_missing=True)
     assert third["collections"][0]["status"] == "failed" and len(calls) == 2
 
+
+
+def _remote_collect(surface, enrolled_scope_id, **overrides):
+    body = {"plugin": "aws.ebs.encryption", "scope_id": enrolled_scope_id, "live": True, **overrides}
+    body = {key: value for key, value in body.items() if value is not None}
+    if surface == "mcp":
+        from beacon.mcp.server import call_tool
+        return call_tool("beacon_collect", body)
+    from fastapi.testclient import TestClient
+    from beacon.gui.app import create_app
+    return TestClient(create_app(), headers={"X-Beacon-Request": "1"}).post("/api/collect", json=body).json()
+
+
+@pytest.mark.parametrize("surface", ["mcp", "web"])
+@pytest.mark.parametrize("body", [
+    {},                                          # the scope does not approve any collector
+    {"plugin": "aws.inspector"},                 # not an assessment collector
+    {"scope_id": None},                          # live collection must name a scope
+    {"plugin": None, "target": "CRY-07"},        # no target-wide or collect-all live runs
+])
+def test_remote_live_collection_needs_scope_approval(initialized, surface, body):
+    settings = load_settings()
+    scope, _ = enroll(settings)
+    # The autouse fixture fails the test if any live collector starts.
+    assert _remote_collect(surface, scope.scope_id, **body)["code"] == "E_SCOPE"
+
+
+def test_remote_live_collection_shares_the_refresh_cooldown(initialized, monkeypatch):
+    settings = load_settings()
+    scope, _ = enroll(settings, allowed_assessment_collectors=["aws.ebs.encryption"],
+                      assessment_recollection_seconds=60)
+    calls = []
+
+    def collect(current_settings, plugin, context, *, scope_id):
+        calls.append((plugin, context.live, context.target, scope_id))
+        return {"ok": True, "plugin": plugin, "mode": "live"}
+
+    monkeypatch.setattr(assessments, "collect_named", collect)
+    assert _remote_collect("mcp", scope.scope_id)["status"] == "completed"
+    assert _remote_collect("web", scope.scope_id)["status"] == "cooldown"
+    refreshed = refresh_assessments(load_settings(), scope_id=scope.scope_id, collect_missing=True)
+    assert refreshed["collections"][0]["status"] == "cooldown"
+    assert calls == [("aws.ebs.encryption", True, "CRY-07", scope.scope_id)]
+
+
+def test_error_after_the_collector_sealed_does_not_hide_its_record(initialized, monkeypatch):
+    settings = load_settings()
+    scope, _ = enroll(settings, allowed_assessment_collectors=["aws.ebs.encryption"])
+
+    def sealed_then_failed(current_settings, plugin, context, *, scope_id):
+        seal(current_settings, scope, ebs_payload())
+        raise RuntimeError("remote publish failed after the local seal")
+
+    monkeypatch.setattr(assessments, "collect_named", sealed_then_failed)
+    outcome = bounded_live_collection(settings, scope_id=scope.scope_id, plugin="aws.ebs.encryption")
+    assert outcome["status"] == "failed_after_seal"
+    ebs = [record for record in load_records(settings) if record.plugin == "aws.ebs.encryption"]
+    assert [record.mode for record in ebs] == ["live"]

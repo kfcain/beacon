@@ -3,6 +3,7 @@
 Status: proposed integration, grounded in upstream documentation reviewed on
 2026-09-25. No Hindsight endpoint/bank has been connected, no memory has been
 uploaded, and no Cloudflare Computer runtime has been deployed by this change.
+The explicit contracts are in [the verified agent slice](verified-agent-slice.md).
 
 ## Roles in the embedded agent
 

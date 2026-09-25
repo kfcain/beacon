@@ -136,6 +136,31 @@ Host headers are rejected. The UI keeps a supplied token only in memory and
 escapes evidence-derived HTML. This is an operator console, not multitenant
 identity management or an OIDC deployment.
 
+## Evidence-set assessments and operator review
+
+An assessment specification lists criteria for one SCF objective. Each criterion
+names an installed validator and its code digest. `beacon assessment-spec-draft`
+prints an EBS example; `beacon assessment-spec-import --file` stores a reviewed
+specification by digest. Importing does not approve it: the scope must list the
+digest in `approved_assessment_sha256`. `beacon assess` seals a receipt;
+`beacon assessments` and `beacon review-queue` show whether each receipt is still
+current. A change to evidence, scope, validator code, or freshness makes a receipt
+historical. When the scope declares an `assessment_period`, evidence observed
+outside it is a gap. No receipt sets objective or control satisfaction.
+
+Live collection through refresh, the web API, or MCP needs the collector in the
+scope's `allowed_assessment_collectors`, and `assessment_recollection_seconds`
+limits it to one attempt per cooldown. The local CLI and TUI keep direct operator
+collection.
+
+A review records the local OS account (`uid:N`) of the process, not a person.
+The scope must list that uid in `approved_reviewers`. The CLI accepts a review only
+in an interactive terminal, after the reviewer types the receipt id; the TUI asks
+for a rationale. These checks stop scripts and agent tool calls, not a process that
+fakes a terminal. **Approve a reviewer account that no agent, MCP server, or
+automation runs as.** Acceptance is refused for an outdated receipt, a failed check,
+or any gap.
+
 ## Trust migration and recovery
 
 New workspaces pin recorder/witness public keys and the TSA certificate digest at

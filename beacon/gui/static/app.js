@@ -180,18 +180,22 @@ function showSpecification() {
   const selected = assessmentSpecs.find(item => item.spec_sha256 === $("specSelect").value);
   $("assessBtn").disabled = !selected;
   if (!selected) {
-    $("specSummary").textContent = "No approved specification for this scope. Import a specification and approve its hash in the local scope configuration before assessing.";
+    $("specSummary").textContent = "No approved specification for this scope. Import one with beacon assessment-spec-import, then approve its hash in the scope before assessing.";
     return;
   }
   const spec = selected.spec || {};
   $("specSummary").textContent = `${spec.title || spec.spec_id || "Assessment specification"} · ${spec.control_ref || ""} / ${spec.ao_id || ""} · ${readableLabel(spec.time_basis)} · SHA-256 ${selected.spec_sha256}`;
 }
 
+// A review belongs to one receipt and its inputs; say so when that receipt is outdated.
+const reviewLabel = row => !row.review ? "Not recorded"
+  : (row.current === false || row.review.current === false) ? `${row.review.decision} (receipt outdated)` : row.review.decision;
+
 function renderAssessmentList() {
   const title = assessmentView === "queue" ? "Review queue" : "Latest assessments";
   $("assessmentList").innerHTML = `<h3>${title}</h3>${assessmentRows.length ? `
     <div class="table-scroll"><table><thead><tr><th>Specification</th><th>Scope</th><th>Result</th><th>Evaluated</th><th>Review</th><th></th></tr></thead><tbody>
-    ${assessmentRows.map((row, index) => `<tr><td>${escapeHTML(row.receipt?.spec_id || "Unknown specification")}</td><td>${escapeHTML(row.receipt?.scope_id)}</td><td>${assessmentStatus(row)}</td><td>${escapeHTML(row.receipt?.evaluated_at)}</td><td>${escapeHTML(row.review?.decision || "Not recorded")}</td><td><button data-receipt-index="${index}">Inspect</button></td></tr>`).join("")}
+    ${assessmentRows.map((row, index) => `<tr><td>${escapeHTML(row.receipt?.spec_id || "Unknown specification")}</td><td>${escapeHTML(row.receipt?.scope_id)}</td><td>${assessmentStatus(row)}</td><td>${escapeHTML(row.receipt?.evaluated_at)}</td><td>${escapeHTML(reviewLabel(row))}</td><td><button data-receipt-index="${index}">Inspect</button></td></tr>`).join("")}
     </tbody></table></div>` : `<p>${assessmentView === "queue" ? "No queued receipts. This does not indicate that every requirement has been assessed." : "No assessment receipts. Select an approved specification to run an assessment."}</p>`}`;
   for (const button of $("assessmentList").querySelectorAll("[data-receipt-index]")) {
     button.onclick = () => renderAssessmentDetail(assessmentRows[Number(button.dataset.receiptIndex)]);

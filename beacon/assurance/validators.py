@@ -27,9 +27,11 @@ def validator_definition(validator_id: str) -> dict:
 def validator_digest(validator_id: str) -> str:
     definition = validator_definition(validator_id)
     root = Path(__file__).resolve().parents[1]
-    # Pin the implementation and its admission/assessment semantics, not just a label.
+    # Pin the implementation and its collection, admission, and assessment
+    # semantics, not just a label. What "complete" means lives in the collectors.
     files = ("assurance/validators.py", "assurance/specs.py", "assurance/assessments.py",
-             "assurance/admission.py", "assurance/policy.py", "scope/enforce.py", "scope/bind.py",
+             "assurance/admission.py", "assurance/policy.py", "assurance/policy_capture.py",
+             "plugins/aws_ebs.py", "scf/engine.py", "scope/enforce.py", "scope/bind.py",
              "scope/v2.py", "scope/store.py")
     return sha256_obj({"validator_id": validator_id, "definition": definition,
         "implementation": {name: sha256_bytes((root / name).read_bytes()) for name in files}})

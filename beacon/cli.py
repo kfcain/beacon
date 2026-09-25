@@ -202,6 +202,32 @@ def cmd_assessment_specs(scope_id: str | None) -> None:
         _die(exc)
 
 
+@main.command("assessment-spec-draft")
+@click.option("--policy-path", default="policies/encryption.json", show_default=True)
+@click.option("--time-basis", type=click.Choice(["point_in_time", "period"]), default="point_in_time",
+              show_default=True)
+def cmd_assessment_spec_draft(policy_path: str, time_basis: str) -> None:
+    """Print a reviewable EBS specification draft. This does not import or approve it."""
+    from beacon.assurance.specs import draft_ebs_spec
+    try:
+        _emit(draft_ebs_spec(policy_path=policy_path, time_basis=time_basis))
+    except (BeaconError, ValueError) as exc:
+        _die(exc)
+
+
+@main.command("assessment-spec-import")
+@click.option("--file", "source", required=True, type=click.Path(path_type=Path, exists=True, dir_okay=False))
+def cmd_assessment_spec_import(source: Path) -> None:
+    """Store a reviewed specification by digest. The scope must still approve that digest."""
+    from beacon.assurance.specs import import_spec
+    try:
+        if source.stat().st_size > 65536:
+            raise BeaconError("E_SPEC", "assessment specification exceeds 64 KiB")
+        _emit(import_spec(_settings(), source.read_text(encoding="utf-8")))
+    except (BeaconError, OSError, UnicodeError) as exc:
+        _die(exc)
+
+
 @main.command("assess")
 @click.option("--scope", "scope_id", required=True)
 @click.option("--spec", "spec_sha256", required=True)

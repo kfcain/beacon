@@ -582,3 +582,22 @@ This entry is not a new assurance-stack cycle. No production AWS apply. No secre
   plugins. Added adversarial tests for forged receipts, malformed evidence,
   stale reviews, policy-byte binding, population gaps, refresh idempotence,
   and recollection authorization.
+
+## 2026-09-25 — Review fixes for evidence-set assessments
+
+- Web `/api/collect` and MCP `beacon_collect` ran live collection with no scope
+  approval and no cooldown, while the log said they could not. They now use the
+  same bounded path as refresh. If the collector sealed its own record before a
+  later step failed, no synthetic failure record hides it.
+- Reviews are attributed to an OS account, and agents usually run as the
+  operator's account. Interfaces now say operator review, not human review. The
+  CLI needs an interactive terminal and a typed receipt id. The operator guide
+  says to approve a reviewer account that no agent or automation runs as.
+- A point-in-time pass could carry a declared assessment period that its
+  evidence was not in. Evidence outside the period is now a gap.
+- The validator digest now also pins the EBS collector, policy capture, and the
+  collection engine. `beacon assessment-spec-draft` and
+  `beacon assessment-spec-import` give operators a supported import path. The
+  web table marks a review of an outdated receipt.
+- No objective, control, or compliance claim changed. `supporting_pass` remains
+  a supporting result only.

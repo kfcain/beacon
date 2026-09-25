@@ -24,7 +24,7 @@ objective rules are added.
 | Jev advisory judge | Implemented and tested with a mock transport. No live call | `beacon/assurance/jev.py` |
 | CLI, web, TUI, MCP interfaces on the same engine | Implemented and tested | `beacon/cli.py`, `beacon/gui`, `beacon/tui`, `beacon/mcp` |
 | SCF 2026.3 objective catalog (6446 rows, pinned digest `85bd3250…`) | Implemented and tested. Restored in `0230449` after a truncated commit | `beacon/scf/objectives/` |
-| Human review record (`beacon.review/v1`) | Designed here. Not implemented | Section 6 |
+| Operator review record (`beacon.review/v1`) | Implemented and tested. Attributed to a local OS account, not to a person | Section 6 |
 | Agent run record (`beacon.agent-run/v1`) | Designed here. Not implemented | Section 5 |
 | Memory port and Hindsight adapter | Designed here. Not implemented. Not connected | Section 4 |
 | Bounded orchestrator (Step Functions or a small loop) | Designed here. Not implemented | Section 5 |
@@ -206,17 +206,22 @@ AgentCore Gateway or Runtime is an option only after its features are verified
 in the target partition and region. Step Functions or a small application loop
 also meets this design.
 
-## 6. Human review record
+## 6. Operator review record
 
-The proposed `beacon review` command seals a `beacon.review/v1` record with:
-`receipt_evidence_id`, `receipt_sha256`, `ao_id`, `decision` (`concur`,
-`reject`, or `request_evidence`), `rationale`, `reviewer` (from operator
-authentication, never from a model), and `reviewed_at`.
+`beacon review-assessment` and the TUI seal a `beacon.review/v1` record. It binds
+the target receipt id and digest, the input fingerprint, the decision (`accept`
+or `reject`), a rationale, the time, and the local OS account (`uid:N`). The
+scope must list that uid in `approved_reviewers`.
 
-A `concur` decision records human agreement with one supporting assertion. It
-does **not** set `objective_satisfied` or `control_satisfied`. A claim needs a
-different future design with criteria for complete objectives. It is not part of
-this slice.
+The record identifies an OS account, not a person. The CLI needs an interactive
+terminal and a typed receipt id, which stops scripts and agent tool calls but not
+a process that fakes a terminal. The reviewer account must be one that no agent,
+MCP server, or automation runs as. A review signed with a key that only the
+reviewer holds is future work.
+
+An `accept` records agreement with one supporting assessment. It does **not** set
+`objective_satisfied` or `control_satisfied`. A claim needs a different future
+design with criteria for complete objectives. It is not part of this slice.
 
 ## 7. Cloudflare Computer (optional sandbox)
 

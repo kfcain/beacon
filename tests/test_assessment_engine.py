@@ -498,3 +498,33 @@ def test_point_in_time_evidence_must_fall_inside_the_declared_period(initialized
     assert receipt["status"] == status
     outside = [gap for gap in receipt["gaps"] if gap.endswith("observation_outside_assessment_period")]
     assert bool(outside) is (status == "insufficient")
+
+
+@pytest.mark.parametrize("changed", ["aws_ebs.py", "policy_capture.py", "engine.py"])
+def test_changed_collection_semantics_invalidate_validator_approval(monkeypatch, changed):
+    before = {vid: validator_digest(vid) for vid in ("ebs-encryption/v1", "ebs-approved-keys/v1", "policy-review/v1")}
+    original = Path.read_bytes
+
+    def altered(path):
+        contents = original(path)
+        return contents + b"\n# changed collection semantics\n" if path.name == changed else contents
+
+    monkeypatch.setattr(Path, "read_bytes", altered)
+    assert all(validator_digest(vid) != digest for vid, digest in before.items())
+
+
+def test_cli_drafts_and_imports_a_specification_without_approving_it(initialized, tmp_path):
+    from click.testing import CliRunner
+    from beacon.cli import main
+    runner = CliRunner()
+    drafted = runner.invoke(main, ["assessment-spec-draft"])
+    assert drafted.exit_code == 0, drafted.output
+    source = tmp_path / "spec.json"
+    source.write_text(drafted.output)
+    imported = runner.invoke(main, ["assessment-spec-import", "--file", str(source)])
+    assert imported.exit_code == 0, imported.output
+    result = json.loads(imported.output)
+    assert result["approved"] is False
+    assert load_spec(load_settings(), result["spec_sha256"]).spec_id == "ebs-encryption-policy/v1"
+    bad = runner.invoke(main, ["assessment-spec-draft", "--policy-path", "../outside.json"])
+    assert bad.exit_code != 0

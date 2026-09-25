@@ -220,7 +220,7 @@ class AssessmentScreen(ModalScreen[None]):
                 hashes = {item["spec_sha256"] for item in self.specs}
                 spec_widget.value = old_spec if old_spec in hashes else self.specs[0]["spec_sha256"]
             else:
-                self.query_one("#assessment-spec-note", Static).update("No approved specification. Import a specification and approve its hash in the local scope configuration.")
+                self.query_one("#assessment-spec-note", Static).update("No approved specification. Import one with beacon assessment-spec-import, then approve its hash in the scope.")
             receipt_widget = self.query_one("#assessment-receipt", Select)
             receipt_widget.set_options([
                 (f"{row['receipt'].get('spec_id')} · {'reevaluation required' if not row.get('current') else row['receipt'].get('status')} · {str(row['evidence_id'])[:12]}", row["evidence_id"])

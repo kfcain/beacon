@@ -23,7 +23,7 @@ objective rules are added.
 | Bedrock Converse advisory reviewer | Implemented and tested with stubs. No live model call | `beacon/assurance/bedrock.py` |
 | Jev advisory judge | Implemented and tested with a mock transport. No live call | `beacon/assurance/jev.py` |
 | CLI, web, TUI, MCP interfaces on the same engine | Implemented and tested | `beacon/cli.py`, `beacon/gui`, `beacon/tui`, `beacon/mcp` |
-| SCF 2026.3 objective catalog | Implemented, but the committed `rows.json` in PR #24 is damaged. It must be restored before CI is green | `beacon/scf/objectives/` |
+| SCF 2026.3 objective catalog (6446 rows, pinned digest `85bd3250…`) | Implemented and tested. Restored in `0230449` after a truncated commit | `beacon/scf/objectives/` |
 | Human review record (`beacon.review/v1`) | Designed here. Not implemented | Section 6 |
 | Agent run record (`beacon.agent-run/v1`) | Designed here. Not implemented | Section 5 |
 | Memory port and Hindsight adapter | Designed here. Not implemented. Not connected | Section 4 |
@@ -257,7 +257,6 @@ One scope, one account, one or two regions, one control:
 The slice is stable only when all of these are true:
 
 - CI is green on the merged base, including the Conftest policy tests.
-- The restored `rows.json` has the pinned digest.
 - Three runs against a real test account give the same deterministic result,
   and one run with a denied region gives `live_failed` and `ineligible`.
 - A run where the account has a new volume that is not in `expected_ebs_volumes`

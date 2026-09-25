@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from beacon.assurance.admission import eligibility, verified_snapshot
 from beacon.assurance.jev import judgment_supports
-from beacon.canonical import sha256_obj
+from beacon.canonical import sha256_bytes, sha256_obj
 from beacon.config import parse_iso8601
 from beacon.crypto.witness import seal_payload, create_checkpoint
 from beacon.errors import fail
@@ -61,12 +61,16 @@ def rules_for(control_ref: str) -> list[dict]:
 
 
 def _ebs_check(payload: dict, scope) -> tuple[str, list[str]]:
-    rows, runs = payload.get("volumes"), payload.get("region_runs")
+    rows, runs, regions = payload.get("volumes"), payload.get("region_runs"), payload.get("regions")
     expected_regions = set(scope.boundary.regions)
-    if (not isinstance(rows, list) or not isinstance(runs, list) or payload.get("errors")
-            or set(payload.get("regions", [])) != expected_regions
+    # Sealed bytes are untrusted structure: reject wrong shapes before any set or count.
+    if (not isinstance(rows, list) or not isinstance(runs, list) or not isinstance(regions, list)
+            or any(not isinstance(region, str) for region in regions)
+            or any(not isinstance(run, dict) or not isinstance(run.get("region"), str) for run in runs)):
+        return "insufficient", ["malformed_inventory"]
+    if (payload.get("errors") != [] or set(regions) != expected_regions
             or len(runs) != len(expected_regions)
-            or {run.get("region") for run in runs} != expected_regions
+            or {run["region"] for run in runs} != expected_regions
             or any(run.get("complete") is not True for run in runs)):
         return "insufficient", ["incomplete_region_inventory"]
     if not rows:
@@ -74,13 +78,16 @@ def _ebs_check(payload: dict, scope) -> tuple[str, list[str]]:
     ids = []
     for row in rows:
         if (not isinstance(row, dict) or not isinstance(row.get("VolumeId"), str)
-                or row.get("region") not in expected_regions or type(row.get("Encrypted")) is not bool):
+                or not isinstance(row.get("region"), str) or row["region"] not in expected_regions
+                or type(row.get("Encrypted")) is not bool):
             return "insufficient", ["malformed_volume"]
         ids.append(f"{row['region']}/{row['VolumeId']}")
     if len(ids) != len(set(ids)):
         return "insufficient", ["duplicate_volume"]
     for run in runs:
-        if run.get("volume_count") != sum(row["region"] == run["region"] for row in rows) or run.get("pages", 0) < 1:
+        pages, count = run.get("pages"), run.get("volume_count")
+        if (type(pages) is not int or pages < 1 or type(count) is not int
+                or count != sum(row["region"] == run["region"] for row in rows)):
             return "insufficient", ["inventory_count_mismatch"]
     expected = getattr(scope, "parameters", {}).get("expected_ebs_volumes")
     if not isinstance(expected, list) or not expected or any(not isinstance(item, str) for item in expected):
@@ -89,6 +96,24 @@ def _ebs_check(payload: dict, scope) -> tuple[str, list[str]]:
         return "insufficient", ["population_mismatch"]
     failed = [f"unencrypted:{row['region']}/{row['VolumeId']}" for row in rows if row["Encrypted"] is False]
     return ("supporting_fail", failed) if failed else ("supporting_pass", [])
+
+
+def _policy_bound(payload: dict, parameters: dict, *, scope_id: str, control_ref: str) -> bool:
+    policy = payload.get("policy")
+    content = payload.get("content")
+    if not isinstance(policy, dict) or not isinstance(content, str):
+        return False
+    control_refs, scope_refs = policy.get("control_refs"), policy.get("scope_refs")
+    # Lists only: a string would turn membership into a substring test.
+    if not isinstance(control_refs, list) or not isinstance(scope_refs, list):
+        return False
+    if sha256_bytes(content.encode("utf-8")) != payload.get("file_sha256"):
+        return False
+    sources = parameters.get("policy_sources", [])
+    return (any(isinstance(source, dict) and source.get("commit") == payload.get("git_commit")
+                and source.get("path") == payload.get("path")
+                and source.get("file_sha256") == payload.get("file_sha256") for source in sources)
+            and control_ref in control_refs and scope_id in scope_refs)
 
 
 @locked
@@ -115,7 +140,10 @@ def evaluate_control(settings, *, scope_id: str, control_ref: str, judge=None) -
         if row["rule_sha256"] not in parameters.get("approved_rule_sha256", []):
             row.update(status="unapproved_rule", reasons=["rule_not_approved_in_scope"])
             continue
+        # Only attempts for this control and scope compete. A record for another
+        # control is not a newer attempt at this one.
         candidates = [record for record in snapshot.records if record.plugin == rule.plugin
+                      and control_ref in record.scf_targets
                       and snapshot.payloads[record.evidence_id].get("scope_id") == scope_id]
         if not candidates:
             row.update(status="no_evidence", reasons=["matching_evidence_missing"])
@@ -126,8 +154,6 @@ def evaluate_control(settings, *, scope_id: str, control_ref: str, judge=None) -
         row["evidence"] = [{"evidence_id": record.evidence_id, "payload_sha256": record.payload_sha256,
                             "record_sha256": sha256_obj(record.to_dict())}]
         problems = list(eligibility(settings, record, payload, now=now, max_age_seconds=rule.max_age_seconds))
-        if control_ref not in record.scf_targets:
-            problems.append("control_binding_mismatch")
         if payload.get("format") != rule.payload_format:
             problems.append("payload_schema_mismatch")
         if problems:
@@ -138,12 +164,7 @@ def evaluate_control(settings, *, scope_id: str, control_ref: str, judge=None) -
         if rule.predicate == "ebs_all_encrypted":
             row["status"], row["reasons"] = _ebs_check(payload, scope)
         else:
-            policy = payload.get("policy", {})
-            sources = parameters.get("policy_sources", [])
-            if (not any(isinstance(source, dict) and source.get("commit") == payload.get("git_commit")
-                        and source.get("path") == payload.get("path")
-                        and source.get("file_sha256") == payload.get("file_sha256") for source in sources)
-                    or control_ref not in policy.get("control_refs", []) or scope_id not in policy.get("scope_refs", [])):
+            if not _policy_bound(payload, parameters, scope_id=scope_id, control_ref=control_ref):
                 row.update(status="ineligible", reasons=["policy_binding_mismatch"])
                 continue
             candidate = {"content": payload["content"], "evidence_sha256": record.payload_sha256,
@@ -152,13 +173,16 @@ def evaluate_control(settings, *, scope_id: str, control_ref: str, judge=None) -
             candidate["candidate_sha256"] = sha256_obj(candidate)
             row["candidate_sha256"] = candidate["candidate_sha256"]
             if judge is None:
-                row.update(status="needs_review", reasons=["external_judgment_disabled"])
+                row.update(status="needs_review", reasons=["external_judgment_disabled", "human_review_required"])
             else:
                 result = judge.judge(objective=objective, rule=rule_body, candidate=candidate)
                 row["judgment"] = result
-                supported = judgment_supports(result, candidate["candidate_sha256"], rule_body)
-                row.update(status="supporting_pass" if supported else "needs_review",
-                           reasons=[] if supported else ["judgment_abstained_or_below_threshold"])
+                # Jev and Bedrock are advisory. A judgment can order human review;
+                # it never sets a supporting result.
+                advisory = ("advisory_meets_thresholds"
+                            if judgment_supports(result, candidate["candidate_sha256"], rule_body)
+                            else "judgment_abstained_or_below_threshold")
+                row.update(status="needs_review", reasons=[advisory, "human_review_required"])
     receipt = bind_observation_payload({"format": "beacon.evaluation/v2", "schema_version": 2,
         "receipt_id": uuid4().hex, "source": "beacon.evaluator", "mode": "evaluation",
         "evaluated_at": now.isoformat(), "catalog_sha256": CATALOG_SHA256,

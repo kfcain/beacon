@@ -53,8 +53,9 @@ SCF conformity cadence.
    allowed evidence kind, principal, account/project/subscription, and regions.
 3. Require the exact rule hash in version-2 scope parameters and the exact
    objective from the reviewed SCF source. Require the rule's population and
-   schema checks. The latest matching attempt supersedes older attempts,
-   including a newer failed collection.
+   schema checks. The latest attempt for the same control and scope supersedes
+   older attempts, including a newer failed collection. A record for another
+   control does not compete.
 4. Run a deterministic predicate or an explicitly enabled policy reviewer.
 5. Seal a receipt and checkpoint it. Bind the scope, SCF workbook and objective
    file digests, objective row, rule, input payloads, preceding chain head,
@@ -91,9 +92,12 @@ configure the SDK credential through its normal environment, set
 `allow_external_judgment: true` in the scope. The pinned SDK is `typesafe-sdk==0.7.1`.
 The adapter uses Choice, a **two-level** Score rubric (0..1), and numeric Noul.
 Python applies the 1.0 coverage, sufficiency, and confidence minima. Minima are
-not sent to the model. Missing, malformed, uncertain, oversized, or failed
-responses cannot produce supporting success. These probabilities are model
-judgments, not measured control effectiveness or a calibrated audit confidence.
+not sent to the model. A Jev judgment is advisory: the row stays `needs_review`
+with `advisory_meets_thresholds` or `judgment_abstained_or_below_threshold`, and
+always `human_review_required`. No model output sets `supporting_pass`. Missing,
+malformed, uncertain, oversized, or failed responses never meet the minima. These
+probabilities are model judgments, not measured control effectiveness or a
+calibrated audit confidence.
 
 For Bedrock, set `BEACON_BEDROCK_ENABLED=1`, approve model processing in scope,
 and supply `bedrock_model_id` and `bedrock_region` in scope parameters. Use

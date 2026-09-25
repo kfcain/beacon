@@ -85,6 +85,14 @@ def test_receipt_records_support_but_exposes_remaining_gaps(initialized):
     (lambda b:b["volumes"][0].update(Encrypted="true"), "insufficient"),
     (lambda b:b["volumes"][0].update(Encrypted=False), "supporting_fail"),
     (lambda b:b["region_runs"][0].update(complete=False), "insufficient"),
+    # Malformed sealed structure is insufficient, never a crash or a pass.
+    (lambda b:b["region_runs"].__setitem__(0, "us-east-1"), "insufficient"),
+    (lambda b:b["region_runs"][0].update(region=["us-east-1"]), "insufficient"),
+    (lambda b:b["region_runs"][0].update(pages=True), "insufficient"),
+    (lambda b:b["region_runs"][0].update(volume_count="2"), "insufficient"),
+    (lambda b:b["volumes"][0].update(region=["us-east-1"]), "insufficient"),
+    (lambda b:b["volumes"].__setitem__(0, "vol-0123"), "insufficient"),
+    (lambda b:b.pop("errors"), "insufficient"),
 ])
 def test_bad_or_incomplete_evidence_never_supports(initialized, mutation, expected):
     settings=load_settings(); scope=scoped(settings); body=payload(); mutation(body); seal(settings,scope,body)

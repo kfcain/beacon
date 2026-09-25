@@ -14,6 +14,8 @@ from pydantic import BaseModel, ConfigDict
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from beacon.assurance.bedrock import make_judge
+from beacon.assurance.assessments import evaluate_assessment, list_assessments, refresh_assessments, review_queue
+from beacon.assurance.specs import list_specs
 from beacon.assurance.evaluation import evaluate_control, list_receipts, rules_for
 from beacon.assurance.index import load_evidence_ledger
 from beacon.config import load_settings
@@ -42,6 +44,17 @@ class EvaluateBody(BaseModel):
     scope_id: str
     control_ref: str
     judge: Literal["none", "jev", "bedrock"] = "none"
+
+
+class AssessBody(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    scope_id: str
+    spec_sha256: str
+
+
+class RefreshAssessmentsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    scope_id: str
 
 
 def create_app() -> FastAPI:
@@ -119,6 +132,28 @@ def create_app() -> FastAPI:
         scope = load_scope(settings, payload.scope_id)
         return evaluate_control(settings, scope_id=payload.scope_id, control_ref=payload.control_ref.upper(),
                                 judge=make_judge(payload.judge, scope))
+
+    @app.get("/api/assessment-specs")
+    def api_assessment_specs(scope_id: str | None = None):
+        return {"specs": list_specs(load_settings(), scope_id=scope_id)}
+
+    @app.get("/api/assessments")
+    def api_assessments(scope_id: str | None = None):
+        return {"assessments": list_assessments(load_settings(), scope_id=scope_id)}
+
+    @app.get("/api/review-queue")
+    def api_review_queue(scope_id: str | None = None):
+        return {"assessments": review_queue(load_settings(), scope_id=scope_id)}
+
+    @app.post("/api/assess")
+    def api_assess(payload: AssessBody):
+        return evaluate_assessment(load_settings(), scope_id=payload.scope_id, spec_sha256=payload.spec_sha256)
+
+    @app.post("/api/assessments/refresh")
+    def api_refresh_assessments(payload: RefreshAssessmentsBody):
+        # Remote/API callers may reevaluate sealed evidence, but cannot authorize
+        # live collection, import specifications, or impersonate a reviewer.
+        return refresh_assessments(load_settings(), scope_id=payload.scope_id, collect_missing=False)
 
     @app.post("/api/push")
     def api_push():

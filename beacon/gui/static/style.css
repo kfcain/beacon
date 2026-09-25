@@ -1,16 +1,16 @@
 :root {
-  --bg: #1a1b26;
-  --bg-2: #16161e;
-  --fg: #c0caf5;
-  --muted: #565f89;
-  --blue: #7aa2f7;
-  --purple: #bb9af7;
-  --cyan: #7dcfff;
+  --bg: #080e1b;
+  --bg-2: #0c1425;
+  --fg: #e3eaff;
+  --muted: #a0aec9;
+  --blue: #4169e1;
+  --purple: #4169e1;
+  --cyan: #97b0ff;
   --green: #9ece6a;
   --yellow: #e0af68;
   --red: #f7768e;
-  --card: #24283b;
-  --line: #3b4261;
+  --card: #111d33;
+  --line: #314364;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 ui-sans-serif, system-ui, sans-serif; }
@@ -46,3 +46,27 @@ select,input { background: #16161e; color: #c0caf5; padding: .5rem; border: 1px 
 #assessment button { margin: .3rem; padding: .7rem; }
 #assessment label { display: inline-block; margin: .5rem; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.mark, button.act, .tabs button.active { background: var(--blue); color: #fff; }
+button, select, input { font: inherit; }
+button { background: var(--bg-2); color: var(--fg); border: 1px solid var(--line); border-radius: .4rem; padding: .5rem .8rem; cursor: pointer; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.tabs { flex-wrap: wrap; }
+.assessment-fields { display: flex; flex-wrap: wrap; gap: .5rem; }
+.assessment-fields label { display: flex !important; flex-direction: column; min-width: 15rem; flex: 1; }
+.assessment-actions { display: flex; flex-wrap: wrap; gap: .2rem; }
+.page > .card { margin-bottom: 1rem; }
+.muted-text { color: var(--muted); }
+.error-text { color: #ffa6b6; }
+.supporting { background: #203d83; color: #d6e2ff; }
+.notice { border-left: 3px solid var(--yellow); padding: .7rem 1rem; background: var(--bg-2); }
+.table-scroll { overflow-x: auto; }
+.facts { margin: .25rem 0; }
+.facts dt { color: var(--muted); font-weight: 600; }
+.facts dd { margin: 0 0 .6rem; overflow-wrap: anywhere; }
+.facts ul { padding-left: 1rem; }
+td { vertical-align: top; }
+h4 { color: var(--cyan); margin: 1.2rem 0 .4rem; }
+summary { color: var(--cyan); cursor: pointer; padding: .4rem 0; }
+#specSummary { overflow-wrap: anywhere; }

@@ -51,7 +51,7 @@ def iter_plugin_files(plugin_path: tuple[Path, ...]) -> Iterable[Path]:
 
 # Sources that only Beacon code seals (policy capture and evaluation receipts).
 # A drop-in that used one of these names could seal forged policy evidence or receipts.
-RESERVED_SOURCES = frozenset({"git.policy", "beacon.evaluator"})
+RESERVED_SOURCES = frozenset({"git.policy", "beacon.evaluator", "beacon.assessor", "beacon.review", "beacon.assessment-run"})
 
 
 def load_plugins(settings: Settings) -> dict[str, Plugin]:

@@ -551,3 +551,32 @@ This entry is not a new assurance-stack cycle. No production AWS apply. No secre
   `git diff --check` passed.
 - This changes presentation only; document connectors, hosted agents, memory,
   and scheduled workflows remain proposed work.
+
+## 2026-09-25 — Evidence-set assessment and validator mechanism
+
+- Added immutable, SHA-addressed assessment specifications. A scope must
+  explicitly approve each specification and validator implementation before
+  it can run; specifications cannot contain executable code or choose a model.
+- Added evidence-set validators for narrow EBS encryption, approved KMS-key
+  membership, and approved Git policy review. Results separate eligibility,
+  completeness gaps, observed negative findings, freshness, and human review.
+  An incomplete scan can still expose a qualified failing observation; it can
+  never become a pass through averaging or retrying.
+- Added currentness fingerprints and semantic recomputation so changed,
+  expired, superseded, forged, or implementation-drifted receipts become
+  historical and require reevaluation. All objective/control/assurance claim
+  fields remain false.
+- Added bounded, scope-authorized recollection planning for the read-only EBS
+  collector. Recollection is not exposed through web or MCP, has a durable
+  cooldown, and records failures before network access to prevent retry loops.
+- Added a local review queue and operator-attested supporting reviews. The
+  reviewer identity is derived from the OS effective UID and is explicitly an
+  account attribution, not proof of human presence. Acceptance is blocked for
+  stale, failed, incomplete, or changed assessments and never changes a
+  compliance claim.
+- Added CLI, web, MCP, and dark/royal-blue TUI surfaces for specifications,
+  assessments, gaps, evidence references, invalidation, and review queue.
+- Reserved assessor, review, and assessment-run source names from drop-in
+  plugins. Added adversarial tests for forged receipts, malformed evidence,
+  stale reviews, policy-byte binding, population gaps, refresh idempotence,
+  and recollection authorization.

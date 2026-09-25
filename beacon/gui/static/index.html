@@ -29,9 +29,26 @@
   <main>
     <section id="dashboard" class="page active"></section>
     <section id="assessment" class="page">
-      <div class="card"><h2>Assessment workspace</h2>
-      <p>Review a scoped observation, supporting assertions, and remaining objective gaps. Fixture evidence never supports an assertion. Receipts record historical results.</p>
-      <label>Scope <select id="scopeSelect"></select></label>
+      <div class="card"><h2>Requirement assessments</h2>
+      <p>Check approved acceptance criteria against sealed evidence. Supporting results and recorded reviews do not establish whole-objective or control satisfaction.</p>
+      <div class="assessment-fields">
+      <label>Scope <select id="scopeSelect" aria-label="Assessment scope"></select></label>
+      <label>Approved specification <select id="specSelect" aria-label="Approved assessment specification"></select></label>
+      </div>
+      <p id="specSummary" class="muted-text">Load an enrolled scope to see its approved specifications.</p>
+      <div class="assessment-actions">
+        <button id="assessBtn" class="act" disabled>Assess selected requirement</button>
+        <button id="refreshAssessmentsBtn" disabled>Reevaluate changed evidence</button>
+        <button id="allAssessmentsBtn">Latest assessments</button>
+        <button id="reviewQueueBtn">Review queue</button>
+      </div>
+      <p id="assessmentMessage" role="status" aria-live="polite"></p>
+      <p class="muted-text">Reevaluation uses evidence already collected. Live collection is a separate action. Human review is recorded through the local CLI or TUI.</p>
+      </div>
+      <div id="assessmentList" class="card"><p>No assessment receipts loaded.</p></div>
+      <div id="assessmentDetail" class="card" aria-live="polite"><p>Select a receipt to inspect each criterion, evidence reference, and gap.</p></div>
+      <details class="card legacy-tools"><summary>Supporting rules and evidence tools</summary>
+      <p>Inspect the underlying evidence ledger or run an individual supporting rule. Fixture evidence cannot support an assertion.</p>
       <label>Control <select id="controlSelect"><option>CRY-07</option><option>IAC-02</option><option>GOV-02</option></select></label>
       <label>Policy reviewer <select id="judgeSelect"><option value="none">Disabled</option><option value="bedrock">Bedrock (advisory)</option><option value="jev">Jev</option></select></label>
       <p><label><input type="checkbox" id="liveCheck" /> Collect live AWS evidence using this scope</label></p>
@@ -40,7 +57,7 @@
       <button data-assessment="ledger">Evidence eligibility</button>
       <button data-assessment="evaluate">Evaluate and seal receipt</button>
       <button data-assessment="receipts">Historical receipts</button>
-      <pre id="assessmentOut">Select an imported scope to start.</pre></div>
+      <pre id="assessmentOut">Select an imported scope to start.</pre></details>
     </section>
     <section id="freshness" class="page"></section>
     <section id="validation" class="page"></section>

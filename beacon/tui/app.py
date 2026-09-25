@@ -8,9 +8,9 @@ import json
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, HorizontalScroll, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Checkbox, Footer, Header, Input, Static
+from textual.widgets import Button, Checkbox, Footer, Header, Input, Select, Static
 
 from beacon.config import load_settings
 from beacon.errors import BeaconError
@@ -18,6 +18,8 @@ from beacon.plugins.spec import CollectContext
 from beacon.push import write_pack
 from beacon.scf.engine import collect_all, collect_target, collect_named
 from beacon.assurance.evaluation import evaluate_control
+from beacon.assurance.assessments import evaluate_assessment, list_assessments, record_review, refresh_assessments, review_queue
+from beacon.assurance.specs import list_specs
 from beacon.tui.theme import BEACON_DARK, BLUE_TEXT, FAIL, MUTED, OK
 from beacon.tui.tour import (
     TourCursor,
@@ -65,6 +67,236 @@ class TargetInput(Input):
         if key == "question_mark":
             return False
         return super().check_consume_key(key, character)
+
+
+def _assessment_text(row: dict[str, Any]) -> Text:
+    """Render untrusted evidence as literal text, with eligibility and gaps visible."""
+    receipt = row.get("receipt") or {}
+    text = Text()
+    text.append(str(receipt.get("spec_id") or "Assessment"), style=f"bold {BLUE_TEXT}")
+    status = str(receipt.get("status") or "not assessed")
+    if status == "supporting_pass":
+        status = "Checks passed (supporting)"
+    text.append(f"\n{status.replace('_', ' ')} · scope {receipt.get('scope_id', '')}\n")
+    text.append(f"Control {receipt.get('control_ref', 'unspecified')} / objective {receipt.get('ao_id', 'unspecified')} · {str(receipt.get('time_basis', 'unspecified time basis')).replace('_', ' ')}\n")
+    if row.get("current") is False:
+        text.append("REEVALUATION REQUIRED\n", style="bold yellow")
+        for reason in row.get("invalidation_reasons") or []:
+            text.append(f"  • {reason}\n")
+    text.append("Objective and control satisfaction remain unset.\n\n")
+
+    def append_value(value: Any, depth: int = 1) -> None:
+        indent = "  " * depth
+        if isinstance(value, dict):
+            for key, item in value.items():
+                text.append(f"{indent}{str(key).replace('_', ' ')}: ", style=BLUE_TEXT)
+                if isinstance(item, (dict, list)):
+                    text.append("\n")
+                    append_value(item, depth + 1)
+                else:
+                    text.append(f"{item}\n")
+        elif isinstance(value, list):
+            if not value:
+                text.append(f"{indent}None recorded\n")
+            for item in value:
+                if isinstance(item, (dict, list)):
+                    append_value(item, depth)
+                    text.append("\n")
+                else:
+                    text.append(f"{indent}• {item}\n")
+        else:
+            text.append(f"{indent}{value}\n")
+
+    for title, value in (
+        ("Criteria", receipt.get("results") or []),
+        ("Gaps and next steps", receipt.get("gaps") or []),
+        ("Findings", receipt.get("findings") or []),
+        ("Human review", row.get("review") or "No review recorded."),
+        ("Receipt provenance", {
+            "evidence_id": row.get("evidence_id") or receipt.get("receipt_evidence_id"),
+            "evaluated_at": receipt.get("evaluated_at"),
+            "spec_sha256": receipt.get("spec_sha256"),
+            "objective_sha256": receipt.get("objective_sha256"),
+            "catalog_sha256": receipt.get("catalog_sha256"),
+            "input_sha256": receipt.get("input_sha256"),
+            "expires_at": receipt.get("expires_at"),
+        }),
+    ):
+        text.append(f"{title}\n", style=f"bold {BLUE_TEXT}")
+        append_value(value)
+        text.append("\n")
+    return text
+
+
+class AssessmentScreen(ModalScreen[None]):
+    """Local assessment and review workspace; approval identity is OS-derived."""
+
+    DEFAULT_CSS = """
+    AssessmentScreen { background: $background; }
+    #assessment-workspace { height: 1fr; padding: 1 2; }
+    #assessment-heading { color: $primary-lighten-2; text-style: bold; height: auto; }
+    #assessment-description, #assessment-notice, #assessment-spec-note { height: auto; margin-bottom: 1; }
+    .assessment-row { height: 3; margin-bottom: 1; }
+    .assessment-row Button { width: auto; min-width: 0; padding: 0 1; margin-right: 1; }
+    #assessment-scope { width: 1fr; }
+    #assessment-spec, #assessment-receipt { margin-bottom: 1; }
+    #assessment-result { height: auto; padding: 1; background: $surface; }
+    #assessment-review-label { height: auto; margin-top: 1; }
+    #assessment-rationale { margin-bottom: 1; }
+    #assessment-close-row { height: 3; padding-left: 2; }
+    """
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, scope_id: str = "") -> None:
+        super().__init__()
+        self.scope_id = scope_id
+        self.rows: list[dict[str, Any]] = []
+        self.specs: list[dict[str, Any]] = []
+        self.queue_only = False
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(id="assessment-workspace"):
+            yield Static("Requirement assessments", id="assessment-heading")
+            yield Static("Approved criteria + sealed evidence. Supporting results do not establish objective or control satisfaction.", id="assessment-description")
+            with Horizontal(classes="assessment-row"):
+                yield Input(value=self.scope_id, placeholder="Enrolled scope id", id="assessment-scope")
+                yield Button("Load scope", id="assessment-load")
+            yield Select([], prompt="Approved specification", id="assessment-spec")
+            yield Static("", id="assessment-spec-note")
+            with Horizontal(classes="assessment-row"):
+                yield Button("Assess selected", id="assessment-run", variant="primary", disabled=True)
+                yield Button("Reevaluate", id="assessment-refresh", disabled=True)
+                yield Button("Latest", id="assessment-all")
+                yield Button("Review queue", id="assessment-queue")
+            yield Static("", id="assessment-notice")
+            yield Select([], prompt="Select receipt to inspect", id="assessment-receipt")
+            yield Static("Load a scope to see specifications and assessment receipts.", id="assessment-result")
+            yield Static("Local human review: enter a rationale. The scope must authorize your operating-system identity. Acceptance cannot override failed or missing evidence.", id="assessment-review-label")
+            yield Input(placeholder="Review rationale with source citations (10–4000 characters)", id="assessment-rationale", max_length=4000)
+            with Horizontal(classes="assessment-row"):
+                yield Button("Accept supporting assessment", id="assessment-accept", disabled=True)
+                yield Button("Reject assessment", id="assessment-reject", disabled=True)
+        with Horizontal(id="assessment-close-row"):
+            yield Button("Close · Esc", id="assessment-close")
+
+    def on_mount(self) -> None:
+        if self.scope_id:
+            self.load_workspace()
+
+    def action_close(self) -> None:
+        self.dismiss()
+
+    def _notice(self, message: str, *, error: bool = False) -> None:
+        self.query_one("#assessment-notice", Static).update(Text(message, style=FAIL if error else MUTED))
+
+    def _selected_row(self) -> dict[str, Any] | None:
+        selected = self.query_one("#assessment-receipt", Select).value
+        return next((row for row in self.rows if row.get("evidence_id") == selected), None)
+
+    def load_workspace(self, preferred_id: str | None = None) -> None:
+        scope_id = self.query_one("#assessment-scope", Input).value.strip()
+        self.rows = []
+        self.specs = []
+        old_spec = self.query_one("#assessment-spec", Select).value
+        for key in ("run", "refresh", "accept", "reject"):
+            self.query_one(f"#assessment-{key}", Button).disabled = True
+        self.query_one("#assessment-spec", Select).set_options([])
+        self.query_one("#assessment-receipt", Select).set_options([])
+        self.query_one("#assessment-result", Static).update("Select a receipt to inspect criteria, evidence references, and gaps.")
+        if not scope_id:
+            self._notice("Enter an enrolled scope id. No requirement has been assessed.")
+            return
+        try:
+            settings = load_settings()
+            self.specs = [item for item in list_specs(settings, scope_id=scope_id) if item.get("approved") is True]
+            self.rows = (review_queue if self.queue_only else list_assessments)(settings, scope_id=scope_id)
+            self.scope_id = scope_id
+            spec_widget = self.query_one("#assessment-spec", Select)
+            spec_widget.set_options([
+                (f"{item['spec']['spec_id']} · {item['spec_sha256'][:12]}", item["spec_sha256"])
+                for item in self.specs
+            ])
+            if self.specs:
+                hashes = {item["spec_sha256"] for item in self.specs}
+                spec_widget.value = old_spec if old_spec in hashes else self.specs[0]["spec_sha256"]
+            else:
+                self.query_one("#assessment-spec-note", Static).update("No approved specification. Import a specification and approve its hash in the local scope configuration.")
+            receipt_widget = self.query_one("#assessment-receipt", Select)
+            receipt_widget.set_options([
+                (f"{row['receipt'].get('spec_id')} · {'reevaluation required' if not row.get('current') else row['receipt'].get('status')} · {str(row['evidence_id'])[:12]}", row["evidence_id"])
+                for row in self.rows
+            ])
+            if preferred_id and any(row["evidence_id"] == preferred_id for row in self.rows):
+                receipt_widget.value = preferred_id
+            self.query_one("#assessment-refresh", Button).disabled = False
+            if not self.rows:
+                self._notice("No queued receipts. This does not indicate that every requirement has been assessed." if self.queue_only else "No assessment receipts. Select an approved specification to assess.")
+            else:
+                self._notice(f"{len(self.rows)} {'queued' if self.queue_only else 'latest'} receipt(s). Reevaluation uses sealed evidence; no live collection is requested.")
+        except BeaconError as exc:
+            self.rows = []
+            self.specs = []
+            self.query_one("#assessment-spec-note", Static).update("Specification approval state unavailable.")
+            self._notice(str(exc), error=True)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "assessment-spec":
+            item = next((item for item in self.specs if item["spec_sha256"] == event.value), None)
+            self.query_one("#assessment-run", Button).disabled = item is None
+            if item:
+                self.query_one("#assessment-spec-note", Static).update(Text(f"{item['spec'].get('title', item['spec']['spec_id'])}\nSHA-256 {item['spec_sha256']}"))
+        elif event.select.id == "assessment-receipt":
+            row = self._selected_row()
+            if row:
+                self.query_one("#assessment-result", Static).update(_assessment_text(row))
+            receipt = (row or {}).get("receipt") or {}
+            can_accept = bool(row and row.get("current") and receipt.get("status") in {"supporting_pass", "needs_review"}
+                              and not receipt.get("gaps") and not receipt.get("findings"))
+            self.query_one("#assessment-accept", Button).disabled = not can_accept
+            self.query_one("#assessment-reject", Button).disabled = row is None
+            self.query_one("#assessment-rationale", Input).value = ""
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        bid = event.button.id
+        if bid == "assessment-close":
+            self.dismiss()
+            return
+        if bid in {"assessment-load", "assessment-all", "assessment-queue"}:
+            if bid != "assessment-load":
+                self.queue_only = bid == "assessment-queue"
+            self.load_workspace()
+            return
+        # Scope selection must be reloaded before a mutation. It cannot silently
+        # retarget an already displayed specification or receipt.
+        if self.query_one("#assessment-scope", Input).value.strip() != self.scope_id:
+            self._notice("Scope changed. Load it before assessing or reviewing.", error=True)
+            return
+        try:
+            settings = load_settings()
+            if bid == "assessment-run":
+                spec_hash = self.query_one("#assessment-spec", Select).value
+                if not isinstance(spec_hash, str):
+                    self._notice("Select an approved specification first.", error=True)
+                    return
+                receipt = evaluate_assessment(settings, scope_id=self.scope_id, spec_sha256=spec_hash)
+                self.queue_only = False
+                self.load_workspace(receipt.get("receipt_evidence_id"))
+            elif bid == "assessment-refresh":
+                result = refresh_assessments(settings, scope_id=self.scope_id, collect_missing=False)
+                self.load_workspace()
+                self._notice(f"Reevaluation completed: {len(result.get('evaluations') or [])} new receipts; {result.get('unchanged', 0)} unchanged. No live collection requested.")
+            elif bid in {"assessment-accept", "assessment-reject"}:
+                row = self._selected_row()
+                rationale = self.query_one("#assessment-rationale", Input).value.strip()
+                if not row or not rationale:
+                    self._notice("Select a receipt and enter the required review rationale.", error=True)
+                    return
+                record_review(settings, receipt_evidence_id=row["evidence_id"], decision="accept" if bid == "assessment-accept" else "reject", rationale=rationale)
+                self.load_workspace(row["evidence_id"])
+                self._notice("Human review recorded. Objective and control satisfaction remain unset.")
+        except BeaconError as exc:
+            self._notice(str(exc), error=True)
 
 
 class TourScreen(ModalScreen[None]):
@@ -209,6 +441,7 @@ class BeaconTUI(App[None]):
         ("4", "show('push')", "Push"),
         ("5", "show('system')", "System"),
         ("6", "show('collect')", "Collect"),
+        ("7", "assessments", "Assessments"),
         Binding("question_mark", "tour", "Tour", priority=True),
         Binding("h", "tour", "Tour", show=False),
         ("q", "quit", "Quit"),
@@ -223,7 +456,7 @@ class BeaconTUI(App[None]):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal(id="tabs"):
+        with HorizontalScroll(id="tabs"):
             yield Button("Dashboard", id="tab-dashboard")
             yield Button("Freshness", id="tab-freshness")
             yield Button("Validation", id="tab-validation")
@@ -231,6 +464,7 @@ class BeaconTUI(App[None]):
             yield Button("System", id="tab-system")
             yield Button("Collect", id="tab-collect")
             yield Button("Tour", id="do-tour")
+            yield Button("Assessments", id="do-assessments")
         with VerticalScroll(id="body"):
             yield Pane(id="pane")
         with Horizontal(id="scope-actions"):
@@ -263,6 +497,9 @@ class BeaconTUI(App[None]):
     def action_tour(self) -> None:
         self.start_tour()
 
+    def action_assessments(self) -> None:
+        self.push_screen(AssessmentScreen(self.query_one("#scope", Input).value.strip()))
+
     def start_tour(self) -> None:
         if isinstance(self.screen, TourScreen):
             self.screen.cursor.restart()
@@ -292,6 +529,9 @@ class BeaconTUI(App[None]):
                 self.query_one("#pane", Pane).update(Text(json.dumps(result, indent=2)))
             except BeaconError as exc:
                 self.notify(str(exc), severity="error")
+            return
+        if bid == "do-assessments":
+            self.action_assessments()
             return
         if bid == "do-collect":
             self._collect()
@@ -347,7 +587,7 @@ class BeaconTUI(App[None]):
             f"records={status.get('records')}  checkpoints={status.get('checkpoints')}  "
             f"covered={chain.get('covered_through')}\n"
             f"SCF {status.get('scf_version')}  offline={status.get('scf_offline')}\n"
-            "Press ? for the walkthrough.\n\n"
+            "Press 7 for requirement assessments and human review; ? for the walkthrough.\n\n"
             f"[bold {BLUE_TEXT}]Plugins[/]\n{plugins or '  (none)'}"
         )
 

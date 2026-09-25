@@ -170,6 +170,8 @@ TOOLS: dict[str, tuple[str, dict[str, Any], ToolFn]] = {
 # The same verified engine serves the CLI, GUI, TUI, and MCP. No path-reading
 # or arbitrary shell capability is exposed to a model.
 from beacon.assurance.evaluation import evaluate_control, list_receipts, rules_for
+from beacon.assurance.assessments import evaluate_assessment, list_assessments, refresh_assessments, review_queue
+from beacon.assurance.specs import list_specs
 from beacon.assurance.index import load_evidence_ledger
 from beacon.assurance.bedrock import make_judge
 from beacon.scf.objective_catalog import objectives
@@ -185,6 +187,22 @@ def tool_beacon_evaluate(args):
 
 TOOLS["beacon_check"][1]["properties"]["scope_id"] = {"type": "string"}
 TOOLS.update({
+    "beacon_assessment_specs": ("List assessment specifications and their approval state for a scope.",
+        {"type": "object", "properties": {"scope_id": {"type": "string"}}, "additionalProperties": False},
+        lambda args: {"specs": list_specs(load_settings(), scope_id=args.get("scope_id"))}),
+    "beacon_assessments": ("Read latest assessment receipts, invalidation reasons, gaps, and recorded reviews. These do not establish control satisfaction.",
+        {"type": "object", "properties": {"scope_id": {"type": "string"}}, "additionalProperties": False},
+        lambda args: {"assessments": list_assessments(load_settings(), scope_id=args.get("scope_id"))}),
+    "beacon_review_queue": ("Read assessment work requiring collection, reevaluation, or local authorized human review. This tool cannot approve results.",
+        {"type": "object", "properties": {"scope_id": {"type": "string"}}, "additionalProperties": False},
+        lambda args: {"assessments": review_queue(load_settings(), scope_id=args.get("scope_id"))}),
+    "beacon_assess": ("Evaluate an approved assessment specification against sealed scoped evidence and seal a receipt. Does not collect evidence or approve a requirement.",
+        {"type": "object", "properties": {"scope_id": {"type": "string"}, "spec_sha256": {"type": "string"}},
+         "required": ["scope_id", "spec_sha256"], "additionalProperties": False},
+        lambda args: evaluate_assessment(load_settings(), scope_id=args["scope_id"], spec_sha256=args["spec_sha256"])),
+    "beacon_refresh_assessments": ("Reevaluate changed or expired approved assessments using existing sealed evidence. No live collection or human approval is available through this tool.",
+        {"type": "object", "properties": {"scope_id": {"type": "string"}}, "required": ["scope_id"], "additionalProperties": False},
+        lambda args: refresh_assessments(load_settings(), scope_id=args["scope_id"], collect_missing=False)),
     "beacon_scopes": ("List enrolled assessment scopes.", {"type":"object", "properties":{}},
                        lambda args: {"scopes": list_scopes(load_settings())}),
     "beacon_objectives": ("Read pinned SCF objectives and supporting rules.",

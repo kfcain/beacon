@@ -39,8 +39,12 @@ def operator_identity() -> dict:
         fail("E_REVIEW", "local operator review requires a POSIX effective UID")
     import pwd
     uid = os.geteuid()
-    return {"actor_id": f"uid:{uid}", "account_name": pwd.getpwuid(uid).pw_name,
-            "authentication": "local_os_account"}
+    try:
+        name = pwd.getpwuid(uid).pw_name
+    except KeyError:
+        # Containers can run a uid with no passwd entry. The uid is the identity.
+        name = None
+    return {"actor_id": f"uid:{uid}", "account_name": name, "authentication": "local_os_account"}
 
 
 def _scope(settings, scope_id):

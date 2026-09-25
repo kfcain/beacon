@@ -214,7 +214,7 @@ function renderAssessmentDetail(row) {
     }).join("")}</tbody></table></div>` : "<p>No criterion results recorded.</p>"}
     <h4>Gaps and next steps</h4>${readableValue(receipt.gaps || [])}
     <h4>Findings</h4>${readableValue(receipt.findings || [])}
-    <h4>Human review</h4>${row.review ? readableValue(row.review) : "<p>No review recorded. Authorized reviewers can use the local CLI or TUI.</p>"}
+    <h4>Operator review (local OS account)</h4>${row.review ? readableValue(row.review) : "<p>No review recorded. An approved reviewer account can record one in the local TUI or an interactive CLI session.</p>"}
     <details><summary>Receipt provenance</summary><dl class="facts">
     <dt>Evidence ID</dt><dd class="mono">${escapeHTML(row.evidence_id || receipt.receipt_evidence_id)}</dd>
     <dt>Specification SHA-256</dt><dd class="mono">${escapeHTML(receipt.spec_sha256)}</dd>

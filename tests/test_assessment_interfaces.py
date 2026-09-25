@@ -1,4 +1,4 @@
-"""Assessment surfaces preserve scope, refresh, and human-review boundaries."""
+"""Assessment surfaces preserve scope, refresh, and operator-review boundaries."""
 
 from __future__ import annotations
 

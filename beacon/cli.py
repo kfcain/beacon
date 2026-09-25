@@ -248,13 +248,28 @@ def cmd_review_queue(scope_id: str | None) -> None:
         _die(exc)
 
 
+def _interactive_terminal() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
 @main.command("review-assessment")
 @click.option("--receipt", "receipt_evidence_id", required=True)
 @click.option("--decision", type=click.Choice(["accept", "reject"]), required=True)
 @click.option("--rationale", required=True)
 def cmd_review_assessment(receipt_evidence_id: str, decision: str, rationale: str) -> None:
-    """Record a local OS-attributed supporting review; never sets compliance claims."""
+    """Record a local OS-attributed supporting review; never sets compliance claims.
+
+    The record names an OS account, not a person. The terminal check and typed
+    confirmation stop plain scripts and agent tool calls; they do not stop a
+    process that fakes a terminal. Approve a reviewer account that no agent,
+    MCP server, or automation runs as.
+    """
     from beacon.assurance.assessments import record_review
+    if not _interactive_terminal():
+        _die(BeaconError("E_REVIEW", "operator review needs an interactive terminal; scripts cannot record reviews"))
+    typed = click.prompt("Type the receipt evidence id to confirm this review", default="", show_default=False)
+    if typed.strip() != receipt_evidence_id:
+        _die(BeaconError("E_REVIEW", "confirmation did not match the receipt evidence id; no review recorded"))
     try:
         _emit(record_review(_settings(), receipt_evidence_id=receipt_evidence_id,
                             decision=decision, rationale=rationale))

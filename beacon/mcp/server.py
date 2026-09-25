@@ -200,7 +200,7 @@ TOOLS.update({
     "beacon_assessments": ("Read latest assessment receipts, invalidation reasons, gaps, and recorded reviews. These do not establish control satisfaction.",
         {"type": "object", "properties": {"scope_id": {"type": "string"}}, "additionalProperties": False},
         lambda args: {"assessments": list_assessments(load_settings(), scope_id=args.get("scope_id"))}),
-    "beacon_review_queue": ("Read assessment work requiring collection, reevaluation, or local authorized human review. This tool cannot approve results.",
+    "beacon_review_queue": ("Read assessment work requiring collection, reevaluation, or operator review under an approved local OS account. This tool cannot approve results.",
         {"type": "object", "properties": {"scope_id": {"type": "string"}}, "additionalProperties": False},
         lambda args: {"assessments": review_queue(load_settings(), scope_id=args.get("scope_id"))}),
     "beacon_assess": ("Evaluate an approved assessment specification against sealed scoped evidence and seal a receipt. Does not collect evidence or approve a requirement.",

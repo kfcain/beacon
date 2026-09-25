@@ -111,7 +111,7 @@ def _assessment_text(row: dict[str, Any]) -> Text:
         ("Criteria", receipt.get("results") or []),
         ("Gaps and next steps", receipt.get("gaps") or []),
         ("Findings", receipt.get("findings") or []),
-        ("Human review", row.get("review") or "No review recorded."),
+        ("Operator review (local OS account)", row.get("review") or "No review recorded."),
         ("Receipt provenance", {
             "evidence_id": row.get("evidence_id") or receipt.get("receipt_evidence_id"),
             "evaluated_at": receipt.get("evaluated_at"),
@@ -171,7 +171,7 @@ class AssessmentScreen(ModalScreen[None]):
             yield Static("", id="assessment-notice")
             yield Select([], prompt="Select receipt to inspect", id="assessment-receipt")
             yield Static("Load a scope to see specifications and assessment receipts.", id="assessment-result")
-            yield Static("Local human review: enter a rationale. The scope must authorize your operating-system identity. Acceptance cannot override failed or missing evidence.", id="assessment-review-label")
+            yield Static("Operator review: enter a rationale. The scope must approve this OS account. The record shows the account, not proof that a person acted. Acceptance cannot override failed or missing evidence.", id="assessment-review-label")
             yield Input(placeholder="Review rationale with source citations (10–4000 characters)", id="assessment-rationale", max_length=4000)
             with Horizontal(classes="assessment-row"):
                 yield Button("Accept supporting assessment", id="assessment-accept", disabled=True)
@@ -294,7 +294,7 @@ class AssessmentScreen(ModalScreen[None]):
                     return
                 record_review(settings, receipt_evidence_id=row["evidence_id"], decision="accept" if bid == "assessment-accept" else "reject", rationale=rationale)
                 self.load_workspace(row["evidence_id"])
-                self._notice("Human review recorded. Objective and control satisfaction remain unset.")
+                self._notice("Operator review recorded for this OS account. Objective and control satisfaction remain unset.")
         except BeaconError as exc:
             self._notice(str(exc), error=True)
 
@@ -587,7 +587,7 @@ class BeaconTUI(App[None]):
             f"records={status.get('records')}  checkpoints={status.get('checkpoints')}  "
             f"covered={chain.get('covered_through')}\n"
             f"SCF {status.get('scf_version')}  offline={status.get('scf_offline')}\n"
-            "Press 7 for requirement assessments and human review; ? for the walkthrough.\n\n"
+            "Press 7 for requirement assessments and operator review; ? for the walkthrough.\n\n"
             f"[bold {BLUE_TEXT}]Plugins[/]\n{plugins or '  (none)'}"
         )
 

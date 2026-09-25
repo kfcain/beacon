@@ -443,3 +443,43 @@ def test_error_after_the_collector_sealed_does_not_hide_its_record(initialized, 
     assert outcome["status"] == "failed_after_seal"
     ebs = [record for record in load_records(settings) if record.plugin == "aws.ebs.encryption"]
     assert [record.mode for record in ebs] == ["live"]
+
+
+def _cli_review(receipt_id, *, confirmation=None):
+    from click.testing import CliRunner
+    from beacon.cli import main
+    return CliRunner().invoke(main, ["review-assessment", "--receipt", receipt_id, "--decision", "accept",
+                                     "--rationale", "Checked the sealed inventory and key list."],
+                              input=None if confirmation is None else confirmation + "\n")
+
+
+def _reviews(settings):
+    return [record for record in load_records(settings) if record.plugin == "beacon.review"]
+
+
+def test_cli_review_refuses_scripts_and_needs_typed_confirmation(initialized, monkeypatch):
+    import beacon.cli as cli
+    settings = load_settings()
+    scope, digest = enroll(settings)
+    seal(settings, scope, ebs_payload())
+    receipt_id = assess(settings, scope, digest)["receipt_evidence_id"]
+    # CliRunner is not a terminal, like an agent's tool call or a pipeline.
+    refused = _cli_review(receipt_id)
+    assert refused.exit_code != 0 and "interactive terminal" in refused.output
+    monkeypatch.setattr(cli, "_interactive_terminal", lambda: True)
+    mistyped = _cli_review(receipt_id, confirmation="not-the-receipt")
+    assert mistyped.exit_code != 0 and "did not match" in mistyped.output
+    assert _reviews(settings) == []
+    confirmed = _cli_review(receipt_id, confirmation=receipt_id)
+    assert confirmed.exit_code == 0, confirmed.output
+    assert len(_reviews(settings)) == 1
+
+
+def test_operator_identity_without_a_passwd_entry_keeps_the_uid(monkeypatch):
+    import os
+    import pwd
+    monkeypatch.undo()  # use the real function, not the autouse test identity
+    monkeypatch.setattr(pwd, "getpwuid", lambda uid: (_ for _ in ()).throw(KeyError(uid)))
+    identity = assessments.operator_identity()
+    assert identity == {"actor_id": f"uid:{os.geteuid()}", "account_name": None,
+                        "authentication": "local_os_account"}

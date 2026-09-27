@@ -7,3 +7,4 @@ Read [How Beacon works](../HOW_IT_WORKS.md) before these notes. Each file record
 - [beacon-assurance-stack.md](beacon-assurance-stack.md) — workshop, tags, ledger, pack compilers, git policy, and trust center, with shipped phases and design phases labeled.
 - [beacon-evidence-lake.md](beacon-evidence-lake.md) — local seal first, then optional AWS S3 and DynamoDB dual-write. Drawing: [beacon-evidence-lake.drawio](beacon-evidence-lake.drawio).
 - [terraform-compliance.md](terraform-compliance.md) — maps each `deploy/aws` control to the lake requirement and the Rego check.
+- [perch-gate.md](perch-gate.md) — preventive Perch scan, AO-mapped Terraform rules, and the unverified gate receipt.

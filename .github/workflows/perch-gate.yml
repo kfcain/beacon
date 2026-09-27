@@ -1,0 +1,102 @@
+# Opt-in Perch Gate. This workflow is not a required check.
+# A pull request runs the job only when the repository variable PERCH_GATE_ON is true.
+# workflow_dispatch runs the job without that variable.
+# Put the TypeSafe key in the Actions secret PERCH_API_KEY. Do not commit a key.
+name: Perch Gate
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Repository directory to scan
+        default: deploy/aws
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - "**/*.tf"
+      - "**/*.tfvars"
+      - ".perch/**"
+      - "perch.yaml"
+      - "perch-gate/**"
+      - ".github/workflows/perch-gate.yml"
+permissions:
+  contents: read
+concurrency:
+  group: perch-gate-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  perch-gate:
+    name: Perch scan
+    if: github.event_name == 'workflow_dispatch' || vars.PERCH_GATE_ON == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+      - name: Scan with Perch
+        id: scan
+        env:
+          PERCH_API_KEY: ${{ secrets.PERCH_API_KEY }}
+          SCAN_TARGET: ${{ github.event.inputs.target || 'deploy/aws' }}
+        run: |
+          set -euo pipefail
+          case "$SCAN_TARGET" in
+            ""|*..*|/*) echo "target must be a relative path inside the repository"; exit 2 ;;
+          esac
+          if [ ! -d "$SCAN_TARGET" ]; then
+            echo "target directory is missing"
+            exit 2
+          fi
+          mkdir -p "$RUNNER_TEMP/perch-out"
+          if [ -z "${PERCH_API_KEY}" ]; then
+            echo "PERCH_API_KEY is empty. No request was sent."
+            {
+              echo "code=1"
+              echo "live=false"
+              echo "version=not-run"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version="$(npx --yes @lakeday/perch@0.3.5 --version)"
+          set +e
+          npx --yes @lakeday/perch@0.3.5 scan "$SCAN_TARGET" --json --out "$RUNNER_TEMP/perch-out" > "$RUNNER_TEMP/perch-scan.json"
+          code=$?
+          set -e
+          {
+            echo "code=$code"
+            echo "live=true"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+      - name: Write the gate receipt
+        env:
+          SCAN_CODE: ${{ steps.scan.outputs.code }}
+          SCAN_LIVE: ${{ steps.scan.outputs.live }}
+          SCAN_VERSION: ${{ steps.scan.outputs.version }}
+        run: |
+          set -euo pipefail
+          args=(
+            --repo "${GITHUB_REPOSITORY}"
+            --commit "${GITHUB_SHA}"
+            --perch-version "${SCAN_VERSION}"
+            --exit-code "${SCAN_CODE}"
+            --out perch-gate-receipt.json
+          )
+          if [ "$SCAN_LIVE" = "true" ]; then
+            args+=(--live-api --scan "$RUNNER_TEMP/perch-scan.json")
+          fi
+          PYTHONPATH=. python3 -m beacon.perch_gate "${args[@]}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: perch-gate-receipt
+          path: perch-gate-receipt.json
+          if-no-files-found: error
+      - name: Fail the gate when Perch reports a miss
+        if: always()
+        env:
+          SCAN_CODE: ${{ steps.scan.outputs.code }}
+        run: test "$SCAN_CODE" = "0"

@@ -8,6 +8,8 @@ from beacon.scf.catalog_pin import PINNED_SCF_VERSION
 def evidence_kind(plugin: str) -> str:
     if plugin == "git.policy":
         return "policy"
+    if plugin == "git.delivery":
+        return "drop_in"
     if plugin in {"aws.inspector", "azure.inspector", "gcp.inspector", "aws.ebs.encryption"}:
         return "cloud_inspector"
     if plugin == "aws.lake.logs":
@@ -45,7 +47,7 @@ def boundary_reasons(document, payload: dict) -> list[str]:
     boundary = document.boundary
     for kind, field in (("account", "accounts"), ("subscription", "subscriptions"),
                         ("project", "projects"), ("system", "systems")):
-        if payload.get("source") == "git.policy" and kind != "system":
+        if payload.get("source") in {"git.policy", "git.delivery"} and kind != "system":
             continue
         allowed = getattr(boundary, field)
         # The default local workspace label is not a cloud account boundary.

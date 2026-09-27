@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import Field, JsonValue, field_validator, model_validator
 
+from beacon.scope.delivery_source import source_error
 from beacon.scope.document import ScopeDocument, Exclusion, SHA256_RE
 
 
@@ -43,6 +44,19 @@ class ScopeDocumentV2(ScopeDocument):
             sources = values["policy_sources"]
             if not isinstance(sources, list) or any(not isinstance(source, dict) for source in sources):
                 raise ValueError("policy_sources must be an array of objects")
+        if "delivery_sources" in values:
+            sources = values["delivery_sources"]
+            if not isinstance(sources, list):
+                raise ValueError("delivery_sources must be an array of objects")
+            seen: set[tuple[str, str]] = set()
+            for source in sources:
+                message = source_error(source)
+                if message is not None:
+                    raise ValueError(message)
+                key = (source["path"], source["commit"])
+                if key in seen:
+                    raise ValueError("delivery source must not repeat")
+                seen.add(key)
         return values
 
 

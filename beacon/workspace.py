@@ -14,7 +14,7 @@ from beacon.crypto.witness import check_chain, checkpoint_status, load_checkpoin
 from beacon.errors import E_ALREADY_INITIALIZED, BeaconError, fail
 from beacon.plugins.loader import load_plugins
 from beacon.plugins.spec import CollectContext
-from beacon.scf.client import expected_version, summary
+from beacon.scf.client import expected_version
 from beacon.scf.engine import collect_all
 from beacon.storage.s3 import remote_ready
 
@@ -63,7 +63,6 @@ def system_status(settings: Settings) -> dict:
             }
             for plugin in load_plugins(settings).values()
         ]
-    scf = summary(settings)
     return {
         "initialized": initialized,
         "home": str(settings.home),
@@ -73,7 +72,7 @@ def system_status(settings: Settings) -> dict:
         "keys_distinct": bool(recorder_fp and witness_fp and recorder_fp != witness_fp),
         "scf_offline": settings.scf_offline,
         "scf_api_base": settings.scf_api_base,
-        "scf_version": scf.get("scf_version", expected_version()),
+        "scf_version": expected_version(),
         "chain": chain,
         "plugins": plugins,
         "records": len(load_records(settings)) if initialized else 0,

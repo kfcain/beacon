@@ -10,7 +10,8 @@ from pathlib import Path
 from beacon import DATA_DIR_NAME
 
 DEFAULT_SCF_API_BASE = "https://hackidle.github.io/scf-api/"
-SCF_VERSION = "2026.1.1"
+# Highest version on the live HackIDLE host. This value is not the catalog pin.
+LIVE_SCF_HOST_MAX = "2026.1.1"
 
 
 def _truthy(value: str | None) -> bool:

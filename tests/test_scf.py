@@ -35,10 +35,10 @@ def test_offline_summary_is_seed_index_for_2026_3(beacon_home):
     }
     seed_counts = {row["family_code"]: row["control_count"] for row in data["families"]}
     assert seed_counts == pin_counts == {"CRY": 27, "IAC": 123}
-    assert expected_version() == "2026.1.1"
+    assert expected_version() == "2026.3"
     status = system_status(load_settings())
     assert status["scf_offline"] is True
-    assert status["scf_version"] == "2026.1.1"
+    assert status["scf_version"] == "2026.3"
 
 
 def test_offline_controls_iac_01_and_cry_05(beacon_home):

@@ -10,7 +10,8 @@ from typing import Any
 
 import httpx
 
-from beacon.config import SCF_VERSION, Settings
+from beacon.config import Settings
+from beacon.scf.catalog_pin import PINNED_SCF_VERSION
 from beacon.errors import E_SCF, E_UNKNOWN_CONTROL, fail
 
 OFFLINE_DIR = Path(__file__).resolve().parent / "offline"
@@ -97,4 +98,5 @@ def summary(settings: Settings) -> dict[str, Any]:
 
 
 def expected_version() -> str:
-    return SCF_VERSION
+    """Return the catalog pin. The live HackIDLE host is not this version."""
+    return PINNED_SCF_VERSION

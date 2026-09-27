@@ -537,3 +537,67 @@ The workbook SHA-256 is `5a89bf2d3c106a9a87d4b6e3d62dd3e147d0e960d4c07473045a10a
 The objective file SHA-256 is `85bd32502899ff908bb55fee3b1c79f56864565702446bb77fbaf10875725162` (6446 rows).
 The target is green Required checks for Python 3.11, 3.12, and 3.13.
 This entry is not a new assurance-stack cycle. No production AWS apply. No secrets.
+
+## 2026-09-25 — Dark TUI with royal blue accents
+
+- Added the `beacon-dark` default theme with dark navy surfaces and royal blue
+  (`#4169E1`) primary actions, active tabs, input selection, and focus borders.
+- Shared the palette across Textual widgets and Rich content; lighter blue
+  headings and readable muted text replace the previous cyan/purple styling.
+- Applied the theme to the walkthrough and retained distinct success, warning,
+  and error colors. Existing status labels remain visible.
+- Validation: all 8 existing TUI tests passed. A headless render checked the
+  walkthrough and all 6 screens, including exactly one royal blue active tab.
+  `git diff --check` passed.
+- This changes presentation only; document connectors, hosted agents, memory,
+  and scheduled workflows remain proposed work.
+
+## 2026-09-25 — Evidence-set assessment and validator mechanism
+
+- Added immutable, SHA-addressed assessment specifications. A scope must
+  explicitly approve each specification and validator implementation before
+  it can run; specifications cannot contain executable code or choose a model.
+- Added evidence-set validators for narrow EBS encryption, approved KMS-key
+  membership, and approved Git policy review. Results separate eligibility,
+  completeness gaps, observed negative findings, freshness, and human review.
+  An incomplete scan can still expose a qualified failing observation; it can
+  never become a pass through averaging or retrying.
+- Added currentness fingerprints and semantic recomputation so changed,
+  expired, superseded, forged, or implementation-drifted receipts become
+  historical and require reevaluation. All objective/control/assurance claim
+  fields remain false.
+- Added bounded, scope-authorized recollection planning for the read-only EBS
+  collector. Refresh, web `/api/collect`, and MCP `beacon_collect` share one live
+  path: the scope must approve the collector, one attempt per cooldown, and the
+  start record is sealed before network access. The local CLI and TUI keep
+  direct operator collection.
+- Added a local review queue and operator-attested supporting reviews. The
+  reviewer identity is derived from the OS effective UID and is explicitly an
+  account attribution, not proof of human presence. Acceptance is blocked for
+  stale, failed, incomplete, or changed assessments and never changes a
+  compliance claim.
+- Added CLI, web, MCP, and dark/royal-blue TUI surfaces for specifications,
+  assessments, gaps, evidence references, invalidation, and review queue.
+- Reserved assessor, review, and assessment-run source names from drop-in
+  plugins. Added adversarial tests for forged receipts, malformed evidence,
+  stale reviews, policy-byte binding, population gaps, refresh idempotence,
+  and recollection authorization.
+
+## 2026-09-25 — Review fixes for evidence-set assessments
+
+- Web `/api/collect` and MCP `beacon_collect` ran live collection with no scope
+  approval and no cooldown, while the log said they could not. They now use the
+  same bounded path as refresh. If the collector sealed its own record before a
+  later step failed, no synthetic failure record hides it.
+- Reviews are attributed to an OS account, and agents usually run as the
+  operator's account. Interfaces now say operator review, not human review. The
+  CLI needs an interactive terminal and a typed receipt id. The operator guide
+  says to approve a reviewer account that no agent or automation runs as.
+- A point-in-time pass could carry a declared assessment period that its
+  evidence was not in. Evidence outside the period is now a gap.
+- The validator digest now also pins the EBS collector, policy capture, and the
+  collection engine. `beacon assessment-spec-draft` and
+  `beacon assessment-spec-import` give operators a supported import path. The
+  web table marks a review of an outdated receipt.
+- No objective, control, or compliance claim changed. `supporting_pass` remains
+  a supporting result only.

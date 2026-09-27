@@ -14,6 +14,9 @@ from pydantic import BaseModel, ConfigDict
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from beacon.assurance.bedrock import make_judge
+from beacon.assurance.assessments import (bounded_live_collection, evaluate_assessment, list_assessments,
+                                         refresh_assessments, review_queue)
+from beacon.assurance.specs import list_specs
 from beacon.assurance.evaluation import evaluate_control, list_receipts, rules_for
 from beacon.assurance.index import load_evidence_ledger
 from beacon.config import load_settings
@@ -26,6 +29,7 @@ from beacon.scope.store import list_scopes, load_scope
 from beacon.workspace import freshness, system_status, validation
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]", "::1", "testserver"})
 
 
 class CollectBody(BaseModel):
@@ -43,16 +47,30 @@ class EvaluateBody(BaseModel):
     judge: Literal["none", "jev", "bedrock"] = "none"
 
 
+class AssessBody(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    scope_id: str
+    spec_sha256: str
+
+
+class RefreshAssessmentsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    scope_id: str
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Beacon", version="0.1.0")
     token = os.environ.get("BEACON_API_TOKEN", "")
     hosts = [host.strip() for host in os.environ.get("BEACON_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1],testserver").split(",") if host.strip()]
+    # `beacon serve` checks the bind address; this also covers an app started by another ASGI server.
+    if not token and any(host not in LOOPBACK_HOSTS for host in hosts):
+        raise BeaconError("E_AUTH", "a non-loopback BEACON_ALLOWED_HOSTS entry requires BEACON_API_TOKEN")
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
 
     @app.middleware("http")
     async def protect(request: Request, call_next):
         if request.url.path.startswith("/api/"):
-            if token and not hmac.compare_digest(request.headers.get("authorization", ""), f"Bearer {token}"):
+            if token and not hmac.compare_digest(request.headers.get("authorization", "").encode(), f"Bearer {token}".encode()):
                 return JSONResponse({"ok": False, "code": "E_AUTH", "error": "Bearer token required"}, status_code=401)
             origin = request.headers.get("origin")
             if origin and urlsplit(origin).netloc != request.headers.get("host"):
@@ -116,6 +134,28 @@ def create_app() -> FastAPI:
         return evaluate_control(settings, scope_id=payload.scope_id, control_ref=payload.control_ref.upper(),
                                 judge=make_judge(payload.judge, scope))
 
+    @app.get("/api/assessment-specs")
+    def api_assessment_specs(scope_id: str | None = None):
+        return {"specs": list_specs(load_settings(), scope_id=scope_id)}
+
+    @app.get("/api/assessments")
+    def api_assessments(scope_id: str | None = None):
+        return {"assessments": list_assessments(load_settings(), scope_id=scope_id)}
+
+    @app.get("/api/review-queue")
+    def api_review_queue(scope_id: str | None = None):
+        return {"assessments": review_queue(load_settings(), scope_id=scope_id)}
+
+    @app.post("/api/assess")
+    def api_assess(payload: AssessBody):
+        return evaluate_assessment(load_settings(), scope_id=payload.scope_id, spec_sha256=payload.spec_sha256)
+
+    @app.post("/api/assessments/refresh")
+    def api_refresh_assessments(payload: RefreshAssessmentsBody):
+        # Reevaluation only. Live collection is /api/collect, which the scope must
+        # approve and a cooldown bounds. No specification import or review here.
+        return refresh_assessments(load_settings(), scope_id=payload.scope_id, collect_missing=False)
+
     @app.post("/api/push")
     def api_push():
         result = write_pack(load_settings(), None)
@@ -124,6 +164,11 @@ def create_app() -> FastAPI:
     @app.post("/api/collect")
     def api_collect(payload: CollectBody):
         settings = load_settings()
+        if payload.live:
+            # Remote callers get only the scope-approved, cooldown-bounded collector.
+            if not payload.plugin or not payload.scope_id or payload.target:
+                raise BeaconError("E_SCOPE", "live collection needs one approved plugin and a scope_id")
+            return bounded_live_collection(settings, scope_id=payload.scope_id, plugin=payload.plugin)
         ctx = CollectContext(target=payload.target, live=payload.live)
         if payload.plugin:
             return collect_named(settings, payload.plugin, ctx, scope_id=payload.scope_id)

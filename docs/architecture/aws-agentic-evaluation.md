@@ -88,7 +88,9 @@ calls are required by tests or CI, and no account resources are provisioned here
 See [Hindsight and execution workspaces](agent-memory-and-workspaces.md) for the
 proposed memory loop, source provenance, tenant isolation, AWS deployment shape,
 and a Cloudflare Computer prototype boundary. These integrations are proposed,
-not connected services.
+not connected services. The [verified agent slice](verified-agent-slice.md)
+defines the memory port, identities, tool allowlist, review record, and the
+exit gate for the first production-like slice.
 
 ## Existing parallel work
 

@@ -70,21 +70,20 @@ class Record:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Record:
-        return cls(
-            v=int(data["v"]),
-            seq=int(data["seq"]),
-            ts=str(data["ts"]),
-            evidence_id=str(data["evidence_id"]),
-            plugin=str(data["plugin"]),
-            mode=str(data["mode"]),
-            scf_targets=list(data["scf_targets"]),
-            payload_sha256=str(data["payload_sha256"]),
-            prev_sha256=str(data["prev_sha256"]),
-            recorder_pub=str(data["recorder_pub"]),
-            witness_pub=str(data["witness_pub"]),
-            recorder_sig=str(data["recorder_sig"]),
-            witness_sig=str(data["witness_sig"]),
-        )
+        # Exact keys and types, no coercion: the fields that verify are the
+        # fields that were stored. "1" is not 1, and a string is not a target list.
+        if not isinstance(data, dict) or set(data) != _RECORD_FIELDS:
+            raise ValueError("record fields differ from the version 1 schema")
+        for key in ("v", "seq"):
+            if type(data[key]) is not int:
+                raise ValueError(f"record {key} must be an integer")
+        for key in _RECORD_FIELDS - {"v", "seq", "scf_targets"}:
+            if not isinstance(data[key], str):
+                raise ValueError(f"record {key} must be a string")
+        targets = data["scf_targets"]
+        if not isinstance(targets, list) or any(not isinstance(item, str) for item in targets):
+            raise ValueError("record scf_targets must be a list of strings")
+        return cls(**{**data, "scf_targets": list(targets)})
 
     def unsigned_body(self) -> dict[str, Any]:
         return {
@@ -100,6 +99,9 @@ class Record:
             "recorder_pub": self.recorder_pub,
             "witness_pub": self.witness_pub,
         }
+
+
+_RECORD_FIELDS = frozenset(Record.__dataclass_fields__)
 
 
 @dataclass

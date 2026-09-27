@@ -53,8 +53,9 @@ SCF conformity cadence.
    allowed evidence kind, principal, account/project/subscription, and regions.
 3. Require the exact rule hash in version-2 scope parameters and the exact
    objective from the reviewed SCF source. Require the rule's population and
-   schema checks. The latest matching attempt supersedes older attempts,
-   including a newer failed collection.
+   schema checks. The latest attempt for the same control and scope supersedes
+   older attempts, including a newer failed collection. A record for another
+   control does not compete.
 4. Run a deterministic predicate or an explicitly enabled policy reviewer.
 5. Seal a receipt and checkpoint it. Bind the scope, SCF workbook and objective
    file digests, objective row, rule, input payloads, preceding chain head,
@@ -91,9 +92,12 @@ configure the SDK credential through its normal environment, set
 `allow_external_judgment: true` in the scope. The pinned SDK is `typesafe-sdk==0.7.1`.
 The adapter uses Choice, a **two-level** Score rubric (0..1), and numeric Noul.
 Python applies the 1.0 coverage, sufficiency, and confidence minima. Minima are
-not sent to the model. Missing, malformed, uncertain, oversized, or failed
-responses cannot produce supporting success. These probabilities are model
-judgments, not measured control effectiveness or a calibrated audit confidence.
+not sent to the model. A Jev judgment is advisory: the row stays `needs_review`
+with `advisory_meets_thresholds` or `judgment_abstained_or_below_threshold`, and
+always `human_review_required`. No model output sets `supporting_pass`. Missing,
+malformed, uncertain, oversized, or failed responses never meet the minima. These
+probabilities are model judgments, not measured control effectiveness or a
+calibrated audit confidence.
 
 For Bedrock, set `BEACON_BEDROCK_ENABLED=1`, approve model processing in scope,
 and supply `bedrock_model_id` and `bedrock_region` in scope parameters. Use
@@ -115,18 +119,47 @@ available. SDK failures record error classes, not credentials or request headers
 CLI, GUI, TUI, and MCP call the same verification/evaluation functions. The web
 Assessment tab selects scope, collector mode, control, and optional reviewer;
 it shows objective rows, evidence exclusions, and historical receipts. The TUI
-accepts a scope and plugin and evaluates a selected target without model calls.
+accepts a scope and plugin, has an explicit **Live** toggle (off by default, as in
+the web console and MCP), reports each run's mode, and evaluates a selected target
+without model calls.
 MCP exposes `beacon_scopes`, `beacon_objectives`, `beacon_ledger`,
 `beacon_evaluate`, and `beacon_receipts`, with typed arguments and no arbitrary
 file-reading or shell tool.
 
 The web console binds to loopback by default. A non-loopback CLI bind requires
 `BEACON_API_TOKEN`; use TLS termination and explicit `BEACON_ALLOWED_HOSTS` for
-remote use. API reads and writes require that bearer token when configured.
+remote use. API reads and writes require that bearer token when configured. The app
+factory also refuses a non-loopback `BEACON_ALLOWED_HOSTS` entry without a token, so an
+app started by another ASGI server cannot serve an open remote API.
 Mutation requests need `X-Beacon-Request: 1`; cross-origin requests and unapproved
 Host headers are rejected. The UI keeps a supplied token only in memory and
 escapes evidence-derived HTML. This is an operator console, not multitenant
 identity management or an OIDC deployment.
+
+## Evidence-set assessments and operator review
+
+An assessment specification lists criteria for one SCF objective. Each criterion
+names an installed validator and its code digest. `beacon assessment-spec-draft`
+prints an EBS example; `beacon assessment-spec-import --file` stores a reviewed
+specification by digest. Importing does not approve it: the scope must list the
+digest in `approved_assessment_sha256`. `beacon assess` seals a receipt;
+`beacon assessments` and `beacon review-queue` show whether each receipt is still
+current. A change to evidence, scope, validator code, or freshness makes a receipt
+historical. When the scope declares an `assessment_period`, evidence observed
+outside it is a gap. No receipt sets objective or control satisfaction.
+
+Live collection through refresh, the web API, or MCP needs the collector in the
+scope's `allowed_assessment_collectors`, and `assessment_recollection_seconds`
+limits it to one attempt per cooldown. The local CLI and TUI keep direct operator
+collection.
+
+A review records the local OS account (`uid:N`) of the process, not a person.
+The scope must list that uid in `approved_reviewers`. The CLI accepts a review only
+in an interactive terminal, after the reviewer types the receipt id; the TUI asks
+for a rationale. These checks stop scripts and agent tool calls, not a process that
+fakes a terminal. **Approve a reviewer account that no agent, MCP server, or
+automation runs as.** Acceptance is refused for an outdated receipt, a failed check,
+or any gap.
 
 ## Trust migration and recovery
 

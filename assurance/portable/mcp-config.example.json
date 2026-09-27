@@ -1,0 +1,1 @@
+{"mcpServers":{"beacon":{"command":"node","args":["/ABSOLUTE/PATH/TO/beacon/assurance/portable/mcp.mjs"],"env":{"BEACON_DATABASE":"/ABSOLUTE/PATH/TO/workspace.sqlite","BEACON_WORKSPACE":"local-owner","BEACON_MCP_WRITES":"false"}}}}

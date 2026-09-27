@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: beacon-collect-ebs
+  namespace: beacon-collectors
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: {app: beacon-collector}
+    spec:
+      serviceAccountName: beacon-aws-readonly
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: collector
+          image: REPLACE_WITH_APPROVED_REGISTRY_AND_DIGEST
+          args: [--scope, /scope/approved.json, --claim, ENC-01, --output, /evidence/observation.json]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          volumeMounts:
+            - {name: scope, mountPath: /scope, readOnly: true}
+            - {name: evidence, mountPath: /evidence}
+      volumes:
+        - name: scope
+          configMap: {name: beacon-approved-scope}
+        - name: evidence
+          emptyDir: {sizeLimit: 32Mi}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: collector-deny-default, namespace: beacon-collectors}
+spec:
+  podSelector: {matchLabels: {app: beacon-collector}}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []
+# Before use: configure workload-identity token projection, approved DNS/API egress,
+# immutable scope, and an external result-ingestion mechanism. No signer in this pod.

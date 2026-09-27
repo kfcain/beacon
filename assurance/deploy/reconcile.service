@@ -1,0 +1,15 @@
+[Unit]
+Description=Beacon evidence freshness reconciliation
+[Service]
+Type=oneshot
+User=beacon
+Group=beacon
+WorkingDirectory=/opt/beacon/assurance
+EnvironmentFile=/etc/beacon/runtime.env
+ExecStart=/usr/bin/node /opt/beacon/assurance/portable/cli.mjs reconcile
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/beacon
+RestrictAddressFamilies=AF_UNIX

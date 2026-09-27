@@ -97,6 +97,10 @@ The default live API is `https://hackidle.github.io/scf-api/`. That host max is 
 
 The offline control slice for `--target` is IAC-02 and CRY-07 only. The 2026.3 legacy map sends IAC-01 (IAM) to IAC-02 and CRY-05 (data at rest) to CRY-07. The 2026.3 ids IAC-01 and CRY-05 name different controls. The catalog plugin target is GOV-02.
 
+## Perch Gate
+
+Perch Gate is a preventive scan of Terraform. The skill, the rules, and the receipt schema are in [perch-gate/README.md](../perch-gate/README.md). A gate receipt has the status word unverified. `beacon perch-receipt` writes that JSON. It does not append a witness record. Collectors still run after deploy. The charter is [architecture/perch-gate.md](architecture/perch-gate.md).
+
 ## Read next
 
 This page does not copy those notes.
@@ -105,6 +109,7 @@ This page does not copy those notes.
 - [Assurance stack](architecture/beacon-assurance-stack.md) — workshop, tags, ledger, pack compilers, git policy, and trust center, with each phase labeled.
 - [Evidence lake](architecture/beacon-evidence-lake.md) — local seal, then optional S3 and DynamoDB.
 - [LIMITS.md](../LIMITS.md) — bounds on what a seal, a ledger count, and a lake object mean.
+- [Perch Gate](architecture/perch-gate.md) — preventive Terraform scan and the unverified gate receipt.
 - [SCF catalog pin](SCF_CATALOG.md) — 2026.3 pin files and fail-closed checks.
 - [Storage](STORAGE.md) — object keys and the files that stay local.
 - [20x pack drafts](../beacon/assurance/README.md) — field map for `beacon pack compile`.

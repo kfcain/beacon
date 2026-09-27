@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beacon.local/perch-gate/gate-receipt.schema.json",
+  "title": "Perch Gate receipt v0",
+  "description": "Minimum charter fields plus a fail-closed status. claim_status is unverified. sealed is false. A later seal uses a later schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "repo",
+    "commit_sha",
+    "ruleset_sha256",
+    "perch_version",
+    "exit_code",
+    "problem_count",
+    "failing",
+    "ao_hits",
+    "scope_id",
+    "scope_sha256",
+    "claim_status",
+    "sealed",
+    "live_api"
+  ],
+  "properties": {
+    "schema_version": { "const": 0 },
+    "kind": { "const": "perch_gate" },
+    "repo": { "type": "string", "minLength": 1 },
+    "commit_sha": { "type": "string", "minLength": 1 },
+    "ruleset_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "perch_version": { "type": "string", "minLength": 1 },
+    "exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
+    "problem_count": { "type": "integer", "minimum": 0 },
+    "failing": { "type": "boolean" },
+    "ao_hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scf_id", "issue_ids"],
+        "properties": {
+          "scf_id": { "type": "string", "minLength": 1 },
+          "ao_id": { "type": "string", "minLength": 1 },
+          "issue_ids": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "scope_id": { "type": ["string", "null"] },
+    "scope_sha256": { "type": ["string", "null"] },
+    "claim_status": { "const": "unverified" },
+    "sealed": { "const": false },
+    "live_api": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "problem_count": { "minimum": 1 } },
+        "required": ["problem_count"]
+      },
+      "then": { "properties": { "failing": { "const": true } } }
+    },
+    {
+      "if": {
+        "properties": { "exit_code": { "minimum": 1 } },
+        "required": ["exit_code"]
+      },
+      "then": { "properties": { "failing": { "const": true } } }
+    },
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "scope_id": { "type": "null" },
+            "scope_sha256": { "type": "null" }
+          }
+        },
+        {
+          "properties": {
+            "scope_id": { "type": "string", "minLength": 1 },
+            "scope_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        }
+      ]
+    }
+  ]
+}

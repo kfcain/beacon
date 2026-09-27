@@ -14,6 +14,10 @@ build/
 .python-version
 *.log
 .DS_Store
+# Perch scan output. Commit .perch/rules. Ignore results.
+.perch/*
+!.perch/rules/
+!.perch/rules/**
 .terraform/
 *.tfstate
 *.tfstate.backup

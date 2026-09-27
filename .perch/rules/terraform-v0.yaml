@@ -1,0 +1,72 @@
+# Perch reads this list. A key outside the Perch grammar makes `perch rules list` fail.
+# Beacon ids sit in the beacon.* comments above each rule.
+# The same ids are in perch-gate/maps/terraform-v0.json.
+# Fill a missing ao_id from beacon/scf/objectives/rows.json. Leave the comment out until the row exists.
+
+# beacon.scf_id: CRY-07
+# beacon.ao_id: CRY-07_A02
+# beacon.legacy_control_ref: CRY-05
+# beacon.ppt: Technology
+# beacon.origins: SCF Created
+- name: tf-encryption-at-rest
+  where: "**/*.tf"
+  each: file
+  min: 70
+  gate: true
+  ensure: >
+    Storage that keeps data has encryption at rest.
+    A storage resource with no encryption setting breaks this rule.
+    A storage resource with encryption turned off breaks this rule.
+    Storage includes an S3 bucket, an EBS volume, an RDS instance, a DynamoDB table, a GCS bucket, and an Azure storage account.
+    A file with no storage resource meets this rule.
+
+# beacon.scf_id: IAC-25
+# beacon.ao_id: IAC-25_A06
+# beacon.legacy_control_ref: IAC-20
+# beacon.ppt: Technology
+# beacon.origins: 171A_3.1.1[d]
+- name: tf-no-public-acl
+  where: "**/*.tf"
+  each: file
+  min: 70
+  gate: true
+  ensure: >
+    Object storage is closed to the public.
+    A public-read ACL breaks this rule.
+    A public-read-write ACL breaks this rule.
+    An ACL value of public breaks this rule.
+    A public access block flag set to false breaks this rule.
+    A file with no object store meets this rule.
+
+# beacon.scf_id: MON-04
+# beacon.ao_id: MON-04_A02
+# beacon.legacy_control_ref: MON-01.4
+# beacon.ppt: Technology
+# beacon.origins: SCF Created
+- name: tf-required-logging
+  where: "**/*.tf"
+  each: file
+  min: 70
+  gate: true
+  ensure: >
+    A bucket that stores data has a logging resource in the same file.
+    The logging resource is aws_s3_bucket_logging, aws_cloudtrail, or the same control for another cloud.
+    A data bucket with no logging resource in the same file breaks this rule.
+    A file with no bucket meets this rule.
+
+# beacon.scf_id: CFG-17.2
+# beacon.ao_id: CFG-17.2_A04
+# beacon.legacy_control_ref: CFG-09.2
+# beacon.ppt: Technology
+# beacon.origins: SCF Created
+- name: tf-no-plaintext-secrets
+  where: "**/*.tf"
+  each: file
+  min: 70
+  gate: true
+  ensure: >
+    A Terraform file has no plaintext secret and no encoded secret.
+    A string literal that is a password, a token, a secret, or a private key breaks this rule.
+    A reference to a secrets manager meets this rule.
+    A variable with no literal value meets this rule.
+    A description that only names a secret meets this rule.

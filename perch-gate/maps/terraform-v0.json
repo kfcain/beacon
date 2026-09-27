@@ -1,0 +1,51 @@
+{
+  "schema_version": 0,
+  "scf_pin": "2026.3",
+  "objective_catalog": "beacon/scf/objectives/rows.json",
+  "note": "ao_id comes from the vendored Assessment Objectives sheet. Omit ao_id when that sheet has no row. framework_hops are copied only from beacon/scf/offline control JSON. A pass of a rule is not a satisfied objective.",
+  "rules": [
+    {
+      "name": "tf-encryption-at-rest",
+      "scf_id": "CRY-07",
+      "ao_id": "CRY-07_A02",
+      "legacy_control_ref": "CRY-05",
+      "ppt": "Technology",
+      "origins": "SCF Created",
+      "control_json": "beacon/scf/offline/CRY-07.json",
+      "framework_hops": {
+        "general-nist-800-53-r5-2": ["SC-13", "SC-28", "SC-28(01)"],
+        "usa-federal-gsa-fedramp-5-high": ["SC-13", "SC-28", "SC-28(01)"],
+        "usa-federal-dow-cmmc-2-level-2": ["MPL2.-3.8.6", "SCL2.-3.13.16"],
+        "general-aicpa-tsc-2017": ["CC6.1", "CC6.1-POF10", "CC6.7", "CC6.7-POF2", "CC6.7-POF3"]
+      },
+      "gap": "The rule checks that storage encryption is present. CRY-07_A07 asks for organization-defined types. That row stays off ao_id until the rule names those types. The offline slice title for CRY-07 is Encrypting Data At Rest."
+    },
+    {
+      "name": "tf-no-public-acl",
+      "scf_id": "IAC-25",
+      "ao_id": "IAC-25_A06",
+      "legacy_control_ref": "IAC-20",
+      "ppt": "Technology",
+      "origins": "171A_3.1.1[d]",
+      "gap": "The objective says system access is limited to authorized users. It does not name an S3 ACL. IAC-02 objectives describe the IAM program. They are not this rule. The offline slice has no IAC-25.json, so this rule has no framework_hops. IAC-25_A01 can be a later ao_id when the rule checks an approved authorization on each allow."
+    },
+    {
+      "name": "tf-required-logging",
+      "scf_id": "MON-04",
+      "ao_id": "MON-04_A02",
+      "legacy_control_ref": "MON-01.4",
+      "ppt": "Technology",
+      "origins": "SCF Created",
+      "gap": "The objective says audit records for the selected event types are generated. This rule checks that a logging resource is in the same file. It does not select event types. aws.lake.logs seals IAC-02. That collector target is not this map. The offline slice has no MON-04.json, so this rule has no framework_hops."
+    },
+    {
+      "name": "tf-no-plaintext-secrets",
+      "scf_id": "CFG-17.2",
+      "ao_id": "CFG-17.2_A04",
+      "legacy_control_ref": "CFG-09.2",
+      "ppt": "Technology",
+      "origins": "SCF Created",
+      "gap": "The objective says software artifacts are scanned for plain text or encoded secrets and keys. IAC-53_A03 is a real row for CAA automated-identity credentials. This rule cannot tell a CAA credential from another secret, so that ao_id stays unset. The offline slice has no CFG-17.2.json, so this rule has no framework_hops. .tfvars files are a later where glob."
+    }
+  ]
+}

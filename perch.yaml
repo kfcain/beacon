@@ -1,0 +1,12 @@
+# Perch Gate v0 asks the Terraform rules in .perch/rules/.
+# scan_types is the whole set for a scan. lint is the custom-rule type.
+# Add defect or security here when a later pack asks those questions.
+scan_types:
+  - lint
+
+ignore:
+  - assurance/**
+  - node_modules/**
+  - .venv/**
+
+rules: []

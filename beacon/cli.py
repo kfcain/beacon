@@ -20,7 +20,8 @@ from beacon.assurance.mapper_ingest import ingest_mapper_file
 from beacon.assurance.delivery import capture_delivery
 from beacon.assurance.policy import address_policy
 from beacon.crypto.witness import check_chain, create_checkpoint, load_checkpoints, load_records
-from beacon.errors import BeaconError
+from beacon.errors import BeaconError, E_PERCH, fail
+from beacon.perch_gate import build_mock_receipt, build_receipt, build_scan_receipt
 from beacon.plugins.loader import load_plugins
 from beacon.plugins.spec import CollectContext
 from beacon.scf.engine import collect_all, collect_named, collect_target
@@ -803,6 +804,73 @@ def cmd_tui(no_tour: bool) -> None:
     from beacon.tui.app import run_tui
 
     run_tui(skip_tour=no_tour)
+
+
+@main.command("perch-receipt")
+@click.option("--mock", "mock", is_flag=True, help="Write an unverified receipt. No Perch API call.")
+@click.option("--scan", "scan", type=click.Path(path_type=Path, dir_okay=False), default=None)
+@click.option("--exit-code", "exit_code", type=int, default=None)
+@click.option("--repo", "repo", default=None)
+@click.option("--commit", "commit_sha", default=None)
+@click.option("--perch-version", "perch_version", default=None)
+@click.option("--scope", "scope_id", default=None)
+@click.option("--scope-sha256", "scope_sha256", default=None)
+@click.option("--live-api", "live_api", is_flag=True, help="Set only after this process called Perch.")
+@click.option("--root", "root", type=click.Path(path_type=Path, file_okay=False), default=None)
+@click.option("--out", "out", type=click.Path(path_type=Path, dir_okay=False), default=None)
+def cmd_perch_receipt(
+    mock: bool,
+    scan: Path | None,
+    exit_code: int | None,
+    repo: str | None,
+    commit_sha: str | None,
+    perch_version: str | None,
+    scope_id: str | None,
+    scope_sha256: str | None,
+    live_api: bool,
+    root: Path | None,
+    out: Path | None,
+) -> None:
+    """Write a Perch Gate receipt. The command does not seal."""
+    try:
+        if mock and scan is not None:
+            fail(E_PERCH, "use --mock or --scan")
+        if mock:
+            if live_api:
+                fail(E_PERCH, "a mock receipt has live_api false")
+            receipt = build_mock_receipt(root)
+        else:
+            if exit_code is None or not repo or not commit_sha or not perch_version:
+                fail(E_PERCH, "a scan receipt needs --repo, --commit, --perch-version, and --exit-code")
+            if scan is None:
+                receipt = build_receipt(
+                    root=root,
+                    repo=repo,
+                    commit_sha=commit_sha,
+                    perch_version=perch_version,
+                    exit_code=exit_code,
+                    issues=[],
+                    live_api=live_api,
+                    scope_id=scope_id,
+                    scope_sha256=scope_sha256,
+                )
+            else:
+                receipt = build_scan_receipt(
+                    scan,
+                    root=root,
+                    repo=repo,
+                    commit_sha=commit_sha,
+                    perch_version=perch_version,
+                    exit_code=exit_code,
+                    live_api=live_api,
+                    scope_id=scope_id,
+                    scope_sha256=scope_sha256,
+                )
+    except BeaconError as exc:
+        _die(exc)
+    if out is not None:
+        out.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    _emit(receipt)
 
 
 @main.command("mcp")

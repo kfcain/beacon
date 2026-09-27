@@ -53,9 +53,8 @@ def _steps() -> tuple[TourStep, ...]:
             focus="dashboard",
             body=(
                 "Plugins and an SCF version line are on this tab.\n"
-                "The SCF line is the control-slice version.\n"
-                "That version is often 2026.1.1.\n"
-                f"The catalog pin is SCF {pin}. HackIDLE is not the pin.\n"
+                f"The SCF line is catalog pin {pin}.\n"
+                "The live HackIDLE host max is 2026.1.1. That host is not the pin.\n"
                 "A plugin row is a label. It is not a control result.\n"
                 "Press ? or h, or Tour, to open this walkthrough again."
             ),

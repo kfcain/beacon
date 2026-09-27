@@ -97,5 +97,5 @@ exit gate for the first production-like slice.
 PR #2's React/Node assurance workspace remains a separate product branch. This
 change develops the Python engine and its existing interfaces; it does not merge
 or replace that application. Port any useful presentation work only after it
-calls the verified engine. PR #5's older 2026.2 catalog work must be reconciled
-against the current 2026.3 pin, not merged as a silent catalog downgrade.
+calls the verified engine. PR #5 pins SCF 2026.2. Keep that pull request closed.
+The catalog pin is 2026.3. A merge of that pull request would downgrade the pin.

@@ -24,7 +24,7 @@ dependencies = [
   "textual>=0.70",
   "pydantic>=2",
   "boto3>=1.34.0,<2",
-  "filelock>=3.19,<4",
+  "filelock>=4.0.1,<5",
 ]
 
 [project.optional-dependencies]

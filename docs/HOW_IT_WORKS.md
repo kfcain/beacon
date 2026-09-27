@@ -110,7 +110,7 @@ This page does not copy those notes.
 - [Evidence lake](architecture/beacon-evidence-lake.md) — local seal, then optional S3 and DynamoDB.
 - [LIMITS.md](../LIMITS.md) — bounds on what a seal, a ledger count, and a lake object mean.
 - [Perch Gate](architecture/perch-gate.md) — preventive Terraform scan and the unverified gate receipt.
-- [Agent skills](../skills/README.md) — one skill per job for the Python engine, the pin, claims, the gate, and CI.
+- [Agent skills](../plugin/README.md) — one skill per job for the Python engine, the pin, claims, the gate, and CI. `beacon plugin install` writes that pack for Cursor, Claude Code, Claude Cowork, Codex, or pi.
 - [SCF catalog pin](SCF_CATALOG.md) — 2026.3 pin files and fail-closed checks.
 - [Storage](STORAGE.md) — object keys and the files that stay local.
 - [20x pack drafts](../beacon/assurance/README.md) — field map for `beacon pack compile`.

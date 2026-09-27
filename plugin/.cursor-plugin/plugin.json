@@ -1,0 +1,12 @@
+{
+  "name": "beacon",
+  "version": "0.1.0",
+  "description": "Beacon custody skills for the local evidence engine, the SCF 2026.3 pin, and the unverified Perch gate.",
+  "author": {
+    "name": "Kyle Cain"
+  },
+  "repository": "https://github.com/kfcain/beacon",
+  "license": "Apache-2.0",
+  "keywords": ["beacon", "grc", "scf", "custody", "perch"],
+  "skills": "./skills"
+}

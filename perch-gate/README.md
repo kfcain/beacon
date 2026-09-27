@@ -18,7 +18,8 @@ A passing scan is a preventive result. It is not a seal. It is not a statement t
 
 | Path | Role |
 | --- | --- |
-| `skills/beacon-perch-gate/SKILL.md` | Install, author, CI, receipt, claim words |
+| `skills/beacon-perch-gate/SKILL.md` | Install, author, CI, receipt, claim words. The file links to `plugin/skills/`. |
+| `plugin/` | Skill pack and `beacon plugin install` for Cursor, Claude Code, Cowork, Codex, and pi |
 | `.perch/rules/terraform-v0.yaml` | Four Terraform rules Perch can parse |
 | `perch-gate/maps/terraform-v0.json` | SCF and AO map for those rules |
 | `perch.yaml` | `scan_types: [lint]` for this pack |

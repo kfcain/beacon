@@ -28,7 +28,7 @@ A seal records collected bytes on a witness chain. A seal does not mean a contro
 | TUI or GUI | `beacon-ui` |
 | GitHub workflows and local tests | `beacon-ci` |
 
-The index is `skills/README.md`.
+The index is `plugin/README.md`. `skills/README.md` points at that file. The gate note is `plugin/PERCH-GATE.md`. A gate receipt stays unverified. v0 does not seal.
 
 ## Success
 

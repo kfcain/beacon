@@ -192,10 +192,11 @@ beacon ledger summary --scope prod-commercial --class c
 beacon pack compile --scope prod-commercial --class c
 ```
 
-`beacon policy show` addresses a git JSON policy by path and content hash. The tag is `evidence:policy`. Word and PDF files fail closed. `beacon ingest mapper` registers a grc-pdf-mapper JSON file as a candidate under `.beacon/ingest/mapper/`. The candidate has no claim word. `Record.v` stays 1. See [beacon/assurance/README.md](beacon/assurance/README.md).
+`beacon policy show` addresses a git JSON policy by path and content hash. The tag is `evidence:policy`. Word and PDF files fail closed. `beacon delivery` seals three approved Git facts: whether a change gate blocks, whether a release image is a digest or a commit id, and whether the cluster boundary keeps the API, the admin principal, and the node subnets closed. The seal stores the facts, not the file bytes. `assurance_claim` is false. `beacon ingest mapper` registers a grc-pdf-mapper JSON file as a candidate under `.beacon/ingest/mapper/`. The candidate has no claim word. `Record.v` stays 1. See [beacon/assurance/README.md](beacon/assurance/README.md).
 
 ```bash
 beacon policy hash --path policies/access-control.json
+beacon delivery --scope portfolio-eks --root ../platform --path terraform/main.tf --commit FULL_SHA
 beacon ingest mapper --file maps/report.json
 ```
 

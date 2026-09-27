@@ -48,6 +48,25 @@ beacon policy hash --path policies/access-control.json
 
 `--expect-sha256` fails closed when the canonical hash differs. A Word file or a PDF file fails closed. `control_refs` accepts IAC-02, CRY-07, and GOV-02. The custody tag is `evidence:policy`. The role is `candidate`. This command does not append a witness record.
 
+## Delivery facts
+
+`beacon delivery` reads one approved Git commit. It seals three kinds of fact. It does not seal the file bytes, and it does not read the working tree.
+
+| Kind | File | Fact |
+| --- | --- | --- |
+| `change_workflow` | `.yml` or `.yaml` | Checkov, Trivy, or `npm audit` posture: `blocking`, `advisory`, or `unknown` |
+| `release_manifest` | `.yml` or `.yaml` | Image identity: `digest`, `git_sha`, `floating`, or `unresolved` |
+| `cluster_boundary` | `.tf` | Public API exposure, admin principal source, and node subnet class |
+
+A `soft_fail: true` gate is `advisory`. The gap is `gate_not_blocking`. A floating image tag is the gap `floating_image_tag`. A public API CIDR of the world, a committed admin ARN, or a node group on public subnets is a gap. `AmazonEKSClusterAdminPolicy` is the gap `broad_cluster_admin_policy`. The seal does not copy an account id, an ARN, or an IP address.
+
+Scope version 2 lists each source in `parameters.delivery_sources` with `path`, `commit`, `file_sha256`, `system_id`, and `kind`. The evidence kind is `drop_in`. `assurance_claim` is false. This command does not run Terraform, Checkov, Trivy, or a cluster API.
+
+```bash
+beacon delivery --scope portfolio-eks --root ../aws-eks-platform \
+  --path .github/workflows/validate.yml --commit FULL_SHA
+```
+
 ## Mapper ingest
 
 `beacon ingest mapper` reads one JSON file from grc-pdf-mapper. The known shapes are a mapping report (`doc_id`, `snapshot_id`, `ingest`), a KSI catalog (`source`, `classes`, `domains`), and policy-code links (`links`). Any other shape fails closed.

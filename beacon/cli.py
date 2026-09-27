@@ -1,4 +1,4 @@
-"""Beacon CLI: init, seed, collect, check, scope, ledger, pack, trust, scn, inbox."""
+"""Beacon CLI: init, seed, collect, check, scope, ledger, pack, trust, scn, inbox, delivery."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from beacon.assurance.packs import PACK_KINDS
 from beacon.assurance.scn import draft_scn, write_scn
 from beacon.assurance.trust_center import publish_bytes, publish_ledger_summary
 from beacon.assurance.mapper_ingest import ingest_mapper_file
+from beacon.assurance.delivery import capture_delivery
 from beacon.assurance.policy import address_policy
 from beacon.crypto.witness import check_chain, create_checkpoint, load_checkpoints, load_records
 from beacon.errors import BeaconError
@@ -522,6 +523,19 @@ def cmd_policy_seal(scope_id: str, root: Path, path: str, commit: str) -> None:
     from beacon.assurance.policy_capture import capture_policy
     try:
         _emit(capture_policy(_settings(), scope_id=scope_id, root=root, path=path, commit=commit))
+    except BeaconError as exc:
+        _die(exc)
+
+
+@main.command("delivery")
+@click.option("--scope", "scope_id", required=True)
+@click.option("--root", required=True, type=click.Path(path_type=Path, exists=True, file_okay=False))
+@click.option("--path", required=True)
+@click.option("--commit", required=True)
+def cmd_delivery_seal(scope_id: str, root: Path, path: str, commit: str) -> None:
+    """Seal approved delivery facts. The command does not read the working tree."""
+    try:
+        _emit(capture_delivery(_settings(), scope_id=scope_id, root=root, path=path, commit=commit))
     except BeaconError as exc:
         _die(exc)
 

@@ -372,10 +372,13 @@ def build_receipt(
     live_api: bool = False,
     scope_id: str | None = None,
     scope_sha256: str | None = None,
+    scan_supplied: bool = False,
 ) -> dict[str, Any]:
     """Return a receipt. claim_status stays unverified. sealed stays false."""
     if not repo or not commit_sha or not perch_version:
         fail(E_PERCH, "repo, commit_sha, and perch_version are required")
+    if live_api and not scan_supplied:
+        fail(E_PERCH, "live_api requires the scan JSON from a finished Perch run")
     if live_api and perch_version in {"not-run", "unknown"}:
         fail(E_PERCH, "a live scan needs the Perch version string")
     if isinstance(exit_code, bool) or not isinstance(exit_code, int) or exit_code < 0:
@@ -446,6 +449,7 @@ def build_scan_receipt(
         live_api=live_api,
         scope_id=scope_id,
         scope_sha256=scope_sha256,
+        scan_supplied=True,
     )
 
 

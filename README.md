@@ -160,6 +160,8 @@ beacon perch-receipt --mock
 
 The mock command does not call Perch. CI uses the secret `PERCH_API_KEY` and stays off until the repository variable `PERCH_GATE_ON` is true, or until someone runs the workflow by hand. See [perch-gate/README.md](perch-gate/README.md) and [docs/architecture/perch-gate.md](docs/architecture/perch-gate.md).
 
+Agent skills for the Python engine, the SCF pin, custody claims, Perch Gate, and CI are in [skills/README.md](skills/README.md). Cursor loads the same folders through `.cursor/skills/`.
+
 ## Drop-in platforms
 
 See [docs/PLUGINS.md](docs/PLUGINS.md). Example: [examples/echo_platform.py](examples/echo_platform.py).

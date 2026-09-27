@@ -12,6 +12,7 @@ from beacon.cli import main
 from beacon.errors import BeaconError
 from beacon.perch_gate import (
     build_mock_receipt,
+    build_receipt,
     build_scan_receipt,
     merge_rule_texts,
     parse_rule_file,
@@ -153,11 +154,44 @@ def test_scf_id_yaml_key_is_rejected():
     assert caught.value.code == "E_PERCH"
 
 
+def test_live_api_without_scan_json_fails():
+    with pytest.raises(BeaconError) as caught:
+        build_receipt(
+            root=ROOT,
+            repo="kfcain/beacon",
+            commit_sha="e" * 40,
+            perch_version="0.3.5",
+            exit_code=0,
+            live_api=True,
+        )
+    assert caught.value.code == "E_PERCH"
+
+
 def test_claim_word_is_rejected():
     receipt = build_mock_receipt(ROOT)
     receipt["claim_status"] = "compliant"
     with pytest.raises(BeaconError):
         validate_receipt(receipt)
+
+
+def test_cli_live_api_without_scan_fails():
+    result = CliRunner().invoke(
+        main,
+        [
+            "perch-receipt",
+            "--live-api",
+            "--exit-code",
+            "0",
+            "--repo",
+            "kfcain/beacon",
+            "--commit",
+            "abc",
+            "--perch-version",
+            "0.3.5",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "live_api requires the scan JSON" in (result.output + (result.stderr or ""))
 
 
 def test_cli_mock_prints_unverified():

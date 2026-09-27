@@ -75,4 +75,4 @@ CRY-07 is in the offline control slice. IAC-25, MON-04, and CFG-17.2 are `contro
 
 ## Claim words
 
-Use the status word unverified while `sealed` is false. A claim word needs a sealed receipt in the same view. A green exit code is still unverified. Runtime collectors remain part of the control story.
+Use the status word unverified while `sealed` is false. A green exit code is still unverified. A later seal of this JSON is still not a compliance claim. The words compliant, evidenced, and proven need `decide_claim` permitted and a linked `receipt_id` in the same view. v0 does not seal and does not call `decide_claim`. Runtime collectors remain part of the control story.

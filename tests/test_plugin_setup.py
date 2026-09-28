@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -96,6 +97,9 @@ def test_gate_note_uses_pinned_ids_only() -> None:
     assert "PERCH_API_KEY=" not in readme
     assert "AKIA" not in readme
     assert "BEGIN PRIVATE" not in readme
+    assert "~/.pi/agent/skills/<name>/" in readme
+    assert "~/.pi/skills" not in readme
+    assert "--link` always links" in readme
 
 
 def test_platform_paths(tmp_path: Path) -> None:
@@ -112,7 +116,7 @@ def test_platform_paths(tmp_path: Path) -> None:
         ("codex", False): root / ".codex" / "skills",
         ("codex", True): codex / "skills",
         ("pi", False): root / ".pi" / "skills",
-        ("pi", True): home / ".pi" / "skills",
+        ("pi", True): home / ".pi" / "agent" / "skills",
         ("skills", False): root / "skills",
     }
     for (platform, user), path in expected.items():
@@ -299,3 +303,108 @@ def test_index_and_written_files_omit_canary(clean_env: None, tmp_path: Path, mo
         if path.is_file():
             assert b"super-secret-value" not in path.read_bytes()
     assert os.environ["PERCH_API_KEY"] == "super-secret-value"
+
+
+def _checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    repo = tmp_path / "repo"
+    shutil.copytree(_REPO / "plugin", repo / "plugin")
+    monkeypatch.setenv("BEACON_PLUGIN_DIR", str(repo / "plugin"))
+    return repo
+
+
+def _deny_symlinks(monkeypatch: pytest.MonkeyPatch) -> None:
+    def deny(self: Path, target: str | os.PathLike[str], target_is_directory: bool = False) -> None:
+        raise OSError(1, "Operation not permitted")
+
+    monkeypatch.setattr(Path, "symlink_to", deny)
+
+
+def test_install_help_names_pi_user_dir() -> None:
+    runner = CliRunner()
+    help_text = runner.invoke(main, ["plugin", "install", "--help"])
+    assert help_text.exit_code == 0, help_text.output
+    assert "~/.pi/agent/skills" in help_text.output
+    assert "~/.pi/skills" not in help_text.output
+
+
+def test_pi_user_install_writes_agent_skills(clean_env: None, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+    result = install("pi", root=project, user=True, home=home)
+    dest = home.resolve() / ".pi" / "agent" / "skills"
+    assert Path(str(result["dest"])) == dest
+    assert result["mode"] == "copy"
+    assert (dest / "beacon-overview" / "SKILL.md").is_file()
+    assert not (dest / "beacon-overview").is_symlink()
+    assert not (home / ".pi" / "skills").exists()
+
+
+def test_auto_mode_links_inside_checkout(clean_env: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = _checkout(tmp_path, monkeypatch)
+    planned = install("pi", root=repo, dry_run=True)
+    assert planned["mode"] == "link"
+    assert planned["dry_run"] is True
+    assert not (repo / ".pi").exists()
+    assert not any(path.name.startswith(".beacon-symlink-probe-") for path in repo.iterdir())
+    result = install("pi", root=repo)
+    dest = repo / ".pi" / "skills"
+    assert Path(str(result["dest"])) == dest
+    assert result["mode"] == "link"
+    link = dest / "beacon-overview"
+    assert link.is_symlink()
+    plugin = Path(str(result["plugin_root"]))
+    assert link.resolve() == (plugin / "skills" / "beacon-overview").resolve()
+    assert not any(path.name.startswith(".beacon-symlink-probe-") for path in repo.rglob("*") if path.exists())
+
+
+def test_explicit_copy_inside_checkout_stays_copy(clean_env: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = _checkout(tmp_path, monkeypatch)
+    dest = repo / ".claude" / "skills"
+    result = install("claude-code", root=repo, dest=dest, copy=True)
+    assert result["mode"] == "copy"
+    skill = dest / "beacon-overview"
+    assert skill.is_dir()
+    assert not skill.is_symlink()
+    assert (skill / "SKILL.md").is_file()
+
+
+def test_auto_mode_copies_when_symlink_creation_fails(
+    clean_env: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _deny_symlinks(monkeypatch)
+    repo = _checkout(tmp_path, monkeypatch)
+    dest = repo / ".pi" / "skills"
+    planned = install("pi", root=repo, dest=dest, dry_run=True)
+    assert planned["mode"] == "copy"
+    assert planned["dry_run"] is True
+    assert not dest.exists()
+    done = install("pi", root=repo, dest=dest)
+    assert done["mode"] == "copy"
+    skill = dest / "beacon-ci"
+    assert skill.is_dir()
+    assert not skill.is_symlink()
+    assert (skill / "SKILL.md").is_file()
+    assert (dest / "PERCH-GATE.md").is_file()
+    assert not (dest / "PERCH-GATE.md").is_symlink()
+    again = install("pi", root=repo, dest=dest)
+    assert {row["op"] for row in again["actions"]} == {"unchanged"}
+
+
+def test_explicit_link_fails_when_symlink_creation_fails(
+    clean_env: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _deny_symlinks(monkeypatch)
+    repo = _checkout(tmp_path, monkeypatch)
+    dest = repo / ".codex" / "skills"
+    with pytest.raises(BeaconError) as caught:
+        install("codex", root=repo, dest=dest, link=True)
+    assert caught.value.code == E_PLUGIN_SETUP
+    assert "Operation not permitted" in caught.value.message
+    assert not (dest / "beacon-overview").exists()
+
+    outside = tmp_path / "outside"
+    with pytest.raises(BeaconError) as outside_caught:
+        install("pi", root=tmp_path, dest=outside, link=True)
+    assert outside_caught.value.code == E_PLUGIN_SETUP
+    assert not (outside / "beacon-overview").exists()

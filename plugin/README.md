@@ -35,7 +35,7 @@ No secret belongs in this pack. The CI secret name is `PERCH_API_KEY`. Keep that
 
 Run the commands from a Beacon checkout. The command reads this folder. `--root` is the project that receives the skills. The default root is the current directory.
 
-`--dry-run` prints the plan and writes nothing. The command copies files when the destination is outside this repository. It links files when the destination is inside this repository. `--copy` and `--link` select one mode. `--force` replaces a destination whose bytes differ.
+`--dry-run` prints the plan and writes nothing. The command copies files when the destination is outside this repository. It links files when the destination is inside this repository and this host can create a symlink. When that automatic link cannot be created, the command copies the files. `--copy` always copies. `--link` always links and stops when a symlink cannot be created. `--force` replaces a destination whose bytes differ.
 
 ```bash
 uv run beacon plugin install cursor --dry-run
@@ -60,7 +60,7 @@ python -m beacon.plugin_setup codex --dry-run
 | `claude-code` | `.claude/skills/<name>/` | `~/.claude/skills/<name>/` |
 | `claude-cowork` | `.claude/skills/<name>/` | `~/.claude/skills/<name>/` |
 | `codex` | `.codex/skills/<name>/` | `$CODEX_HOME/skills/<name>/` or `~/.codex/skills/<name>/` |
-| `pi` | `.pi/skills/<name>/` | `~/.pi/skills/<name>/` |
+| `pi` | `.pi/skills/<name>/` | `~/.pi/agent/skills/<name>/` |
 | `skills` | `skills/<name>/` | none |
 
 Add `--user` to write the user path. `skills` has no user path. Add `--root <project>` to write into another project. Add `--dest <dir>` to override the skill directory.

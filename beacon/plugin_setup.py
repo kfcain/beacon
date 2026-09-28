@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import tempfile
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -98,7 +99,8 @@ def platform_dest(
             return PlatformDest(_codex_base(home, codex_home) / "skills", "skills", "")
         return PlatformDest(root / ".codex" / "skills", "skills", "")
     if name == "pi":
-        base = home / ".pi" / "skills" if user else root / ".pi" / "skills"
+        # Pi reads user skills from ~/.pi/agent/skills. Project skills stay in .pi/skills.
+        base = home / ".pi" / "agent" / "skills" if user else root / ".pi" / "skills"
         return PlatformDest(base, "skills", "")
     fail(E_PLUGIN_SETUP, f"unknown platform {platform}")
 
@@ -352,9 +354,9 @@ def _make_command(name: str) -> click.Command:
     @click.argument("platform", type=click.Choice(PLATFORMS, case_sensitive=False))
     @click.option("--root", "root", type=click.Path(path_type=Path, file_okay=False), default=None, help="Project that receives the skills. The default is the current directory.")
     @click.option("--dest", "dest", type=click.Path(path_type=Path, file_okay=False), default=None, help="Skill directory. This replaces the platform default.")
-    @click.option("--user", is_flag=True, help="Write under the user home for that platform.")
+    @click.option("--user", is_flag=True, help="Write under the user home for that platform. Pi uses ~/.pi/agent/skills.")
     @click.option("--copy", "copy", is_flag=True, help="Copy files.")
-    @click.option("--link", "link", is_flag=True, help="Symlink to the plugin source.")
+    @click.option("--link", "link", is_flag=True, help="Symlink to the plugin source. Fail when a symlink cannot be created.")
     @click.option("--dry-run", is_flag=True, help="Print the plan. Write nothing.")
     @click.option("--force", is_flag=True, help="Replace a destination that differs.")
     @click.option("--zip-dir", "zip_dir", type=click.Path(path_type=Path, file_okay=False), default=None, help="With claude-cowork, write one zip per skill.")
@@ -446,12 +448,59 @@ def _frontmatter(text: str, skill: str) -> dict[str, str]:
 def _choose_mode(explicit: str | None, dest: Path, plugin_root: Path) -> str:
     if explicit in {"copy", "link"}:
         return explicit
+    if _dest_in_checkout(dest, plugin_root) and _can_create_symlink(dest):
+        return "link"
+    return "copy"
+
+
+def _dest_in_checkout(dest: Path, plugin_root: Path) -> bool:
     repo = plugin_root.parent.resolve()
     try:
         dest.resolve().relative_to(repo)
     except ValueError:
-        return "copy"
-    return "link"
+        return False
+    return True
+
+
+def _can_create_symlink(dest: Path) -> bool:
+    """Return true when this destination can hold a file symlink and a directory symlink.
+
+    The probe directory is removed before this function returns. Explicit ``--link``
+    does not call this function. A failed probe selects copy.
+    """
+    anchor = _symlink_probe_anchor(dest)
+    try:
+        with tempfile.TemporaryDirectory(prefix=".beacon-symlink-probe-", dir=anchor) as folder:
+            root = Path(folder)
+            source_dir = root / "source"
+            source_dir.mkdir()
+            dir_link = root / "dir-link"
+            dir_link.symlink_to(os.path.relpath(source_dir, start=dir_link.parent), target_is_directory=True)
+            source_file = root / "file.txt"
+            source_file.write_bytes(b"x")
+            file_link = root / "file-link"
+            file_link.symlink_to(os.path.relpath(source_file, start=file_link.parent), target_is_directory=False)
+            return (
+                dir_link.is_symlink()
+                and file_link.is_symlink()
+                and dir_link.resolve() == source_dir.resolve()
+                and file_link.resolve() == source_file.resolve()
+            )
+    except (OSError, NotImplementedError):
+        return False
+
+
+def _symlink_probe_anchor(dest: Path) -> Path:
+    """Pick an existing directory on the destination filesystem."""
+    resolved = dest.resolve()
+    current = resolved if resolved.is_dir() else resolved.parent
+    while not current.exists():
+        if current.parent == current:
+            break
+        current = current.parent
+    if not current.is_dir():
+        current = current.parent
+    return current
 
 
 def _reject_source_dest(dest: Path, plugin_root: Path) -> None:

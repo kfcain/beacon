@@ -22,6 +22,7 @@ from beacon.assurance.policy import address_policy
 from beacon.crypto.witness import check_chain, create_checkpoint, load_checkpoints, load_records
 from beacon.errors import BeaconError, E_PERCH, fail
 from beacon.perch_gate import build_mock_receipt, build_receipt, build_scan_receipt
+from beacon.plugin_setup import register_commands
 from beacon.plugins.loader import load_plugins
 from beacon.plugins.spec import CollectContext
 from beacon.scf.engine import collect_all, collect_named, collect_target
@@ -921,6 +922,9 @@ def cmd_pull() -> None:
     except BeaconError as exc:
         _die(exc)
     _emit({"ok": True, **result})
+
+
+register_commands(main)
 
 
 if __name__ == "__main__":

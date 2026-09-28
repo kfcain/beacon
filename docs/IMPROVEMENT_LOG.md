@@ -601,3 +601,16 @@ This entry is not a new assurance-stack cycle. No production AWS apply. No secre
   web table marks a review of an outdated receipt.
 - No objective, control, or compliance claim changed. `supporting_pass` remains
   a supporting result only.
+
+## 2026-09-28 — Skill installer PR #34
+
+PR: https://github.com/kfcain/beacon/pull/34
+
+### What
+
+Codex left two P2 notes on the skill installer.
+
+- `beacon plugin install pi --user` writes `~/.pi/agent/skills`. A project install stays in `.pi/skills`.
+- An automatic install links files inside this checkout when the host can create a symlink. When symlink creation fails, that install copies the files. Explicit `--link` still fails when a symlink cannot be created. Explicit `--copy` still copies.
+
+`beacon perch-receipt --mock` stays unverified. This change does not seal a receipt. No production AWS apply. No secrets.

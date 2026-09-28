@@ -27,7 +27,7 @@ The gate does not merge code, change production, or publish a trust center.
 
 ## Locked decisions (2026-09-27)
 
-1. Ship a skill. Do not add a new bot.
+1. Ship a skill. Do not add a new bot. The pack is `plugin/`. `beacon plugin install cursor|claude-code|claude-cowork|codex|pi` writes it for that assistant.
 2. Keep rule packs in this Beacon repo.
 3. The CI secret name is `PERCH_API_KEY`. The key stays in the TypeSafe console and in Actions secrets.
 

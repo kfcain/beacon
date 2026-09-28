@@ -1,0 +1,19 @@
+{
+  "name": "beacon",
+  "owner": {
+    "name": "Kyle Cain"
+  },
+  "metadata": {
+    "description": "Beacon agent skills for custody, the SCF 2026.3 pin, and the unverified Perch gate."
+  },
+  "plugins": [
+    {
+      "name": "beacon",
+      "source": "plugin",
+      "description": "Eight Beacon skills, the skill index, and the Perch Gate note.",
+      "license": "Apache-2.0",
+      "keywords": ["beacon", "grc", "scf", "custody", "perch"],
+      "category": "skills"
+    }
+  ]
+}

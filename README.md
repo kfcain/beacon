@@ -160,7 +160,17 @@ beacon perch-receipt --mock
 
 The mock command does not call Perch. CI uses the secret `PERCH_API_KEY` and stays off until the repository variable `PERCH_GATE_ON` is true, or until someone runs the workflow by hand. See [perch-gate/README.md](perch-gate/README.md) and [docs/architecture/perch-gate.md](docs/architecture/perch-gate.md).
 
-Agent skills for the Python engine, the SCF pin, custody claims, Perch Gate, and CI are in [skills/README.md](skills/README.md). Cursor loads the same folders through `.cursor/skills/`.
+Agent skills for the Python engine, the SCF pin, custody claims, Perch Gate, and CI are in [plugin/README.md](plugin/README.md). That folder is the skill plugin. `skills/` and `.cursor/skills/` link to it. Install the same pack for Cursor, Claude Code, Claude Cowork, Codex, or pi:
+
+```bash
+uv run beacon plugin install cursor
+uv run beacon plugin install claude-code
+uv run beacon plugin install claude-cowork
+uv run beacon plugin install codex
+uv run beacon plugin install pi
+```
+
+`uv run beacon plugin-setup claude-code --dry-run` prints the plan and writes nothing. `python -m beacon.plugin_setup codex --dry-run` is the same command. The SCF pin is `beacon/scf/catalog/` version 2026.3. The mock gate command is `beacon perch-receipt --mock`. That receipt stays unverified.
 
 ## Drop-in platforms
 

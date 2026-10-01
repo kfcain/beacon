@@ -604,6 +604,8 @@ This entry is not a new assurance-stack cycle. No production AWS apply. No secre
 
 ## 2026-10-01 — Assurance npm audit harden
 
+PR: https://github.com/kfcain/beacon/pull/37
+
 ### Why
 
 The assurance `verify` job runs `npm audit --audit-level=high`.

@@ -601,3 +601,18 @@ This entry is not a new assurance-stack cycle. No production AWS apply. No secre
   web table marks a review of an outdated receipt.
 - No objective, control, or compliance claim changed. `supporting_pass` remains
   a supporting result only.
+
+## 2026-10-01 — Assurance npm audit harden
+
+PR: https://github.com/kfcain/beacon/pull/37
+
+### Why
+
+The assurance `verify` job runs `npm audit --audit-level=high`.
+On main `98bf3de1eba8fbdadc04c6148b89bfffff3e1734` that command fails with current advisory data.
+The high and critical findings are brace-expansion, next 16.3.4 (GHSA-vcvr-r3jv-pc5j), and undici 7.29.0 through miniflare, wrangler, and `@cloudflare/vite-plugin`.
+Dependabot pull requests #35 and #36 only change GitHub Actions pins. Those pins did not add these packages.
+This change pins next 16.3.6, `@cloudflare/vite-plugin` 1.62.1, and wrangler 4.143.1.
+The lockfile also moves brace-expansion to 1.1.21 and 5.0.12, undici to 7.29.1, and fast-uri to 3.1.8.
+Local `npm audit --audit-level=high` in `assurance/` reports 0 vulnerabilities.
+This entry does not change the Python engine. No production AWS apply. No secrets.

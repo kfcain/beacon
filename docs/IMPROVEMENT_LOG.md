@@ -601,3 +601,5 @@ This entry is not a new assurance-stack cycle. No production AWS apply. No secre
   web table marks a review of an outdated receipt.
 - No objective, control, or compliance claim changed. `supporting_pass` remains
   a supporting result only.
+
+- 2026-10-08 — `beacon advisory-ingest` stores an ai-gate-ledger advisory export under `.beacon/evidence/advisory/`. `claim_status` stays unverified. `control_satisfied` and `assurance_claim` stay false.

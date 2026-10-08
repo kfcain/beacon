@@ -1,4 +1,4 @@
-"""Beacon CLI: init, seed, collect, check, scope, ledger, pack, trust, scn, inbox, delivery."""
+"""Beacon CLI: init, seed, collect, check, scope, ledger, pack, trust, scn, inbox, delivery, advisory-ingest."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from beacon.assurance.mapper_ingest import ingest_mapper_file
 from beacon.assurance.delivery import capture_delivery
 from beacon.assurance.policy import address_policy
 from beacon.crypto.witness import check_chain, create_checkpoint, load_checkpoints, load_records
+from beacon.advisory_ingest import ingest_advisory
 from beacon.errors import BeaconError, E_PERCH, fail
 from beacon.perch_gate import build_mock_receipt, build_receipt, build_scan_receipt
 from beacon.plugins.loader import load_plugins
@@ -871,6 +872,49 @@ def cmd_perch_receipt(
     if out is not None:
         out.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
     _emit(receipt)
+
+
+@main.command("advisory-ingest")
+@click.option(
+    "--file",
+    "export_file",
+    required=True,
+    type=click.Path(path_type=Path, exists=True, dir_okay=False),
+    help="ai-gate-ledger beacon-advisory@2 JSON export.",
+)
+@click.option(
+    "--ledger-root",
+    "ledger_root",
+    required=True,
+    type=click.Path(path_type=Path, exists=True, file_okay=False),
+    help="Ledger folder. Receipt paths in the export are rebased onto this directory.",
+)
+@click.option(
+    "--cicd",
+    "cicd_file",
+    default=None,
+    type=click.Path(path_type=Path, exists=True, dir_okay=False),
+    help="Optional cicd-receipt-row@2 JSONL file. Zero rows is valid.",
+)
+@click.option("--dry-run", is_flag=True, help="Print the advisory receipts. Write nothing.")
+def cmd_advisory_ingest(
+    export_file: Path,
+    ledger_root: Path,
+    cicd_file: Path | None,
+    dry_run: bool,
+) -> None:
+    """Ingest model-assisted checks as advisory evidence. The status word is unverified."""
+    try:
+        result = ingest_advisory(
+            _settings(),
+            export_file=export_file,
+            ledger_root=ledger_root,
+            cicd_file=cicd_file,
+            dry_run=dry_run,
+        )
+    except BeaconError as exc:
+        _die(exc)
+    _emit(result)
 
 
 @main.command("mcp")

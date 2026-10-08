@@ -37,6 +37,7 @@ E_TRUST = "E_TRUST"
 E_SCN = "E_SCN"
 E_INBOX = "E_INBOX"
 E_PERCH = "E_PERCH"
+E_ADVISORY = "E_ADVISORY"
 
 
 def fail(code: str, message: str) -> NoReturn:

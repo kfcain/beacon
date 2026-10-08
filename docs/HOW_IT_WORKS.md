@@ -77,6 +77,7 @@ The workspace directory is `.beacon/`. Set `BEACON_HOME` or `BEACON_DATA_DIR` to
 | `.beacon/chain/records.jsonl` | Witness records. |
 | `.beacon/chain/checkpoints.jsonl` | Merkle roots and RFC 3161 tokens. |
 | `.beacon/evidence/` | Sealed observation files. |
+| `.beacon/evidence/advisory/<date>/` | Advisory ingest receipts. The witness record points at these files. |
 | `.beacon/scopes/{scope_id}.json` | Assessment scope document. |
 | `.beacon/export/` | Local packs, 20x drafts, the trust-center tree, and SCN drafts. |
 | `.beacon/ingest/mapper/` | Mapper candidate registrations. A candidate is not a witness seal. |
@@ -101,6 +102,10 @@ The offline control slice for `--target` is IAC-02 and CRY-07 only. The 2026.3 l
 
 Perch Gate is a preventive scan of Terraform. The skill, the rules, and the receipt schema are in [perch-gate/README.md](../perch-gate/README.md). A gate receipt has the status word unverified. `beacon perch-receipt` writes that JSON. It does not append a witness record. Collectors still run after deploy. The charter is [architecture/perch-gate.md](architecture/perch-gate.md).
 
+## Advisory ingest
+
+`beacon advisory-ingest` reads an ai-gate-ledger export (`ai-gate-ledger/beacon-advisory@2`) as advisory evidence. The command runs that ledger's `verify.py`, recomputes receipt and ledger-head digests, and writes one receipt per ledger run under `.beacon/evidence/advisory/<export-date>/`. It then appends one witness record that points at those files. `claim_status` stays unverified. `control_satisfied` and `assurance_claim` stay false. A verdict is `needs_review` or `advisory_observed`. It is not a control result. See [ADVISORY_INGEST.md](ADVISORY_INGEST.md).
+
 ## Read next
 
 This page does not copy those notes.
@@ -110,6 +115,7 @@ This page does not copy those notes.
 - [Evidence lake](architecture/beacon-evidence-lake.md) — local seal, then optional S3 and DynamoDB.
 - [LIMITS.md](../LIMITS.md) — bounds on what a seal, a ledger count, and a lake object mean.
 - [Perch Gate](architecture/perch-gate.md) — preventive Terraform scan and the unverified gate receipt.
+- [Advisory ingest](ADVISORY_INGEST.md) — model-assisted ledger export as advisory evidence.
 - [Agent skills](../skills/README.md) — one skill per job for the Python engine, the pin, claims, the gate, and CI.
 - [SCF catalog pin](SCF_CATALOG.md) — 2026.3 pin files and fail-closed checks.
 - [Storage](STORAGE.md) — object keys and the files that stay local.

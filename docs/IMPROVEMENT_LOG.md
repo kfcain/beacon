@@ -603,4 +603,3 @@ This entry is not a new assurance-stack cycle. No production AWS apply. No secre
   a supporting result only.
 
 - 2026-10-08 — `beacon advisory-ingest` stores an ai-gate-ledger advisory export under `.beacon/evidence/advisory/`. `claim_status` stays unverified. `control_satisfied` and `assurance_claim` stay false.
-- 2026-10-08 — Assurance `npm audit --audit-level=high` is clear. `next` is 16.4.0. Overrides pin `sharp` 0.35.5, `undici` 7.29.1, `source-map-js` 1.2.2, `fast-uri` 3.1.8, and patched `brace-expansion`. `braces` is a depth-limited local build so GHSA-vfj7-8cjw-p6xm cannot exhaust the stack.

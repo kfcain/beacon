@@ -1,0 +1,15 @@
+{
+  "name": "braces",
+  "version": "3.0.4",
+  "description": "Depth-limited build of braces 3.0.3. Nesting above 100 throws RangeError so GHSA-vfj7-8cjw-p6xm cannot exhaust the stack. This is not an upstream release.",
+  "license": "MIT",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "lib",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "fill-range": "^7.1.1"
+  }
+}
